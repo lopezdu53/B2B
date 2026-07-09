@@ -1,5 +1,4 @@
 -- +migrate Up
--- +migrate NoTransaction
 
 -- this is extracted from riverqueue (lookup thir docs)
 
@@ -9,6 +8,7 @@ CREATE TYPE river_job_state AS ENUM(
   'cancelled',
   'completed',
   'discarded',
+  'pending',
   'retryable',
   'running',
   'scheduled'
@@ -124,8 +124,10 @@ ALTER TABLE river_job ALTER COLUMN metadata SET DEFAULT '{}';
 UPDATE river_job SET metadata = '{}' WHERE metadata IS NULL;
 ALTER TABLE river_job ALTER COLUMN metadata SET NOT NULL;
 
--- The 'pending' job state will be used for upcoming functionality:
-ALTER TYPE river_job_state ADD VALUE IF NOT EXISTS 'pending' AFTER 'discarded';
+-- The 'pending' job state (used for upcoming functionality) is declared
+-- directly in the CREATE TYPE above so a fresh database can be migrated in a
+-- single transaction (adding an enum value and using it in the same
+-- transaction is rejected by PostgreSQL).
 
 ALTER TABLE river_job DROP CONSTRAINT finalized_or_finalized_at_null;
 ALTER TABLE river_job ADD CONSTRAINT finalized_or_finalized_at_null CHECK (
