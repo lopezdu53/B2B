@@ -1,0 +1,362 @@
+{{define "b2b.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head"}}
+    <link rel="stylesheet" href="/admin/static/leaflet.css">
+    <title>B2B Mapa - Maps Scraper</title>
+    <style>
+        .b2b-wrap { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; align-items: start; }
+        @media (max-width: 900px) { .b2b-wrap { grid-template-columns: 1fr; } }
+        #map { height: 70vh; min-height: 480px; border-radius: 8px; border: 1px solid #d1d5db; z-index: 0; }
+        .b2b-filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin-bottom: 1rem; }
+        .b2b-filters label { font-size: .8rem; display: block; margin-bottom: .15rem; }
+        .b2b-filters select { min-width: 150px; margin: 0; }
+        .legend { display: flex; flex-wrap: wrap; gap: .75rem; font-size: .82rem; margin: .5rem 0 0; }
+        .legend span { display: inline-flex; align-items: center; gap: .35rem; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.25); }
+        .dot.prospect { background: #2563eb; }
+        .dot.in_progress { background: #f59e0b; }
+        .dot.client { background: #16a34a; }
+        .dot.discarded { background: #9ca3af; }
+        .side-panel .muted { color: #6b7280; }
+        .side-panel h3 { margin: 0 0 .25rem; }
+        .side-panel .field { margin-bottom: .6rem; }
+        .side-panel label { font-size: .8rem; display: block; margin-bottom: .15rem; }
+        .side-panel select, .side-panel textarea { margin: 0; width: 100%; }
+        .biz-meta { font-size: .85rem; line-height: 1.5; }
+        .biz-meta a { word-break: break-all; }
+        .empty-hint { color: #6b7280; font-size: .9rem; }
+        details.mgmt { margin-top: 1rem; }
+        details.mgmt summary { cursor: pointer; font-weight: 600; padding: .5rem 0; }
+        .mgmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 900px) { .mgmt-grid { grid-template-columns: 1fr; } }
+        .mini-form { display: grid; gap: .4rem; grid-template-columns: 1fr 1fr; }
+        .mini-form input, .mini-form select { margin: 0; }
+        .mini-form .full { grid-column: 1 / -1; }
+        .list-table { width: 100%; font-size: .85rem; border-collapse: collapse; margin-top: .5rem; }
+        .list-table th, .list-table td { text-align: left; padding: .35rem .4rem; border-bottom: 1px solid #e5e7eb; }
+        .inline-del { display: inline; }
+        .count-badge { font-size: .75rem; background: #eef2ff; color: #3730a3; padding: .1rem .45rem; border-radius: 999px; }
+    </style>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container" style="max-width: 1200px;">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Prospección B2B</h1>
+            <p>Explora los negocios encontrados en Google Maps, marca cuáles ya son clientes y asigna prospectos a tus asesores por zona.</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card"><div class="label">Negocios</div><div class="value">{{.Summary.Total}}</div></div>
+            <div class="stat-card"><div class="label">Clientes</div><div class="value success">{{.Summary.Clients}}</div></div>
+            <div class="stat-card"><div class="label">Prospectos</div><div class="value">{{.Summary.Prospects}}</div></div>
+            <div class="stat-card"><div class="label">En gestión</div><div class="value warning">{{.Summary.InProgress}}</div></div>
+            <div class="stat-card"><div class="label">Asesores</div><div class="value">{{.Summary.Advisors}}</div></div>
+            <div class="stat-card"><div class="label">Zonas</div><div class="value">{{.Summary.Zones}}</div></div>
+        </div>
+
+        <div class="card">
+            <div class="b2b-filters">
+                <div>
+                    <label for="f-city">Ciudad</label>
+                    <select id="f-city">
+                        <option value="">Todas</option>
+                        {{range .Cities}}<option value="{{.}}">{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="f-status">Estado</label>
+                    <select id="f-status">
+                        <option value="">Todos</option>
+                        <option value="prospect">Prospecto</option>
+                        <option value="in_progress">En gestión</option>
+                        <option value="client">Cliente</option>
+                        <option value="discarded">Descartado</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="f-advisor">Asesor</label>
+                    <select id="f-advisor">
+                        <option value="">Todos</option>
+                        {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <button type="button" class="btn-primary" id="btn-apply">Aplicar filtros</button>
+                </div>
+                <div id="loading-hint" class="empty-hint" style="align-self:center;"></div>
+            </div>
+
+            <div class="b2b-wrap">
+                <div>
+                    <div id="map"></div>
+                    <div class="legend">
+                        <span><i class="dot prospect"></i> Prospecto</span>
+                        <span><i class="dot in_progress"></i> En gestión</span>
+                        <span><i class="dot client"></i> Cliente</span>
+                        <span><i class="dot discarded"></i> Descartado</span>
+                    </div>
+                </div>
+
+                <div class="card side-panel" id="side-panel">
+                    <p class="empty-hint" id="side-empty">Haz clic en un negocio del mapa para ver sus datos y marcarlo como cliente o asignarlo a un asesor.</p>
+
+                    <div id="side-content" style="display:none;">
+                        <h3 id="biz-title"></h3>
+                        <div class="biz-meta" id="biz-meta"></div>
+                        <hr>
+                        <div class="field">
+                            <label for="biz-status">Estado</label>
+                            <select id="biz-status">
+                                <option value="prospect">Prospecto</option>
+                                <option value="in_progress">En gestión</option>
+                                <option value="client">Cliente</option>
+                                <option value="discarded">Descartado</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="biz-advisor">Asesor asignado</label>
+                            <select id="biz-advisor">
+                                <option value="">— Sin asignar —</option>
+                                {{range .Advisors}}<option value="{{.ID}}">{{.Name}}{{if .City}} ({{.City}}){{end}}</option>{{end}}
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="biz-zone">Zona</label>
+                            <select id="biz-zone">
+                                <option value="">— Sin zona —</option>
+                                {{range .Zones}}<option value="{{.ID}}">{{.Name}} · {{.City}}</option>{{end}}
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="biz-notes">Notas</label>
+                            <textarea id="biz-notes" rows="3" placeholder="Contacto, siguiente paso, etc."></textarea>
+                        </div>
+                        <button type="button" class="btn-primary" id="biz-save">Guardar</button>
+                        <span id="biz-save-hint" class="empty-hint"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <details class="mgmt" {{if not .Advisors}}open{{end}}>
+            <summary>Asesores y zonas <span class="count-badge">{{len .Advisors}} asesores · {{len .Zones}} zonas</span></summary>
+            <div class="mgmt-grid">
+                <div class="card">
+                    <div class="card-header"><h2>Asesores comerciales</h2></div>
+                    <form method="POST" action="/admin/b2b/advisors" class="mini-form">
+                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                        <input type="text" name="name" placeholder="Nombre *" required>
+                        <input type="text" name="city" placeholder="Ciudad">
+                        <input type="email" name="email" placeholder="Email">
+                        <input type="text" name="phone" placeholder="Teléfono">
+                        <button type="submit" class="btn-primary full">Agregar asesor</button>
+                    </form>
+                    {{if .Advisors}}
+                    <table class="list-table">
+                        <thead><tr><th>Nombre</th><th>Ciudad</th><th>Contacto</th><th></th></tr></thead>
+                        <tbody>
+                        {{range .Advisors}}
+                            <tr>
+                                <td>{{.Name}}</td>
+                                <td>{{.City}}</td>
+                                <td>{{.Email}}{{if .Phone}}<br>{{.Phone}}{{end}}</td>
+                                <td>
+                                    <form method="POST" action="/admin/b2b/advisors/{{.ID}}/delete" class="inline-del" onsubmit="return confirm('¿Eliminar asesor?');">
+                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                        <button type="submit" class="btn-link">Eliminar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                    {{else}}
+                    <p class="empty-hint">Aún no hay asesores. Agrega tus comerciales para poder asignarles prospectos.</p>
+                    {{end}}
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Zonas por ciudad</h2></div>
+                    <form method="POST" action="/admin/b2b/zones" class="mini-form">
+                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                        <input type="text" name="name" placeholder="Nombre de la zona *" required>
+                        <input type="text" name="city" placeholder="Ciudad *" required>
+                        <select name="advisor_id">
+                            <option value="">Asesor (opcional)</option>
+                            {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                        </select>
+                        <input type="color" name="color" value="#2563eb" title="Color de la zona">
+                        <button type="submit" class="btn-primary full">Agregar zona</button>
+                    </form>
+                    {{if .Zones}}
+                    <table class="list-table">
+                        <thead><tr><th>Zona</th><th>Ciudad</th><th></th></tr></thead>
+                        <tbody>
+                        {{range .Zones}}
+                            <tr>
+                                <td><span class="dot" style="background: {{.Color}};"></span> {{.Name}}</td>
+                                <td>{{.City}}</td>
+                                <td>
+                                    <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" class="inline-del" onsubmit="return confirm('¿Eliminar zona?');">
+                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                        <button type="submit" class="btn-link">Eliminar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                    {{else}}
+                    <p class="empty-hint">Crea zonas (ciudad + área) para repartir a tus 50 asesores por el país.</p>
+                    {{end}}
+                </div>
+            </div>
+        </details>
+    </main>
+
+    <script src="/admin/static/leaflet.js"></script>
+    <script>
+    (function () {
+        const CSRF = "{{.CSRFToken}}";
+        const STATUS_COLORS = {
+            prospect: "#2563eb",
+            in_progress: "#f59e0b",
+            client: "#16a34a",
+            discarded: "#9ca3af"
+        };
+        const STATUS_LABELS = {
+            prospect: "Prospecto",
+            in_progress: "En gestión",
+            client: "Cliente",
+            discarded: "Descartado"
+        };
+
+        // Colombia default view.
+        const map = L.map("map").setView([4.5709, -74.2973], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap"
+        }).addTo(map);
+
+        const markersLayer = L.layerGroup().addTo(map);
+        let selected = null; // { biz, marker }
+
+        function escapeHtml(s) {
+            return (s || "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
+        function markerStyle(status) {
+            return {
+                radius: 7,
+                fillColor: STATUS_COLORS[status] || STATUS_COLORS.prospect,
+                color: "#111827",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.85
+            };
+        }
+
+        function renderSidePanel(biz, marker) {
+            selected = { biz: biz, marker: marker };
+            document.getElementById("side-empty").style.display = "none";
+            document.getElementById("side-content").style.display = "block";
+            document.getElementById("biz-title").textContent = biz.title || "(sin nombre)";
+
+            const meta = [];
+            if (biz.category) meta.push("<div>" + escapeHtml(biz.category) + "</div>");
+            if (biz.address) meta.push("<div>" + escapeHtml(biz.address) + "</div>");
+            if (biz.phone) meta.push("<div>📞 " + escapeHtml(biz.phone) + "</div>");
+            if (biz.website) meta.push('<div>🌐 <a href="' + escapeHtml(biz.website) + '" target="_blank" rel="noopener">' + escapeHtml(biz.website) + "</a></div>");
+            document.getElementById("biz-meta").innerHTML = meta.join("");
+
+            document.getElementById("biz-status").value = biz.status || "prospect";
+            document.getElementById("biz-advisor").value = biz.advisor_id ? String(biz.advisor_id) : "";
+            document.getElementById("biz-zone").value = biz.zone_id ? String(biz.zone_id) : "";
+            document.getElementById("biz-notes").value = biz.notes || "";
+            document.getElementById("biz-save-hint").textContent = "";
+        }
+
+        function addBusiness(biz) {
+            const marker = L.circleMarker([biz.lat, biz.lng], markerStyle(biz.status));
+            marker.bindTooltip(escapeHtml(biz.title || "(sin nombre)"));
+            marker.on("click", () => renderSidePanel(biz, marker));
+            marker.addTo(markersLayer);
+            return marker;
+        }
+
+        function loadBusinesses() {
+            const hint = document.getElementById("loading-hint");
+            hint.textContent = "Cargando…";
+            const params = new URLSearchParams({
+                city: document.getElementById("f-city").value,
+                status: document.getElementById("f-status").value,
+                advisor: document.getElementById("f-advisor").value
+            });
+            fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
+                .then(r => r.json())
+                .then(list => {
+                    markersLayer.clearLayers();
+                    const bounds = [];
+                    list.forEach(biz => {
+                        addBusiness(biz);
+                        bounds.push([biz.lat, biz.lng]);
+                    });
+                    hint.textContent = list.length + " negocios";
+                    if (bounds.length > 0) {
+                        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+                    }
+                })
+                .catch(() => { hint.textContent = "Error cargando negocios"; });
+        }
+
+        function saveSelected() {
+            if (!selected) return;
+            const hint = document.getElementById("biz-save-hint");
+            hint.textContent = "Guardando…";
+            const advisorVal = document.getElementById("biz-advisor").value;
+            const zoneVal = document.getElementById("biz-zone").value;
+            const payload = {
+                key: selected.biz.key,
+                status: document.getElementById("biz-status").value,
+                advisor_id: advisorVal ? parseInt(advisorVal, 10) : null,
+                zone_id: zoneVal ? parseInt(zoneVal, 10) : null,
+                notes: document.getElementById("biz-notes").value,
+                title: selected.biz.title
+            };
+            fetch("/admin/b2b/business", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF },
+                body: JSON.stringify(payload)
+            })
+                .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                .then(() => {
+                    // Reflect changes locally without a full reload.
+                    selected.biz.status = payload.status;
+                    selected.biz.advisor_id = payload.advisor_id;
+                    selected.biz.zone_id = payload.zone_id;
+                    selected.biz.notes = payload.notes;
+                    selected.marker.setStyle(markerStyle(payload.status));
+                    hint.textContent = "✓ Guardado como " + (STATUS_LABELS[payload.status] || payload.status);
+                })
+                .catch(() => { hint.textContent = "Error al guardar"; });
+        }
+
+        document.getElementById("btn-apply").addEventListener("click", loadBusinesses);
+        document.getElementById("biz-save").addEventListener("click", saveSelected);
+
+        loadBusinesses();
+    })();
+    </script>
+</body>
+</html>
+{{end}}

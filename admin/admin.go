@@ -29,6 +29,9 @@ var (
 )
 
 type IStore interface {
+	// B2B CRM (advisors, zones, business overlay)
+	IB2BStore
+
 	// Config
 	GetConfig(ctx context.Context, key string) (*AppConfig, error)
 	SetConfig(ctx context.Context, cfg *AppConfig, encrypt bool) error

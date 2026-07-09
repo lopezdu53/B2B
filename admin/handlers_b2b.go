@@ -1,0 +1,267 @@
+package admin
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/gosom/google-maps-scraper/log"
+)
+
+// B2BPageHandler renders the B2B map dashboard shell (advisors, zones, filters).
+// The businesses themselves are loaded asynchronously via B2BBusinessesHandler.
+func B2BPageHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		ctx := r.Context()
+
+		advisors, err := appState.Store.ListAdvisors(ctx)
+		if err != nil {
+			log.Error("b2b: list advisors", "error", err)
+		}
+
+		zones, err := appState.Store.ListZones(ctx)
+		if err != nil {
+			log.Error("b2b: list zones", "error", err)
+		}
+
+		cities, err := appState.Store.ListBusinessCities(ctx)
+		if err != nil {
+			log.Error("b2b: list cities", "error", err)
+		}
+
+		summary, err := appState.Store.B2BSummary(ctx)
+		if err != nil {
+			log.Error("b2b: summary", "error", err)
+			summary = &B2BSummary{}
+		}
+
+		data := map[string]any{
+			"Advisors": advisors,
+			"Zones":    zones,
+			"Cities":   cities,
+			"Summary":  summary,
+			"Success":  r.URL.Query().Get("success"),
+			"Error":    r.URL.Query().Get("error"),
+		}
+
+		renderTemplate(appState, w, r, "b2b.html", data)
+	}
+}
+
+// B2BBusinessesHandler returns scraped businesses (with CRM overlay) as JSON,
+// filtered by the query parameters city / status / advisor.
+func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		f := BusinessFilter{
+			City:   r.URL.Query().Get("city"),
+			Status: r.URL.Query().Get("status"),
+		}
+
+		if a := strings.TrimSpace(r.URL.Query().Get("advisor")); a != "" {
+			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
+				f.AdvisorID = &id
+			}
+		}
+
+		businesses, err := appState.Store.ListBusinesses(r.Context(), f)
+		if err != nil {
+			log.Error("b2b: list businesses", "error", err)
+			http.Error(w, "failed to load businesses", http.StatusInternalServerError)
+
+			return
+		}
+
+		if businesses == nil {
+			businesses = []MapBusiness{}
+		}
+
+		writeJSON(w, http.StatusOK, businesses)
+	}
+}
+
+// b2bStatusRequest is the JSON payload for updating a business CRM overlay.
+type b2bStatusRequest struct {
+	Key       string `json:"key"`
+	Status    string `json:"status"`
+	AdvisorID *int64 `json:"advisor_id"`
+	ZoneID    *int64 `json:"zone_id"`
+	Notes     string `json:"notes"`
+	Title     string `json:"title"`
+}
+
+// B2BSetStatusHandler upserts the CRM overlay for a single business.
+func B2BSetStatusHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var req b2bStatusRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+
+		req.Key = strings.TrimSpace(req.Key)
+		if req.Key == "" {
+			http.Error(w, "missing business key", http.StatusBadRequest)
+			return
+		}
+
+		if req.Status == "" {
+			req.Status = StatusProspect
+		}
+
+		if !ValidBusinessStatus(req.Status) {
+			http.Error(w, "invalid status", http.StatusBadRequest)
+			return
+		}
+
+		if err := appState.Store.SetBusinessCRM(
+			r.Context(), req.Key, req.Status, req.AdvisorID, req.ZoneID, req.Notes, req.Title,
+		); err != nil {
+			log.Error("b2b: set business crm", "error", err, "key", req.Key)
+			http.Error(w, "failed to save", http.StatusInternalServerError)
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": req.Status})
+	}
+}
+
+// CreateAdvisorHandler handles the advisor creation form.
+func CreateAdvisorHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		name := strings.TrimSpace(r.FormValue("name"))
+		if name == "" {
+			http.Redirect(w, r, "/admin/b2b?error=El+nombre+del+asesor+es+obligatorio", http.StatusSeeOther)
+			return
+		}
+
+		_, err := appState.Store.CreateAdvisor(
+			r.Context(), name,
+			strings.TrimSpace(r.FormValue("email")),
+			strings.TrimSpace(r.FormValue("phone")),
+			strings.TrimSpace(r.FormValue("city")),
+		)
+		if err != nil {
+			log.Error("b2b: create advisor", "error", err)
+			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+crear+el+asesor", http.StatusSeeOther)
+
+			return
+		}
+
+		http.Redirect(w, r, "/admin/b2b?success=Asesor+creado", http.StatusSeeOther)
+	}
+}
+
+// DeleteAdvisorHandler removes an advisor.
+func DeleteAdvisorHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			http.Redirect(w, r, "/admin/b2b?error=ID+invalido", http.StatusSeeOther)
+			return
+		}
+
+		if err := appState.Store.DeleteAdvisor(r.Context(), id); err != nil {
+			log.Error("b2b: delete advisor", "error", err, "id", id)
+			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+eliminar+el+asesor", http.StatusSeeOther)
+
+			return
+		}
+
+		http.Redirect(w, r, "/admin/b2b?success=Asesor+eliminado", http.StatusSeeOther)
+	}
+}
+
+// CreateZoneHandler handles the zone creation form.
+func CreateZoneHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		name := strings.TrimSpace(r.FormValue("name"))
+		city := strings.TrimSpace(r.FormValue("city"))
+
+		if name == "" || city == "" {
+			http.Redirect(w, r, "/admin/b2b?error=Nombre+y+ciudad+de+la+zona+son+obligatorios", http.StatusSeeOther)
+			return
+		}
+
+		var advisorID *int64
+		if a := strings.TrimSpace(r.FormValue("advisor_id")); a != "" {
+			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
+				advisorID = &id
+			}
+		}
+
+		if _, err := appState.Store.CreateZone(r.Context(), name, city, advisorID, strings.TrimSpace(r.FormValue("color"))); err != nil {
+			log.Error("b2b: create zone", "error", err)
+			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+crear+la+zona", http.StatusSeeOther)
+
+			return
+		}
+
+		http.Redirect(w, r, "/admin/b2b?success=Zona+creada", http.StatusSeeOther)
+	}
+}
+
+// DeleteZoneHandler removes a zone.
+func DeleteZoneHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			http.Redirect(w, r, "/admin/b2b?error=ID+invalido", http.StatusSeeOther)
+			return
+		}
+
+		if err := appState.Store.DeleteZone(r.Context(), id); err != nil {
+			log.Error("b2b: delete zone", "error", err, "id", id)
+			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+eliminar+la+zona", http.StatusSeeOther)
+
+			return
+		}
+
+		http.Redirect(w, r, "/admin/b2b?success=Zona+eliminada", http.StatusSeeOther)
+	}
+}
+
+// writeJSON is a small helper to emit a JSON response.
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}

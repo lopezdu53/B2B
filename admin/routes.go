@@ -32,6 +32,16 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 			r.Use(SessionAuth(appState.Store, appState.CookieName))
 
 			r.Get("/", DashboardHandler(appState))
+
+			// B2B map dashboard (prospecting / CRM)
+			r.Get("/b2b", B2BPageHandler(appState))
+			r.Get("/b2b/businesses", B2BBusinessesHandler(appState))
+			r.Post("/b2b/business", B2BSetStatusHandler(appState))
+			r.Post("/b2b/advisors", CreateAdvisorHandler(appState))
+			r.Post("/b2b/advisors/{id}/delete", DeleteAdvisorHandler(appState))
+			r.Post("/b2b/zones", CreateZoneHandler(appState))
+			r.Post("/b2b/zones/{id}/delete", DeleteZoneHandler(appState))
+
 			r.Get("/settings", SettingsPageHandler(appState))
 			r.Post("/settings/password", ChangePasswordHandler(appState))
 			r.Get("/2fa/prompt", TwoFactorPromptPageHandler(appState))
