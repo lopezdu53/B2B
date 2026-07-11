@@ -14,6 +14,21 @@
         .search-form label { font-size: .8rem; margin-bottom: .15rem; }
         .search-form input, .search-form select { margin: 0; }
         .search-form input[type=text] { min-width: 220px; }
+        .job-row { padding: .55rem .7rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: .5rem; }
+        .job-top { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .88rem; }
+        .job-kw { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .job-badge { font-size: .72rem; padding: .12rem .5rem; border-radius: 999px; white-space: nowrap; }
+        .job-badge.pending { background:#eef2ff; color:#3730a3; }
+        .job-badge.running { background:#fef3c7; color:#92400e; }
+        .job-badge.completed { background:#dcfce7; color:#166534; }
+        .job-badge.failed { background:#fee2e2; color:#991b1b; }
+        .job-bar { height: 6px; border-radius: 4px; background:#e5e7eb; overflow:hidden; margin-top:.45rem; }
+        .job-bar > span { display:block; height:100%; border-radius:4px; }
+        .job-bar.done > span { width:100%; background:#16a34a; }
+        .job-bar.err > span { width:100%; background:#dc2626; }
+        .job-bar.active > span { width:40%; background:#f59e0b; animation: job-indet 1.1s ease-in-out infinite; }
+        @keyframes job-indet { 0%{margin-left:-40%;} 100%{margin-left:100%;} }
+        .job-count { font-size:.8rem; color:#6b7280; margin-top:.3rem; }
         .b2b-filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin-bottom: 1rem; }
         .b2b-filters label { font-size: .8rem; display: block; margin-bottom: .15rem; }
         .b2b-filters select { min-width: 150px; margin: 0; }
@@ -95,6 +110,11 @@
                     <button type="submit" class="btn-primary">Buscar</button>
                 </div>
             </form>
+
+            <div id="jobs-panel" style="display:none; margin-top:1rem;">
+                <h3 style="margin:0 0 .5rem; font-size:1rem;">Búsquedas recientes</h3>
+                <div id="jobs-list"></div>
+            </div>
         </div>
 
         <div class="card">
@@ -390,7 +410,66 @@
         document.getElementById("btn-apply").addEventListener("click", loadBusinesses);
         document.getElementById("biz-save").addEventListener("click", saveSelected);
 
+        // --- Live progress of scrape searches ---
+        const JOB_LABELS = { pending: "En cola", running: "Procesando", completed: "Completado", failed: "Error" };
+        let jobsTimer = null;
+        let lastActiveCount = 0;
+
+        function renderJobs(jobs) {
+            const panel = document.getElementById("jobs-panel");
+            const list = document.getElementById("jobs-list");
+
+            if (!jobs || jobs.length === 0) { panel.style.display = "none"; return; }
+            panel.style.display = "block";
+
+            list.innerHTML = jobs.map(j => {
+                const st = j.status || "pending";
+                const label = JOB_LABELS[st] || st;
+                let barClass = "active", countHtml = "";
+                if (st === "completed") {
+                    barClass = "done";
+                    countHtml = '<div class="job-count">✓ ' + j.result_count + ' negocios encontrados</div>';
+                } else if (st === "failed") {
+                    barClass = "err";
+                    countHtml = '<div class="job-count">' + escapeHtml(j.error || "Falló la búsqueda") + '</div>';
+                } else if (st === "running") {
+                    countHtml = '<div class="job-count">Extrayendo de Google Maps…' +
+                        (j.result_count ? ' ' + j.result_count + ' hasta ahora' : '') + '</div>';
+                } else {
+                    countHtml = '<div class="job-count">Esperando un worker disponible…</div>';
+                }
+                return '<div class="job-row">' +
+                    '<div class="job-top"><span class="job-kw">' + escapeHtml(j.keyword || "(búsqueda)") + '</span>' +
+                    '<span class="job-badge ' + st + '">' + label + '</span></div>' +
+                    '<div class="job-bar ' + barClass + '"><span></span></div>' +
+                    countHtml + '</div>';
+            }).join("");
+        }
+
+        function pollJobs() {
+            fetch("/admin/b2b/jobs", { credentials: "same-origin" })
+                .then(r => r.json())
+                .then(jobs => {
+                    renderJobs(jobs);
+                    const active = jobs.filter(j => j.status === "pending" || j.status === "running").length;
+                    // A job just finished → refresh the map markers.
+                    if (active < lastActiveCount) {
+                        loadBusinesses();
+                    }
+                    lastActiveCount = active;
+                    // Poll faster while work is in progress, slower when idle.
+                    clearTimeout(jobsTimer);
+                    if (active > 0) {
+                        jobsTimer = setTimeout(pollJobs, 3000);
+                    } else if (jobs.length > 0) {
+                        jobsTimer = setTimeout(pollJobs, 15000);
+                    }
+                })
+                .catch(() => { jobsTimer = setTimeout(pollJobs, 8000); });
+        }
+
         loadBusinesses();
+        pollJobs();
     })();
     </script>
 </body>

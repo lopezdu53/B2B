@@ -94,6 +94,52 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
+// b2bJobView is the compact job status returned to the dashboard for live
+// progress of scrape searches.
+type b2bJobView struct {
+	JobID       string `json:"job_id"`
+	Keyword     string `json:"keyword"`
+	Status      string `json:"status"`
+	ResultCount int    `json:"result_count"`
+	Error       string `json:"error"`
+}
+
+// B2BJobsHandler returns the most recent scrape jobs as JSON so the dashboard
+// can show live progress of running searches.
+func B2BJobsHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		out := []b2bJobView{}
+
+		if appState.RQueueClient != nil {
+			result, err := appState.RQueueClient.ListJobs(r.Context(), "", 8, "")
+			if err != nil {
+				log.Error("b2b: list jobs", "error", err)
+				http.Error(w, "failed to list jobs", http.StatusInternalServerError)
+
+				return
+			}
+
+			for i := range result.Jobs {
+				j := &result.Jobs[i]
+				out = append(out, b2bJobView{
+					JobID:       j.JobID,
+					Keyword:     j.Keyword,
+					Status:      j.Status,
+					ResultCount: j.ResultCount,
+					Error:       j.Error,
+				})
+			}
+		}
+
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
 // b2bStatusRequest is the JSON payload for updating a business CRM overlay.
 type b2bStatusRequest struct {
 	Key       string `json:"key"`
