@@ -19,6 +19,7 @@ import (
 	"github.com/gosom/google-maps-scraper/env"
 	"github.com/gosom/google-maps-scraper/httpext"
 	"github.com/gosom/google-maps-scraper/log"
+	"github.com/gosom/google-maps-scraper/migrations"
 	"github.com/gosom/google-maps-scraper/postgres"
 	ratelimitpostgres "github.com/gosom/google-maps-scraper/ratelimit/postgres"
 	"github.com/gosom/google-maps-scraper/rqueue"
@@ -75,6 +76,18 @@ var Command = &cli.Command{
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		addr := cmd.String("addr")
 		dsn := cmd.String("database-url")
+
+		// Apply pending migrations on startup so the server is self-sufficient
+		// in container/PaaS deployments (Docker, Easypanel, k8s) where there is
+		// no separate migration step. Migrations are idempotent.
+		log.Info("applying database migrations")
+
+		n, err := migrations.RunWithDSN(dsn)
+		if err != nil {
+			return fmt.Errorf("failed to apply database migrations: %w", err)
+		}
+
+		log.Info("database migrations applied", "count", n)
 
 		// Connect to database
 		dbPool, err := postgres.Connect(ctx, dsn,
