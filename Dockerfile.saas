@@ -54,6 +54,11 @@ COPY --from=builder /gmapssaas /app/gmapssaas
 # Copy migrations (needed for server mode)
 COPY --from=builder /app/migrations /app/migrations
 
+# Playwright retired the legacy playwright.azureedge.net CDN (now 404), which
+# broke the runtime driver/browser download. Point the downloads at the current
+# CDN. This covers both the playwright-go driver and the Chromium browser.
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.playwright.dev/dbazure/download/playwright
+
 EXPOSE 8080
 
 # Default to serve mode, can be overridden with "worker" argument
