@@ -16,15 +16,41 @@ COPY . .
 # Build the gmapssaas binary (stripped and optimized)
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /gmapssaas ./cmd/gmapssaas
 
-# Final stage - Debian slim with Playwright Chromium dependencies
+# Playwright stage - assemble the playwright-go driver from the official npm
+# package and download Chromium with the official client.
+#
+# Why: the pinned playwright-go (v0.5700.1, CLI 1.57.0) downloads its driver
+# from the retired playwright.azureedge.net CDN, which now returns 404/400. The
+# npm "playwright" package IS that driver's runtime, so we assemble the driver
+# directory from npm (no dead CDN) and let the official Node client fetch the
+# browser (it uses the current mirrors with proper fallback). Everything is
+# baked into the image so the worker never downloads anything at runtime.
+FROM node:20-bookworm-slim AS playwright
+
+# Must match playwright-go's pinned CLI version (playwrightCliVersion).
+ENV PW_VERSION=1.57.0
+ENV PW_DRIVER_DIR=/opt/ms-playwright-go/1.57.0
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
+
+WORKDIR /pw
+RUN npm install playwright@${PW_VERSION} --no-audit --no-fund \
+    # Lay the driver out exactly how playwright-go expects it:
+    #   $PW_DRIVER_DIR/package/cli.js  and  a resolvable playwright-core.
+    && mkdir -p "${PW_DRIVER_DIR}/package/node_modules" \
+    && cp -r node_modules/playwright/. "${PW_DRIVER_DIR}/package/" \
+    && cp -r node_modules/playwright-core "${PW_DRIVER_DIR}/package/node_modules/playwright-core" \
+    # Sanity check + download Chromium via the official multi-mirror client.
+    && node "${PW_DRIVER_DIR}/package/cli.js" --version \
+    && node "${PW_DRIVER_DIR}/package/cli.js" install chromium
+
+# Final stage - Debian slim with Playwright Chromium dependencies + Node runtime
 FROM debian:bookworm-slim
 LABEL org.opencontainers.image.source=https://github.com/gosom/google-maps-scraper
 
 WORKDIR /app
 
-# Install Playwright dependencies for Chromium only + cleanup in same layer
-# These are the system libraries that Playwright's Chromium needs to run
-# The browser itself is downloaded at runtime by playwright-go
+# System libraries that Playwright's Chromium needs to run, plus the Node.js
+# runtime used to drive it. Cleanup in the same layer to keep the image small.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -42,22 +68,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrandr2 \
     libgbm1 \
     libasound2 \
+    libatspi2.0-0 \
+    libx11-6 \
+    libxext6 \
     libpango-1.0-0 \
     libcairo2 \
     fonts-liberation \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
     && rm -rf /usr/share/doc /usr/share/man /usr/share/locale
+
+# Point playwright-go at the baked driver, Node runtime and browsers so it never
+# hits the network at runtime.
+ENV PLAYWRIGHT_DRIVER_PATH=/opt/ms-playwright-go/1.57.0
+ENV PLAYWRIGHT_NODEJS_PATH=/usr/bin/node
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
+
+# Copy the assembled driver and the downloaded browser.
+COPY --from=playwright /opt/ms-playwright-go /opt/ms-playwright-go
+COPY --from=playwright /opt/browsers /opt/browsers
 
 # Copy binary from builder
 COPY --from=builder /gmapssaas /app/gmapssaas
 
 # Copy migrations (needed for server mode)
 COPY --from=builder /app/migrations /app/migrations
-
-# Playwright retired the legacy playwright.azureedge.net CDN (now 404), which
-# broke the runtime driver/browser download. Point the downloads at the current
-# CDN. This covers both the playwright-go driver and the Chromium browser.
-ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.playwright.dev/dbazure/download/playwright
 
 EXPOSE 8080
 
