@@ -9,6 +9,11 @@
         .b2b-wrap { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; align-items: start; }
         @media (max-width: 900px) { .b2b-wrap { grid-template-columns: 1fr; } }
         #map { height: 70vh; min-height: 480px; border-radius: 8px; border: 1px solid #d1d5db; z-index: 0; }
+        .search-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
+        .search-form > div { display: flex; flex-direction: column; }
+        .search-form label { font-size: .8rem; margin-bottom: .15rem; }
+        .search-form input, .search-form select { margin: 0; }
+        .search-form input[type=text] { min-width: 220px; }
         .b2b-filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin-bottom: 1rem; }
         .b2b-filters label { font-size: .8rem; display: block; margin-bottom: .15rem; }
         .b2b-filters select { min-width: 150px; margin: 0; }
@@ -59,6 +64,37 @@
             <div class="stat-card"><div class="label">En gestión</div><div class="value warning">{{.Summary.InProgress}}</div></div>
             <div class="stat-card"><div class="label">Asesores</div><div class="value">{{.Summary.Advisors}}</div></div>
             <div class="stat-card"><div class="label">Zonas</div><div class="value">{{.Summary.Zones}}</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2>Buscar negocios en Google Maps</h2></div>
+            <p class="empty-hint" style="margin-top:0;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
+            <form method="POST" action="/admin/b2b/search" class="search-form">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div>
+                    <label for="s-what">Qué buscar</label>
+                    <input type="text" id="s-what" name="what" placeholder="restaurantes, hoteles, supermercados…" required>
+                </div>
+                <div>
+                    <label for="s-where">Zona o ciudad</label>
+                    <input type="text" id="s-where" name="where" placeholder="Usaquén, Bogotá" list="zone-list">
+                    <datalist id="zone-list">
+                        {{range .Zones}}<option value="{{.Name}}, {{.City}}"></option>{{end}}
+                        {{range .Cities}}<option value="{{.}}"></option>{{end}}
+                    </datalist>
+                </div>
+                <div>
+                    <label for="s-depth">Cantidad</label>
+                    <select id="s-depth" name="max_depth">
+                        <option value="5">Rápida (~pocos)</option>
+                        <option value="10" selected>Normal</option>
+                        <option value="20">Amplia (~muchos)</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn-primary">Buscar</button>
+                </div>
+            </form>
         </div>
 
         <div class="card">

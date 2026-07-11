@@ -3,12 +3,14 @@ package admin
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/gosom/google-maps-scraper/log"
+	"github.com/gosom/google-maps-scraper/rqueue"
 )
 
 // B2BPageHandler renders the B2B map dashboard shell (advisors, zones, filters).
@@ -141,6 +143,57 @@ func B2BSetStatusHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": req.Status})
+	}
+}
+
+// B2BSearchHandler enqueues a Google Maps scrape job from the dashboard, so a
+// non-technical user can launch a search ("restaurantes en Usaquén, Bogotá")
+// with one click instead of calling the REST API. A running worker is required
+// to actually process the queued job.
+func B2BSearchHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		if appState.RQueueClient == nil {
+			http.Redirect(w, r, "/admin/b2b?error=La+cola+de+trabajos+no+esta+disponible", http.StatusSeeOther)
+			return
+		}
+
+		what := strings.TrimSpace(r.FormValue("what"))
+		where := strings.TrimSpace(r.FormValue("where"))
+
+		if what == "" {
+			http.Redirect(w, r, "/admin/b2b?error=Escribe+que+buscar+(ej.+restaurantes)", http.StatusSeeOther)
+			return
+		}
+
+		keyword := what
+		if where != "" {
+			keyword = what + " en " + where
+		}
+
+		maxDepth := 10
+		if d, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_depth"))); err == nil && d > 0 {
+			maxDepth = d
+		}
+
+		jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
+			Keyword:  keyword,
+			Lang:     "es",
+			MaxDepth: maxDepth,
+		})
+		if err != nil {
+			log.Error("b2b: enqueue search", "error", err, "keyword", keyword)
+			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+encolar+la+busqueda", http.StatusSeeOther)
+
+			return
+		}
+
+		msg := url.QueryEscape("Búsqueda encolada: \"" + keyword + "\" (job " + jobID + "). Necesitas un worker activo para procesarla; los negocios aparecerán en el mapa al terminar.")
+		http.Redirect(w, r, "/admin/b2b?success="+msg, http.StatusSeeOther)
 	}
 }
 
