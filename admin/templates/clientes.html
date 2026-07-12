@@ -1,0 +1,72 @@
+{{define "clientes.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <title>Clientes - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Clientes</h1>
+            <p>Empresas que usan la plataforma. Cada cliente tiene su propio administrador, sus asesores, zonas y CRM aislados.</p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🏙️</span> Nuevo cliente</h2>
+            <p class="empty-hint" style="margin:.1rem 0 1rem; color:var(--text-secondary); font-size:.9rem;">Crea la empresa y su primer usuario administrador (con acceso a su propio panel).</p>
+            <form method="POST" action="/admin/clientes" class="filters-bar">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div><label>Empresa *</label><input type="text" name="name" placeholder="Nombre del cliente" required></div>
+                <div><label>Usuario admin *</label><input type="text" name="username" placeholder="usuario" required autocomplete="off"></div>
+                <div><label>Contraseña *</label><input type="text" name="password" placeholder="contraseña" required autocomplete="off"></div>
+                <div><button type="submit" class="btn-primary">Crear cliente</button></div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🏢</span> Clientes <span class="count-badge">{{len .Rows}}</span></h2>
+            {{if .Rows}}
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Empresa</th><th>Admins</th><th>Asesores</th><th>Creado</th><th></th></tr></thead>
+                    <tbody>
+                    {{$aid := .ActiveID}}
+                    {{range .Rows}}
+                        <tr>
+                            <td><strong>{{.Name}}</strong>{{if eq .ID $aid}} <span class="badge client" style="background:#dbeafe;color:#1d4ed8;">activo</span>{{end}}</td>
+                            <td>{{.Admins}}</td>
+                            <td>{{.Advisors}}</td>
+                            <td class="muted">{{.CreatedAt.Format "2006-01-02"}}</td>
+                            <td style="text-align:right;">
+                                {{if ne .ID $aid}}
+                                <form method="POST" action="/admin/switch-tenant" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                    <input type="hidden" name="tenant_id" value="{{.ID}}">
+                                    <button type="submit" class="btn-link" style="color:#2563eb;">Ver este cliente →</button>
+                                </form>
+                                {{else}}
+                                <span class="muted">viendo</span>
+                                {{end}}
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🏙️</div>
+                <p>Aún no hay clientes. Crea el primero arriba.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+</body>
+</html>
+{{end}}

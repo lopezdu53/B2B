@@ -5,13 +5,38 @@
         <button type="button" class="side-toggle" id="side-toggle" aria-label="Menú">☰</button>
     </div>
 
+    {{if .CurrentUser}}
+    <div class="side-context">
+        {{if .IsSuperadmin}}
+        <label class="side-ctx-label">Cliente activo</label>
+        <form method="POST" action="/admin/switch-tenant" id="tenant-switch">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <select name="tenant_id" onchange="document.getElementById('tenant-switch').submit()">
+                {{$aid := .ActiveTenantID}}
+                {{range .NavTenants}}<option value="{{.ID}}" {{if eq .ID $aid}}selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+        </form>
+        {{else}}
+        <div class="side-ctx-label">Cliente</div>
+        <div class="side-tenant">{{if .ActiveTenant}}{{.ActiveTenant.Name}}{{else}}—{{end}}</div>
+        <div class="side-role">👤 {{.CurrentUser.Username}}</div>
+        {{end}}
+    </div>
+    {{end}}
+
     <nav class="side-nav">
+        {{if .IsSuperadmin}}
+        <div class="side-group">Administración</div>
+        <a href="/admin/clientes" data-path="/admin/clientes"><span class="ico">🏙️</span> Clientes</a>
+        {{end}}
+
         <div class="side-group">B2B</div>
         <a href="/admin/b2b" data-path="/admin/b2b"><span class="ico">🗺️</span> Mapa</a>
         <a href="/admin/b2b/negocios" data-path="/admin/b2b/negocios"><span class="ico">🏢</span> Negocios</a>
         <a href="/admin/b2b/asesores" data-path="/admin/b2b/asesores"><span class="ico">👤</span> Asesores</a>
         <a href="/admin/b2b/zonas" data-path="/admin/b2b/zonas"><span class="ico">📍</span> Zonas</a>
 
+        {{if .IsSuperadmin}}
         <div class="side-group">Operación</div>
         <a href="/admin" data-path="/admin"><span class="ico">📊</span> Dashboard</a>
         <a href="/admin/jobs" data-path="/admin/jobs"><span class="ico">🧾</span> Jobs</a>
@@ -19,6 +44,7 @@
         <a href="/riverui/"><span class="ico">📥</span> Queue</a>
         <a href="/swagger/index.html"><span class="ico">📚</span> API Docs</a>
         <a href="/admin/api-keys" data-path="/admin/api-keys"><span class="ico">🔑</span> API Keys</a>
+        {{end}}
         <a href="/admin/settings" data-path="/admin/settings"><span class="ico">🛠️</span> Ajustes</a>
     </nav>
 
@@ -34,7 +60,6 @@
 </aside>
 <script>
 (function () {
-    // Active link highlight
     var path = (location.pathname.replace(/\/+$/, "") || "/");
     var links = Array.prototype.slice.call(document.querySelectorAll(".side-nav a[data-path]"));
     var best = null;
@@ -45,13 +70,11 @@
     });
     if (best) best.classList.add("active");
 
-    // Mobile hamburger
     var toggle = document.getElementById("side-toggle");
     if (toggle) toggle.addEventListener("click", function () {
         document.getElementById("app-sidebar").classList.toggle("open");
     });
 
-    // Theme toggle (global, persisted)
     var btn = document.getElementById("theme-toggle");
     function paint() {
         var dark = document.documentElement.classList.contains("dark");

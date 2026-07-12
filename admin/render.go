@@ -16,6 +16,22 @@ func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, 
 	data["CSRFToken"] = CSRFTokenFromContext(r.Context())
 	data["AssetVersion"] = assetVersion
 
+	// Inject identity + active-tenant context for the sidebar.
+	if user := UserFromContext(r.Context()); user != nil {
+		data["CurrentUser"] = user
+		data["IsSuperadmin"] = user.IsSuperadmin()
+
+		tid, tenant := effectiveTenant(appState, r)
+		data["ActiveTenantID"] = tid
+		data["ActiveTenant"] = tenant
+
+		if user.IsSuperadmin() {
+			if tenants, err := appState.Store.ListTenants(r.Context()); err == nil {
+				data["NavTenants"] = tenants
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	if err := appState.Templates.ExecuteTemplate(w, name, data); err != nil {

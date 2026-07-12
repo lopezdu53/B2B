@@ -73,8 +73,10 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			}
 		}
 
-		advisors, _ := appState.Store.ListAdvisors(ctx)
-		zones, _ := appState.Store.ListZones(ctx)
+		tid, _ := effectiveTenant(appState, r)
+
+		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
+		zones, _ := appState.Store.ListZones(ctx, tid)
 		cities, _ := appState.Store.ListBusinessCities(ctx)
 
 		advisorNames := map[int64]string{}
@@ -87,7 +89,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			zoneNames[zones[i].ID] = zones[i].Name
 		}
 
-		businesses, err := appState.Store.ListBusinesses(ctx, f)
+		businesses, err := appState.Store.ListBusinesses(ctx, tid, f)
 		if err != nil {
 			log.Error("b2b: negocios list", "error", err)
 		}
@@ -134,7 +136,9 @@ func AsesoresPageHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		advisors, err := appState.Store.ListAdvisors(r.Context())
+		tid, _ := effectiveTenant(appState, r)
+
+		advisors, err := appState.Store.ListAdvisors(r.Context(), tid)
 		if err != nil {
 			log.Error("b2b: asesores list", "error", err)
 		}
@@ -165,15 +169,16 @@ func ZonasPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
+		tid, _ := effectiveTenant(appState, r)
 
-		advisors, _ := appState.Store.ListAdvisors(ctx)
+		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 
 		advisorNames := map[int64]string{}
 		for i := range advisors {
 			advisorNames[advisors[i].ID] = advisors[i].Name
 		}
 
-		zones, err := appState.Store.ListZones(ctx)
+		zones, err := appState.Store.ListZones(ctx, tid)
 		if err != nil {
 			log.Error("b2b: zonas list", "error", err)
 		}

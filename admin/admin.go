@@ -37,8 +37,15 @@ type IStore interface {
 	SetConfig(ctx context.Context, cfg *AppConfig, encrypt bool) error
 	DeleteConfig(ctx context.Context, key string) error
 
+	// Tenants (client companies)
+	CreateTenant(ctx context.Context, name string) (*Tenant, error)
+	ListTenants(ctx context.Context) ([]Tenant, error)
+	GetTenant(ctx context.Context, id int64) (*Tenant, error)
+	TenantCounts(ctx context.Context, tenantID int64) (admins, advisors int)
+
 	// Users
 	CreateUser(ctx context.Context, username, password string) (*User, error)
+	CreateTenantUser(ctx context.Context, username, password, role string, tenantID int64) (*User, error)
 	GetUser(ctx context.Context, username string) (*User, error)
 	GetUserByID(ctx context.Context, id int) (*User, error)
 	UpdatePassword(ctx context.Context, username, password string) error
@@ -78,17 +85,38 @@ type AppConfig struct {
 	UpdatedAt time.Time
 }
 
+// User roles for the multi-tenant hierarchy.
+const (
+	RoleSuperadmin = "superadmin" // platform owner (that's us), manages every tenant
+	RoleAdmin      = "admin"      // a client's administrator, scoped to their tenant
+	RoleAdvisor    = "advisor"    // a client's sales rep, scoped to their tenant
+)
+
+// Tenant is a client company on the platform.
+type Tenant struct {
+	ID        int64
+	Name      string
+	Active    bool
+	CreatedAt time.Time
+}
+
 // User represents an admin user.
 type User struct {
 	ID              int
 	Username        string
 	PasswordHash    string
+	Role            string
+	TenantID        *int64
+	AdvisorID       *int64
 	TOTPSecret      *string
 	TOTPEnabled     bool
 	BackupCodesHash *string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
+
+// IsSuperadmin reports whether the user is the platform owner.
+func (u *User) IsSuperadmin() bool { return u != nil && u.Role == RoleSuperadmin }
 
 // Session represents an admin session.
 type Session struct {

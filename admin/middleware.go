@@ -12,10 +12,21 @@ import (
 type contextKey string
 
 const (
-	sessionContextKey contextKey = "session"
-	csrfTokenKey      contextKey = "csrf_token"
-	csrfCookieName               = "gms_csrf"
+	sessionContextKey  contextKey = "session"
+	userContextKey     contextKey = "user"
+	csrfTokenKey       contextKey = "csrf_token"
+	csrfCookieName                = "gms_csrf"
+	activeTenantCookie            = "gms_tenant"
 )
+
+// UserFromContext retrieves the authenticated user from context.
+func UserFromContext(ctx context.Context) *User {
+	if user, ok := ctx.Value(userContextKey).(*User); ok {
+		return user
+	}
+
+	return nil
+}
 
 // generateCSRFToken creates a CSRF token from session ID using HMAC.
 func generateCSRFToken(sessionID string, secretKey []byte) string {
@@ -84,6 +95,12 @@ func SessionAuth(store IStore, cookieName string) func(http.Handler) http.Handle
 			}
 
 			ctx := context.WithValue(r.Context(), sessionContextKey, session)
+
+			// Load the full user (role, tenant) for authorization + scoping.
+			if user, err := store.GetUserByID(ctx, session.UserID); err == nil {
+				ctx = context.WithValue(ctx, userContextKey, user)
+			}
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

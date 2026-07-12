@@ -33,6 +33,16 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 
 			r.Get("/", DashboardHandler(appState))
 
+			// Tenant (client) switching — available to superadmin only in practice.
+			r.Post("/switch-tenant", SwitchTenantHandler(appState))
+
+			// Superadmin-only: manage client companies.
+			r.Group(func(r chi.Router) {
+				r.Use(RequireSuperadmin)
+				r.Get("/clientes", ClientesPageHandler(appState))
+				r.Post("/clientes", CreateTenantHandler(appState))
+			})
+
 			// B2B map dashboard (prospecting / CRM)
 			r.Get("/b2b", B2BPageHandler(appState))
 			r.Get("/b2b/negocios", NegociosPageHandler(appState))

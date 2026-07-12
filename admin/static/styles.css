@@ -105,6 +105,13 @@ body {
 .side-brand:hover { text-decoration: none; }
 .side-logo { font-size: 1.25rem; }
 
+/* Active tenant / identity box */
+.side-context { background: #131c2e; border: 1px solid #1e293b; border-radius: 10px; padding: 0.6rem 0.7rem; margin-bottom: 0.75rem; }
+.side-ctx-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.3rem; }
+.side-context select { width: 100%; margin: 0; background: #0f1728; color: #fff; border: 1px solid #2a3446; border-radius: 8px; padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+.side-tenant { color: #fff; font-weight: 600; font-size: 0.92rem; }
+.side-role { color: #94a3b8; font-size: 0.78rem; margin-top: 0.2rem; }
+
 .side-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 
 .side-group {

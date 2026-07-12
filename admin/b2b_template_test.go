@@ -58,4 +58,14 @@ func TestB2BTemplateRenders(t *testing.T) {
 	if err := tmpl.ExecuteTemplate(io.Discard, "zonas.html", zdata); err != nil {
 		t.Fatalf("execute zonas.html: %v", err)
 	}
+
+	// clientes.html needs tenantRow values.
+	cdata := map[string]any{
+		"CSRFToken": "t",
+		"ActiveID":  int64(1),
+		"Rows":      []tenantRow{{Tenant: Tenant{ID: 1, Name: "Acme"}, Admins: 1, Advisors: 3}},
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "clientes.html", cdata); err != nil {
+		t.Fatalf("execute clientes.html: %v", err)
+	}
 }

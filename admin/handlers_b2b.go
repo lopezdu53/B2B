@@ -23,13 +23,14 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
+		tid, _ := effectiveTenant(appState, r)
 
-		advisors, err := appState.Store.ListAdvisors(ctx)
+		advisors, err := appState.Store.ListAdvisors(ctx, tid)
 		if err != nil {
 			log.Error("b2b: list advisors", "error", err)
 		}
 
-		zones, err := appState.Store.ListZones(ctx)
+		zones, err := appState.Store.ListZones(ctx, tid)
 		if err != nil {
 			log.Error("b2b: list zones", "error", err)
 		}
@@ -39,7 +40,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			log.Error("b2b: list cities", "error", err)
 		}
 
-		summary, err := appState.Store.B2BSummary(ctx)
+		summary, err := appState.Store.B2BSummary(ctx, tid)
 		if err != nil {
 			log.Error("b2b: summary", "error", err)
 			summary = &B2BSummary{}
@@ -83,7 +84,9 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 			}
 		}
 
-		businesses, err := appState.Store.ListBusinesses(r.Context(), f)
+		tid, _ := effectiveTenant(appState, r)
+
+		businesses, err := appState.Store.ListBusinesses(r.Context(), tid, f)
 		if err != nil {
 			log.Error("b2b: list businesses", "error", err)
 			http.Error(w, "failed to load businesses", http.StatusInternalServerError)
@@ -108,7 +111,9 @@ func B2BSummaryHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		sum, err := appState.Store.B2BSummary(r.Context())
+		tid, _ := effectiveTenant(appState, r)
+
+		sum, err := appState.Store.B2BSummary(r.Context(), tid)
 		if err != nil {
 			log.Error("b2b: summary json", "error", err)
 			http.Error(w, "failed to load summary", http.StatusInternalServerError)
@@ -212,8 +217,10 @@ func B2BSetStatusHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		tid, _ := effectiveTenant(appState, r)
+
 		if err := appState.Store.SetBusinessCRM(
-			r.Context(), req.Key, req.Status, req.AdvisorID, req.ZoneID, req.Notes, req.Title,
+			r.Context(), tid, req.Key, req.Status, req.AdvisorID, req.ZoneID, req.Notes, req.Title,
 		); err != nil {
 			log.Error("b2b: set business crm", "error", err, "key", req.Key)
 			http.Error(w, "failed to save", http.StatusInternalServerError)
@@ -290,8 +297,10 @@ func CreateAdvisorHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		tid, _ := effectiveTenant(appState, r)
+
 		_, err := appState.Store.CreateAdvisor(
-			r.Context(), name,
+			r.Context(), tid, name,
 			strings.TrimSpace(r.FormValue("email")),
 			strings.TrimSpace(r.FormValue("phone")),
 			strings.TrimSpace(r.FormValue("city")),
@@ -321,7 +330,9 @@ func DeleteAdvisorHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		if err := appState.Store.DeleteAdvisor(r.Context(), id); err != nil {
+		tid, _ := effectiveTenant(appState, r)
+
+		if err := appState.Store.DeleteAdvisor(r.Context(), tid, id); err != nil {
 			log.Error("b2b: delete advisor", "error", err, "id", id)
 			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+eliminar+el+asesor")
 
@@ -355,7 +366,9 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 			}
 		}
 
-		if _, err := appState.Store.CreateZone(r.Context(), name, city, advisorID, strings.TrimSpace(r.FormValue("color"))); err != nil {
+		tid, _ := effectiveTenant(appState, r)
+
+		if _, err := appState.Store.CreateZone(r.Context(), tid, name, city, advisorID, strings.TrimSpace(r.FormValue("color"))); err != nil {
 			log.Error("b2b: create zone", "error", err)
 			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+crear+la+zona")
 
@@ -380,7 +393,9 @@ func DeleteZoneHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		if err := appState.Store.DeleteZone(r.Context(), id); err != nil {
+		tid, _ := effectiveTenant(appState, r)
+
+		if err := appState.Store.DeleteZone(r.Context(), tid, id); err != nil {
 			log.Error("b2b: delete zone", "error", err, "id", id)
 			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+eliminar+la+zona")
 

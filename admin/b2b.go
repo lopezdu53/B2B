@@ -92,19 +92,19 @@ type B2BSummary struct {
 // IB2BStore is the persistence contract for the B2B CRM layer. It is embedded
 // into IStore so handlers can reach it through appState.Store.
 type IB2BStore interface {
-	// Businesses (scraped + CRM overlay)
-	ListBusinesses(ctx context.Context, f BusinessFilter) ([]MapBusiness, error)
+	// Businesses (scraped + per-tenant CRM overlay)
+	ListBusinesses(ctx context.Context, tenantID int64, f BusinessFilter) ([]MapBusiness, error)
 	ListBusinessCities(ctx context.Context) ([]string, error)
-	SetBusinessCRM(ctx context.Context, key, status string, advisorID, zoneID *int64, notes, title string) error
-	B2BSummary(ctx context.Context) (*B2BSummary, error)
+	SetBusinessCRM(ctx context.Context, tenantID int64, key, status string, advisorID, zoneID *int64, notes, title string) error
+	B2BSummary(ctx context.Context, tenantID int64) (*B2BSummary, error)
 
 	// Advisors
-	ListAdvisors(ctx context.Context) ([]Advisor, error)
-	CreateAdvisor(ctx context.Context, name, email, phone, city string) (*Advisor, error)
-	DeleteAdvisor(ctx context.Context, id int64) error
+	ListAdvisors(ctx context.Context, tenantID int64) ([]Advisor, error)
+	CreateAdvisor(ctx context.Context, tenantID int64, name, email, phone, city string) (*Advisor, error)
+	DeleteAdvisor(ctx context.Context, tenantID, id int64) error
 
 	// Zones
-	ListZones(ctx context.Context) ([]Zone, error)
-	CreateZone(ctx context.Context, name, city string, advisorID *int64, color string) (*Zone, error)
-	DeleteZone(ctx context.Context, id int64) error
+	ListZones(ctx context.Context, tenantID int64) ([]Zone, error)
+	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string) (*Zone, error)
+	DeleteZone(ctx context.Context, tenantID, id int64) error
 }
