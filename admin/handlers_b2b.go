@@ -50,8 +50,12 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"Zones":    zones,
 			"Cities":   cities,
 			"Summary":  summary,
-			"Success":  r.URL.Query().Get("success"),
-			"Error":    r.URL.Query().Get("error"),
+			// Passed into a <script> context; html/template JSON-encodes these
+			// safely for the map colouring logic.
+			"AdvisorsData": advisors,
+			"ZonesData":    zones,
+			"Success":      r.URL.Query().Get("success"),
+			"Error":        r.URL.Query().Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "b2b.html", data)
@@ -91,6 +95,34 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, businesses)
+	}
+}
+
+// B2BSummaryHandler returns the aggregate CRM counters as JSON so the KPI tiles
+// can update live without a full page reload.
+func B2BSummaryHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		sum, err := appState.Store.B2BSummary(r.Context())
+		if err != nil {
+			log.Error("b2b: summary json", "error", err)
+			http.Error(w, "failed to load summary", http.StatusInternalServerError)
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]int{
+			"total":       sum.Total,
+			"clients":     sum.Clients,
+			"prospects":   sum.Prospects,
+			"in_progress": sum.InProgress,
+			"advisors":    sum.Advisors,
+			"zones":       sum.Zones,
+		})
 	}
 }
 

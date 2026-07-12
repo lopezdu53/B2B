@@ -127,7 +127,49 @@
         .list-table td { text-align: left; padding: .5rem .45rem; border-bottom: 1px solid var(--line); }
         .inline-del { display: inline; }
         .count-badge { font-size: .75rem; background: #eef2ff; color: #3730a3; padding: .12rem .55rem; border-radius: 999px; font-weight: 600; }
+
+        /* ---- Theme toggle button ---- */
+        .theme-toggle {
+            position: absolute; top: 1rem; right: 1rem; z-index: 2; width: 38px; height: 38px;
+            border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.15);
+            color: #fff; font-size: 1.05rem; cursor: pointer; line-height: 1; transition: background .15s;
+            display: inline-flex; align-items: center; justify-content: center; padding: 0; width: auto; min-width: 38px;
+        }
+        .theme-toggle:hover { background: rgba(255,255,255,.28); }
+
+        /* ---- Dark mode (scoped to the B2B page via html.b2b-dark) ---- */
+        .b2b-dark body { background: #0b1220; }
+        .b2b-dark .b2b-page {
+            --ink: #e8edf5; --muted: #94a3b8; --line: #232c3d; --surface: #131c2e;
+        }
+        .b2b-dark .b2b-page .card { background: #131c2e; border-color: #232c3d; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+        .b2b-dark .b2b-page .kpi { background: #131c2e; border-color: #232c3d; }
+        .b2b-dark .b2b-page .kpi-value { color: #e8edf5; }
+        .b2b-dark .b2b-page .kpi-value.tinted { color: var(--kpi); }
+        .b2b-dark .b2b-page .sec-title { color: #e8edf5; }
+        .b2b-dark .b2b-page .sec-title .ico { background: #1e293b; }
+        .b2b-dark .b2b-page input:not([type=checkbox]),
+        .b2b-dark .b2b-page select,
+        .b2b-dark .b2b-page textarea {
+            background: #0f1728; color: #e8edf5; border-color: #2a3446;
+        }
+        .b2b-dark .b2b-page input::placeholder { color: #64748b; }
+        .b2b-dark .b2b-page .btn-primary { background: #2563eb; }
+        .b2b-dark .b2b-page .btn-primary:hover { background: #1d4ed8; }
+        .b2b-dark .b2b-page #map { border-color: #232c3d; }
+        .b2b-dark .b2b-page .legend span { background: #1a2334; border-color: #2a3446; color: #cbd5e1; }
+        .b2b-dark .b2b-page .job-row { background: #0f1728; border-color: #232c3d; }
+        .b2b-dark .b2b-page .job-kw { color: #e8edf5; }
+        .b2b-dark .b2b-page .job-bar { background: #232c3d; }
+        .b2b-dark .b2b-page .list-table td { border-color: #232c3d; }
+        .b2b-dark .b2b-page .list-table th { border-color: #2a3446; }
+        .b2b-dark .b2b-page details.mgmt { border-color: #232c3d; }
+        .b2b-dark .b2b-page .biz-meta { color: #cbd5e1; }
+        .b2b-dark .b2b-page .alert-success { background:#0e2a1a; border-color:#14532d; color:#86efac; }
+        .b2b-dark .b2b-page .alert-error { background:#2a1416; border-color:#7f1d1d; color:#fca5a5; }
+        .b2b-dark .theme-toggle { border-color: rgba(255,255,255,.3); }
     </style>
+    <script>try{if(localStorage.getItem('b2b-theme')==='dark'){document.documentElement.classList.add('b2b-dark');}}catch(e){}</script>
 </head>
 <body>
     {{template "navbar" .}}
@@ -137,6 +179,7 @@
         {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
 
         <div class="b2b-hero">
+            <button type="button" id="theme-toggle" class="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
             <h1>Prospección B2B</h1>
             <p>Explora los negocios encontrados en Google Maps, marca cuáles ya son clientes y asigna prospectos a tus asesores comerciales por zona.</p>
         </div>
@@ -144,27 +187,27 @@
         <div class="kpi-grid">
             <div class="kpi total">
                 <div class="kpi-top"><span class="kpi-ico">🏢</span><span class="kpi-label">Negocios</span></div>
-                <div class="kpi-value">{{.Summary.Total}}</div>
+                <div class="kpi-value" data-kpi="total">{{.Summary.Total}}</div>
             </div>
             <div class="kpi clients">
                 <div class="kpi-top"><span class="kpi-ico">🤝</span><span class="kpi-label">Clientes</span></div>
-                <div class="kpi-value tinted">{{.Summary.Clients}}</div>
+                <div class="kpi-value tinted" data-kpi="clients">{{.Summary.Clients}}</div>
             </div>
             <div class="kpi prospects">
                 <div class="kpi-top"><span class="kpi-ico">🎯</span><span class="kpi-label">Prospectos</span></div>
-                <div class="kpi-value tinted">{{.Summary.Prospects}}</div>
+                <div class="kpi-value tinted" data-kpi="prospects">{{.Summary.Prospects}}</div>
             </div>
             <div class="kpi progress">
                 <div class="kpi-top"><span class="kpi-ico">⏳</span><span class="kpi-label">En gestión</span></div>
-                <div class="kpi-value tinted">{{.Summary.InProgress}}</div>
+                <div class="kpi-value tinted" data-kpi="in_progress">{{.Summary.InProgress}}</div>
             </div>
             <div class="kpi advisors">
                 <div class="kpi-top"><span class="kpi-ico">👤</span><span class="kpi-label">Asesores</span></div>
-                <div class="kpi-value">{{.Summary.Advisors}}</div>
+                <div class="kpi-value" data-kpi="advisors">{{.Summary.Advisors}}</div>
             </div>
             <div class="kpi zones">
                 <div class="kpi-top"><span class="kpi-ico">📍</span><span class="kpi-label">Zonas</span></div>
-                <div class="kpi-value">{{.Summary.Zones}}</div>
+                <div class="kpi-value" data-kpi="zones">{{.Summary.Zones}}</div>
             </div>
         </div>
 
@@ -231,6 +274,14 @@
                     </select>
                 </div>
                 <div>
+                    <label for="f-colorby">Colorear por</label>
+                    <select id="f-colorby">
+                        <option value="status">Estado</option>
+                        <option value="advisor">Asesor</option>
+                        <option value="zone">Zona</option>
+                    </select>
+                </div>
+                <div>
                     <button type="button" class="btn-primary" id="btn-apply">Aplicar filtros</button>
                 </div>
                 <div id="loading-hint" class="empty-hint" style="align-self:center;"></div>
@@ -239,12 +290,7 @@
             <div class="b2b-wrap">
                 <div>
                     <div id="map"></div>
-                    <div class="legend">
-                        <span><i class="dot prospect"></i> Prospecto</span>
-                        <span><i class="dot in_progress"></i> En gestión</span>
-                        <span><i class="dot client"></i> Cliente</span>
-                        <span><i class="dot discarded"></i> Descartado</span>
-                    </div>
+                    <div class="legend" id="legend"></div>
                 </div>
 
                 <div class="card side-panel" id="side-panel">
@@ -381,6 +427,27 @@
             discarded: "Descartado"
         };
 
+        // Data for colouring markers by advisor / zone.
+        const ADVISORS_LIST = {{.AdvisorsData}} || [];
+        const ZONES_LIST = {{.ZonesData}} || [];
+        const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
+        const NEUTRAL = "#94a3b8";
+        const advisorMeta = {}; // id -> {name, color}
+        ADVISORS_LIST.forEach((a, i) => { advisorMeta[a.ID] = { name: a.Name, color: CAT_PALETTE[i % CAT_PALETTE.length] }; });
+        const zoneMeta = {}; // id -> {name, color}
+        ZONES_LIST.forEach(z => { zoneMeta[z.ID] = { name: z.Name + " · " + z.City, color: z.Color || NEUTRAL }; });
+        let colorMode = "status";
+
+        function colorFor(biz) {
+            if (colorMode === "advisor") {
+                return biz.advisor_id && advisorMeta[biz.advisor_id] ? advisorMeta[biz.advisor_id].color : NEUTRAL;
+            }
+            if (colorMode === "zone") {
+                return biz.zone_id && zoneMeta[biz.zone_id] ? zoneMeta[biz.zone_id].color : NEUTRAL;
+            }
+            return STATUS_COLORS[biz.status] || STATUS_COLORS.prospect;
+        }
+
         // Colombia default view.
         const map = L.map("map").setView([4.5709, -74.2973], 6);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -389,6 +456,7 @@
         }).addTo(map);
 
         const markersLayer = L.layerGroup().addTo(map);
+        const allMarkers = []; // [{ biz, marker }]
         let selected = null; // { biz, marker }
 
         function escapeHtml(s) {
@@ -397,15 +465,42 @@
             }[c]));
         }
 
-        function markerStyle(status) {
+        function markerStyle(biz) {
             return {
                 radius: 7,
-                fillColor: STATUS_COLORS[status] || STATUS_COLORS.prospect,
+                fillColor: colorFor(biz),
                 color: "#111827",
                 weight: 1,
                 opacity: 1,
                 fillOpacity: 0.85
             };
+        }
+
+        function renderLegend() {
+            const el = document.getElementById("legend");
+            let items = [];
+            if (colorMode === "advisor") {
+                items = ADVISORS_LIST.map(a => ({ color: advisorMeta[a.ID].color, label: a.Name }));
+                items.push({ color: NEUTRAL, label: "Sin asignar" });
+            } else if (colorMode === "zone") {
+                items = ZONES_LIST.map(z => ({ color: zoneMeta[z.ID].color, label: z.Name }));
+                items.push({ color: NEUTRAL, label: "Sin zona" });
+            } else {
+                items = [
+                    { color: STATUS_COLORS.prospect, label: "Prospecto" },
+                    { color: STATUS_COLORS.in_progress, label: "En gestión" },
+                    { color: STATUS_COLORS.client, label: "Cliente" },
+                    { color: STATUS_COLORS.discarded, label: "Descartado" }
+                ];
+            }
+            el.innerHTML = items.map(it =>
+                '<span><i class="dot" style="background:' + it.color + '"></i> ' + escapeHtml(it.label) + '</span>'
+            ).join("");
+        }
+
+        function recolorMarkers() {
+            allMarkers.forEach(m => m.marker.setStyle(markerStyle(m.biz)));
+            renderLegend();
         }
 
         function renderSidePanel(biz, marker) {
@@ -429,10 +524,11 @@
         }
 
         function addBusiness(biz) {
-            const marker = L.circleMarker([biz.lat, biz.lng], markerStyle(biz.status));
+            const marker = L.circleMarker([biz.lat, biz.lng], markerStyle(biz));
             marker.bindTooltip(escapeHtml(biz.title || "(sin nombre)"));
             marker.on("click", () => renderSidePanel(biz, marker));
             marker.addTo(markersLayer);
+            allMarkers.push({ biz: biz, marker: marker });
             return marker;
         }
 
@@ -448,17 +544,31 @@
                 .then(r => r.json())
                 .then(list => {
                     markersLayer.clearLayers();
+                    allMarkers.length = 0;
                     const bounds = [];
                     list.forEach(biz => {
                         addBusiness(biz);
                         bounds.push([biz.lat, biz.lng]);
                     });
                     hint.textContent = list.length + " negocios";
+                    renderLegend();
                     if (bounds.length > 0) {
                         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
                     }
                 })
                 .catch(() => { hint.textContent = "Error cargando negocios"; });
+        }
+
+        function refreshSummary() {
+            fetch("/admin/b2b/summary", { credentials: "same-origin" })
+                .then(r => r.json())
+                .then(s => {
+                    document.querySelectorAll("[data-kpi]").forEach(el => {
+                        const k = el.getAttribute("data-kpi");
+                        if (s[k] !== undefined) el.textContent = s[k];
+                    });
+                })
+                .catch(() => {});
         }
 
         function saveSelected() {
@@ -488,14 +598,31 @@
                     selected.biz.advisor_id = payload.advisor_id;
                     selected.biz.zone_id = payload.zone_id;
                     selected.biz.notes = payload.notes;
-                    selected.marker.setStyle(markerStyle(payload.status));
+                    selected.marker.setStyle(markerStyle(selected.biz));
                     hint.textContent = "✓ Guardado como " + (STATUS_LABELS[payload.status] || payload.status);
+                    refreshSummary();
                 })
                 .catch(() => { hint.textContent = "Error al guardar"; });
         }
 
         document.getElementById("btn-apply").addEventListener("click", loadBusinesses);
         document.getElementById("biz-save").addEventListener("click", saveSelected);
+        document.getElementById("f-colorby").addEventListener("change", function () {
+            colorMode = this.value;
+            recolorMarkers();
+        });
+
+        // Theme toggle (persisted per browser).
+        const themeBtn = document.getElementById("theme-toggle");
+        function applyThemeIcon() {
+            themeBtn.textContent = document.documentElement.classList.contains("b2b-dark") ? "☀️" : "🌙";
+        }
+        applyThemeIcon();
+        themeBtn.addEventListener("click", function () {
+            const dark = document.documentElement.classList.toggle("b2b-dark");
+            try { localStorage.setItem("b2b-theme", dark ? "dark" : "light"); } catch (e) {}
+            applyThemeIcon();
+        });
 
         // --- Live progress of scrape searches ---
         const JOB_LABELS = { pending: "En cola", running: "Procesando", completed: "Completado", failed: "Error" };
@@ -539,9 +666,10 @@
                 .then(jobs => {
                     renderJobs(jobs);
                     const active = jobs.filter(j => j.status === "pending" || j.status === "running").length;
-                    // A job just finished → refresh the map markers.
+                    // A job just finished → refresh the map markers and counters.
                     if (active < lastActiveCount) {
                         loadBusinesses();
+                        refreshSummary();
                     }
                     lastActiveCount = active;
                     // Poll faster while work is in progress, slower when idle.
