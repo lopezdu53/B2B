@@ -1,22 +1,40 @@
 {{define "navbar"}}
-<nav class="navbar">
-    <div>
-        <a href="/admin" class="brand">Maps Scraper</a>
-    </div>
-    <ul>
-        <li><a href="/admin/b2b">B2B Mapa</a></li>
-        <li><a href="/riverui/">Queue</a></li>
-        <li><a href="/swagger/index.html">API Docs</a></li>
-        <li><a href="/admin/jobs">Jobs</a></li>
-        <li><a href="/admin/workers">Workers</a></li>
-        <li><a href="/admin/api-keys">API Keys</a></li>
-        <li><a href="/admin/settings">Settings</a></li>
-        <li>
-            <form method="POST" action="/admin/logout" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <button type="submit" class="btn-link">Logout</button>
-            </form>
-        </li>
-    </ul>
-</nav>
+<aside class="app-sidebar">
+    <a href="/admin/b2b" class="side-brand"><span class="side-logo">🗺️</span><span>Maps Scraper</span></a>
+
+    <nav class="side-nav">
+        <div class="side-group">B2B</div>
+        <a href="/admin/b2b" data-path="/admin/b2b"><span class="ico">🗺️</span> Mapa</a>
+        <a href="/admin/b2b/negocios" data-path="/admin/b2b/negocios"><span class="ico">🏢</span> Negocios</a>
+        <a href="/admin/b2b/asesores" data-path="/admin/b2b/asesores"><span class="ico">👤</span> Asesores</a>
+        <a href="/admin/b2b/zonas" data-path="/admin/b2b/zonas"><span class="ico">📍</span> Zonas</a>
+
+        <div class="side-group">Operación</div>
+        <a href="/admin" data-path="/admin"><span class="ico">📊</span> Dashboard</a>
+        <a href="/admin/jobs" data-path="/admin/jobs"><span class="ico">🧾</span> Jobs</a>
+        <a href="/admin/workers" data-path="/admin/workers"><span class="ico">⚙️</span> Workers</a>
+        <a href="/riverui/"><span class="ico">📥</span> Queue</a>
+        <a href="/swagger/index.html"><span class="ico">📚</span> API Docs</a>
+        <a href="/admin/api-keys" data-path="/admin/api-keys"><span class="ico">🔑</span> API Keys</a>
+        <a href="/admin/settings" data-path="/admin/settings"><span class="ico">🛠️</span> Ajustes</a>
+    </nav>
+
+    <form class="side-logout" method="POST" action="/admin/logout">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button type="submit">⏻&nbsp; Cerrar sesión</button>
+    </form>
+</aside>
+<script>
+(function () {
+    var path = (location.pathname.replace(/\/+$/, "") || "/");
+    var links = Array.prototype.slice.call(document.querySelectorAll(".side-nav a[data-path]"));
+    var best = null;
+    links.forEach(function (a) {
+        var p = a.getAttribute("data-path");
+        var match = (path === p) || (p !== "/admin" && (path === p || path.indexOf(p + "/") === 0));
+        if (match && (!best || p.length > best.getAttribute("data-path").length)) best = a;
+    });
+    if (best) best.classList.add("active");
+})();
+</script>
 {{end}}

@@ -1,0 +1,98 @@
+{{define "negocios.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head"}}
+    <title>Negocios - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Negocios</h1>
+            <p>Listado de todos los negocios encontrados en Google Maps, con su estado comercial y asignación.</p>
+        </div>
+
+        <div class="card">
+            <form method="GET" action="/admin/b2b/negocios" class="filters-bar">
+                <div>
+                    <label for="q">Buscar</label>
+                    <input type="search" id="q" name="q" value="{{.QVal}}" placeholder="Nombre, categoría o dirección…">
+                </div>
+                <div>
+                    <label for="city">Ciudad</label>
+                    <select id="city" name="city">
+                        <option value="">Todas</option>
+                        {{$c := .CityVal}}{{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="status">Estado</label>
+                    <select id="status" name="status">
+                        {{$s := .StatVal}}
+                        <option value="">Todos</option>
+                        <option value="prospect" {{if eq $s "prospect"}}selected{{end}}>Prospecto</option>
+                        <option value="in_progress" {{if eq $s "in_progress"}}selected{{end}}>En gestión</option>
+                        <option value="client" {{if eq $s "client"}}selected{{end}}>Cliente</option>
+                        <option value="discarded" {{if eq $s "discarded"}}selected{{end}}>Descartado</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="advisor">Asesor</label>
+                    <select id="advisor" name="advisor">
+                        {{$a := .AdvVal}}
+                        <option value="">Todos</option>
+                        {{range .Advisors}}<option value="{{.ID}}" {{if eq (printf "%d" .ID) $a}}selected{{end}}>{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn-primary">Filtrar</button>
+                </div>
+                <div style="align-self:center;"><small>{{.Count}} negocios</small></div>
+            </form>
+        </div>
+
+        <div class="card">
+            {{if .Rows}}
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Negocio</th><th>Ciudad</th><th>Teléfono</th><th>Web</th>
+                            <th>Estado</th><th>Asesor</th><th>Zona</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {{range .Rows}}
+                        <tr>
+                            <td>
+                                <strong>{{if .Title}}{{.Title}}{{else}}(sin nombre){{end}}</strong>
+                                {{if .Category}}<br><span class="muted">{{.Category}}</span>{{end}}
+                                {{if .Address}}<br><span class="muted" style="font-size:.8rem;">{{.Address}}</span>{{end}}
+                            </td>
+                            <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td>{{if .Website}}<a href="{{.Website}}" target="_blank" rel="noopener">Sitio ↗</a>{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
+                            <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
+                            <td>{{if .ZoneName}}{{.ZoneName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🔍</div>
+                <p>No hay negocios que coincidan. Lanza una búsqueda desde el <a href="/admin/b2b">Mapa B2B</a> o ajusta los filtros.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,78 @@
+{{define "asesores.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head"}}
+    <title>Asesores - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Asesores comerciales</h1>
+            <p>Gestiona tu equipo de ventas y repártelo por ciudades y zonas.</p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">➕</span> Agregar asesor</h2>
+            <form method="POST" action="/admin/b2b/advisors" class="filters-bar">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div><label>Nombre *</label><input type="text" name="name" placeholder="Nombre y apellido" required></div>
+                <div><label>Ciudad</label><input type="text" name="city" placeholder="Bogotá"></div>
+                <div><label>Email</label><input type="email" name="email" placeholder="correo@empresa.com"></div>
+                <div><label>Teléfono</label><input type="text" name="phone" placeholder="300 000 0000"></div>
+                <div><button type="submit" class="btn-primary">Agregar</button></div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">👤</span> Equipo <span class="count-badge">{{len .Advisors}}</span></h2>
+            {{if .Advisors}}
+            <div class="filters-bar" style="margin-bottom:1rem;">
+                <div><label for="search">Buscar asesor</label><input type="search" id="search" placeholder="Nombre o ciudad…" onkeyup="filterRows('search','adv-table')"></div>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table" id="adv-table">
+                    <thead><tr><th>Nombre</th><th>Ciudad</th><th>Email</th><th>Teléfono</th><th></th></tr></thead>
+                    <tbody>
+                    {{range .Advisors}}
+                        <tr>
+                            <td><strong>{{.Name}}</strong></td>
+                            <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td>{{if .Email}}{{.Email}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td style="text-align:right;">
+                                <form method="POST" action="/admin/b2b/advisors/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar asesor?');">
+                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                    <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">👤</div>
+                <p>Aún no hay asesores. Agrega tus comerciales para poder asignarles prospectos por zona.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+    <script>
+    function filterRows(inputId, tableId) {
+        var q = document.getElementById(inputId).value.toLowerCase();
+        var rows = document.querySelectorAll("#" + tableId + " tbody tr");
+        rows.forEach(function (tr) {
+            tr.style.display = tr.textContent.toLowerCase().indexOf(q) > -1 ? "" : "none";
+        });
+    }
+    </script>
+</body>
+</html>
+{{end}}

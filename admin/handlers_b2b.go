@@ -74,6 +74,7 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 		f := BusinessFilter{
 			City:   r.URL.Query().Get("city"),
 			Status: r.URL.Query().Get("status"),
+			Search: strings.TrimSpace(r.URL.Query().Get("q")),
 		}
 
 		if a := strings.TrimSpace(r.URL.Query().Get("advisor")); a != "" {
@@ -285,7 +286,7 @@ func CreateAdvisorHandler(appState *AppState) http.HandlerFunc {
 
 		name := strings.TrimSpace(r.FormValue("name"))
 		if name == "" {
-			http.Redirect(w, r, "/admin/b2b?error=El+nombre+del+asesor+es+obligatorio", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "El+nombre+del+asesor+es+obligatorio")
 			return
 		}
 
@@ -297,12 +298,12 @@ func CreateAdvisorHandler(appState *AppState) http.HandlerFunc {
 		)
 		if err != nil {
 			log.Error("b2b: create advisor", "error", err)
-			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+crear+el+asesor", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+crear+el+asesor")
 
 			return
 		}
 
-		http.Redirect(w, r, "/admin/b2b?success=Asesor+creado", http.StatusSeeOther)
+		b2bRedirectBack(w, r, "/admin/b2b", "success", "Asesor+creado")
 	}
 }
 
@@ -316,18 +317,18 @@ func DeleteAdvisorHandler(appState *AppState) http.HandlerFunc {
 
 		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 		if err != nil {
-			http.Redirect(w, r, "/admin/b2b?error=ID+invalido", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "ID+invalido")
 			return
 		}
 
 		if err := appState.Store.DeleteAdvisor(r.Context(), id); err != nil {
 			log.Error("b2b: delete advisor", "error", err, "id", id)
-			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+eliminar+el+asesor", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+eliminar+el+asesor")
 
 			return
 		}
 
-		http.Redirect(w, r, "/admin/b2b?success=Asesor+eliminado", http.StatusSeeOther)
+		b2bRedirectBack(w, r, "/admin/b2b", "success", "Asesor+eliminado")
 	}
 }
 
@@ -343,7 +344,7 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 		city := strings.TrimSpace(r.FormValue("city"))
 
 		if name == "" || city == "" {
-			http.Redirect(w, r, "/admin/b2b?error=Nombre+y+ciudad+de+la+zona+son+obligatorios", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "Nombre+y+ciudad+de+la+zona+son+obligatorios")
 			return
 		}
 
@@ -356,12 +357,12 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 
 		if _, err := appState.Store.CreateZone(r.Context(), name, city, advisorID, strings.TrimSpace(r.FormValue("color"))); err != nil {
 			log.Error("b2b: create zone", "error", err)
-			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+crear+la+zona", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+crear+la+zona")
 
 			return
 		}
 
-		http.Redirect(w, r, "/admin/b2b?success=Zona+creada", http.StatusSeeOther)
+		b2bRedirectBack(w, r, "/admin/b2b", "success", "Zona+creada")
 	}
 }
 
@@ -375,18 +376,18 @@ func DeleteZoneHandler(appState *AppState) http.HandlerFunc {
 
 		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 		if err != nil {
-			http.Redirect(w, r, "/admin/b2b?error=ID+invalido", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "ID+invalido")
 			return
 		}
 
 		if err := appState.Store.DeleteZone(r.Context(), id); err != nil {
 			log.Error("b2b: delete zone", "error", err, "id", id)
-			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+eliminar+la+zona", http.StatusSeeOther)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+eliminar+la+zona")
 
 			return
 		}
 
-		http.Redirect(w, r, "/admin/b2b?success=Zona+eliminada", http.StatusSeeOther)
+		b2bRedirectBack(w, r, "/admin/b2b", "success", "Zona+eliminada")
 	}
 }
 

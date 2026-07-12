@@ -74,6 +74,7 @@ type BusinessFilter struct {
 	City      string
 	Status    string
 	AdvisorID *int64
+	Search    string // free-text match on title / category / address
 	Limit     int
 }
 

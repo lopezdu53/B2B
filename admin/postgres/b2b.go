@@ -44,8 +44,9 @@ SELECT DISTINCT ON (bkey) * FROM (
 WHERE ($1 = '' OR city = $1)
   AND ($2 = '' OR status = $2)
   AND ($3 = 0 OR advisor_id = $3)
+  AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
 ORDER BY bkey
-LIMIT $4`
+LIMIT $5`
 
 // ListBusinesses returns scraped businesses (with CRM overlay), filtered and
 // capped for map rendering.
@@ -60,7 +61,7 @@ func (s *store) ListBusinesses(ctx context.Context, f admin.BusinessFilter) ([]a
 		advisorID = *f.AdvisorID
 	}
 
-	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, limit)
+	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit)
 	if err != nil {
 		return nil, err
 	}

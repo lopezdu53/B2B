@@ -1,0 +1,83 @@
+{{define "zonas.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head"}}
+    <title>Zonas - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Zonas</h1>
+            <p>Define zonas (ciudad + área) y asígnalas a un asesor para repartir el territorio.</p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">➕</span> Agregar zona</h2>
+            <form method="POST" action="/admin/b2b/zones" class="filters-bar">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div><label>Nombre *</label><input type="text" name="name" placeholder="Ej. Usaquén" required></div>
+                <div><label>Ciudad *</label><input type="text" name="city" placeholder="Bogotá" required></div>
+                <div>
+                    <label>Asesor</label>
+                    <select name="advisor_id">
+                        <option value="">Sin asignar</option>
+                        {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div><label>Color</label><input type="color" name="color" value="#2563eb" style="width:52px;height:42px;padding:2px;"></div>
+                <div><button type="submit" class="btn-primary">Agregar</button></div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">📍</span> Zonas <span class="count-badge">{{len .Rows}}</span></h2>
+            {{if .Rows}}
+            <div class="filters-bar" style="margin-bottom:1rem;">
+                <div><label for="search">Buscar zona</label><input type="search" id="search" placeholder="Zona, ciudad o asesor…" onkeyup="filterRows('search','zone-table')"></div>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table" id="zone-table">
+                    <thead><tr><th>Zona</th><th>Ciudad</th><th>Asesor</th><th></th></tr></thead>
+                    <tbody>
+                    {{range .Rows}}
+                        <tr>
+                            <td><span class="swatch" style="background:{{.Color}};"></span> <strong>{{.Name}}</strong></td>
+                            <td>{{.City}}</td>
+                            <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
+                            <td style="text-align:right;">
+                                <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar zona?');">
+                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                    <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">📍</div>
+                <p>Aún no hay zonas. Crea zonas por ciudad para repartir a tus 50 asesores por el país.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+    <script>
+    function filterRows(inputId, tableId) {
+        var q = document.getElementById(inputId).value.toLowerCase();
+        var rows = document.querySelectorAll("#" + tableId + " tbody tr");
+        rows.forEach(function (tr) {
+            tr.style.display = tr.textContent.toLowerCase().indexOf(q) > -1 ? "" : "none";
+        });
+    }
+    </script>
+</body>
+</html>
+{{end}}
