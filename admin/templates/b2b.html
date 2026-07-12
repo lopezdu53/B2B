@@ -14,7 +14,7 @@
             --shadow-sm: 0 1px 2px rgba(16,24,40,.05);
             --shadow-md: 0 4px 16px -4px rgba(16,24,40,.10), 0 2px 6px -2px rgba(16,24,40,.06);
         }
-        .b2b-page.container { max-width: 1240px; }
+        .b2b-page.container { max-width: none; }
         .b2b-page .card {
             border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-sm);
         }
@@ -128,48 +128,36 @@
         .inline-del { display: inline; }
         .count-badge { font-size: .75rem; background: #eef2ff; color: #3730a3; padding: .12rem .55rem; border-radius: 999px; font-weight: 600; }
 
-        /* ---- Theme toggle button ---- */
-        .theme-toggle {
-            position: absolute; top: 1rem; right: 1rem; z-index: 2; width: 38px; height: 38px;
-            border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.15);
-            color: #fff; font-size: 1.05rem; cursor: pointer; line-height: 1; transition: background .15s;
-            display: inline-flex; align-items: center; justify-content: center; padding: 0; width: auto; min-width: 38px;
-        }
-        .theme-toggle:hover { background: rgba(255,255,255,.28); }
-
-        /* ---- Dark mode (scoped to the B2B page via html.b2b-dark) ---- */
-        .b2b-dark body { background: #0b1220; }
-        .b2b-dark .b2b-page {
+        /* ---- Dark mode (B2B-specific overrides; global dark lives in styles.css) ---- */
+        .dark .b2b-page {
             --ink: #e8edf5; --muted: #94a3b8; --line: #232c3d; --surface: #131c2e;
         }
-        .b2b-dark .b2b-page .card { background: #131c2e; border-color: #232c3d; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
-        .b2b-dark .b2b-page .kpi { background: #131c2e; border-color: #232c3d; }
-        .b2b-dark .b2b-page .kpi-value { color: #e8edf5; }
-        .b2b-dark .b2b-page .kpi-value.tinted { color: var(--kpi); }
-        .b2b-dark .b2b-page .sec-title { color: #e8edf5; }
-        .b2b-dark .b2b-page .sec-title .ico { background: #1e293b; }
-        .b2b-dark .b2b-page input:not([type=checkbox]),
-        .b2b-dark .b2b-page select,
-        .b2b-dark .b2b-page textarea {
+        .dark .b2b-page .card { background: #131c2e; border-color: #232c3d; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+        .dark .b2b-page .kpi { background: #131c2e; border-color: #232c3d; }
+        .dark .b2b-page .kpi-value { color: #e8edf5; }
+        .dark .b2b-page .kpi-value.tinted { color: var(--kpi); }
+        .dark .b2b-page .sec-title { color: #e8edf5; }
+        .dark .b2b-page .sec-title .ico { background: #1e293b; }
+        .dark .b2b-page input:not([type=checkbox]),
+        .dark .b2b-page select,
+        .dark .b2b-page textarea {
             background: #0f1728; color: #e8edf5; border-color: #2a3446;
         }
-        .b2b-dark .b2b-page input::placeholder { color: #64748b; }
-        .b2b-dark .b2b-page .btn-primary { background: #2563eb; }
-        .b2b-dark .b2b-page .btn-primary:hover { background: #1d4ed8; }
-        .b2b-dark .b2b-page #map { border-color: #232c3d; }
-        .b2b-dark .b2b-page .legend span { background: #1a2334; border-color: #2a3446; color: #cbd5e1; }
-        .b2b-dark .b2b-page .job-row { background: #0f1728; border-color: #232c3d; }
-        .b2b-dark .b2b-page .job-kw { color: #e8edf5; }
-        .b2b-dark .b2b-page .job-bar { background: #232c3d; }
-        .b2b-dark .b2b-page .list-table td { border-color: #232c3d; }
-        .b2b-dark .b2b-page .list-table th { border-color: #2a3446; }
-        .b2b-dark .b2b-page details.mgmt { border-color: #232c3d; }
-        .b2b-dark .b2b-page .biz-meta { color: #cbd5e1; }
-        .b2b-dark .b2b-page .alert-success { background:#0e2a1a; border-color:#14532d; color:#86efac; }
-        .b2b-dark .b2b-page .alert-error { background:#2a1416; border-color:#7f1d1d; color:#fca5a5; }
-        .b2b-dark .theme-toggle { border-color: rgba(255,255,255,.3); }
+        .dark .b2b-page input::placeholder { color: #64748b; }
+        .dark .b2b-page .btn-primary { background: #2563eb; }
+        .dark .b2b-page .btn-primary:hover { background: #1d4ed8; }
+        .dark .b2b-page #map { border-color: #232c3d; }
+        .dark .b2b-page .legend span { background: #1a2334; border-color: #2a3446; color: #cbd5e1; }
+        .dark .b2b-page .job-row { background: #0f1728; border-color: #232c3d; }
+        .dark .b2b-page .job-kw { color: #e8edf5; }
+        .dark .b2b-page .job-bar { background: #232c3d; }
+        .dark .b2b-page .list-table td { border-color: #232c3d; }
+        .dark .b2b-page .list-table th { border-color: #2a3446; }
+        .dark .b2b-page details.mgmt { border-color: #232c3d; }
+        .dark .b2b-page .biz-meta { color: #cbd5e1; }
+        .dark .b2b-page .alert-success { background:#0e2a1a; border-color:#14532d; color:#86efac; }
+        .dark .b2b-page .alert-error { background:#2a1416; border-color:#7f1d1d; color:#fca5a5; }
     </style>
-    <script>try{if(localStorage.getItem('b2b-theme')==='dark'){document.documentElement.classList.add('b2b-dark');}}catch(e){}</script>
 </head>
 <body>
     {{template "navbar" .}}
@@ -179,7 +167,6 @@
         {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
 
         <div class="b2b-hero">
-            <button type="button" id="theme-toggle" class="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
             <h1>Prospección B2B</h1>
             <p>Explora los negocios encontrados en Google Maps, marca cuáles ya son clientes y asigna prospectos a tus asesores comerciales por zona.</p>
         </div>
@@ -610,18 +597,6 @@
         document.getElementById("f-colorby").addEventListener("change", function () {
             colorMode = this.value;
             recolorMarkers();
-        });
-
-        // Theme toggle (persisted per browser).
-        const themeBtn = document.getElementById("theme-toggle");
-        function applyThemeIcon() {
-            themeBtn.textContent = document.documentElement.classList.contains("b2b-dark") ? "☀️" : "🌙";
-        }
-        applyThemeIcon();
-        themeBtn.addEventListener("click", function () {
-            const dark = document.documentElement.classList.toggle("b2b-dark");
-            try { localStorage.setItem("b2b-theme", dark ? "dark" : "light"); } catch (e) {}
-            applyThemeIcon();
         });
 
         // --- Live progress of scrape searches ---

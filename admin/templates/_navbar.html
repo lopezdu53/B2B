@@ -1,6 +1,9 @@
 {{define "navbar"}}
-<aside class="app-sidebar">
-    <a href="/admin/b2b" class="side-brand"><span class="side-logo">🗺️</span><span>Maps Scraper</span></a>
+<aside class="app-sidebar" id="app-sidebar">
+    <div class="side-head">
+        <a href="/admin/b2b" class="side-brand"><span class="side-logo">🗺️</span><span>Maps Scraper</span></a>
+        <button type="button" class="side-toggle" id="side-toggle" aria-label="Menú">☰</button>
+    </div>
 
     <nav class="side-nav">
         <div class="side-group">B2B</div>
@@ -19,13 +22,19 @@
         <a href="/admin/settings" data-path="/admin/settings"><span class="ico">🛠️</span> Ajustes</a>
     </nav>
 
-    <form class="side-logout" method="POST" action="/admin/logout">
-        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <button type="submit">⏻&nbsp; Cerrar sesión</button>
-    </form>
+    <div class="side-foot">
+        <button type="button" class="side-theme" id="theme-toggle">
+            <span class="ico" id="theme-ico">🌙</span> <span id="theme-label">Tema oscuro</span>
+        </button>
+        <form class="side-logout" method="POST" action="/admin/logout">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <button type="submit">⏻&nbsp; Cerrar sesión</button>
+        </form>
+    </div>
 </aside>
 <script>
 (function () {
+    // Active link highlight
     var path = (location.pathname.replace(/\/+$/, "") || "/");
     var links = Array.prototype.slice.call(document.querySelectorAll(".side-nav a[data-path]"));
     var best = null;
@@ -35,6 +44,26 @@
         if (match && (!best || p.length > best.getAttribute("data-path").length)) best = a;
     });
     if (best) best.classList.add("active");
+
+    // Mobile hamburger
+    var toggle = document.getElementById("side-toggle");
+    if (toggle) toggle.addEventListener("click", function () {
+        document.getElementById("app-sidebar").classList.toggle("open");
+    });
+
+    // Theme toggle (global, persisted)
+    var btn = document.getElementById("theme-toggle");
+    function paint() {
+        var dark = document.documentElement.classList.contains("dark");
+        document.getElementById("theme-ico").textContent = dark ? "☀️" : "🌙";
+        document.getElementById("theme-label").textContent = dark ? "Tema claro" : "Tema oscuro";
+    }
+    paint();
+    if (btn) btn.addEventListener("click", function () {
+        var dark = document.documentElement.classList.toggle("dark");
+        try { localStorage.setItem("admin-theme", dark ? "dark" : "light"); } catch (e) {}
+        paint();
+    });
 })();
 </script>
 {{end}}

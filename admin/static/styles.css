@@ -148,11 +148,91 @@ body {
 }
 .side-logout button:hover { background: #1e293b; color: #fff; }
 
-/* Main container (offset by the sidebar) */
+/* Sidebar footer: theme toggle + logout */
+.side-foot { margin-top: 0.5rem; }
+.side-theme {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: transparent;
+    color: #cbd5e1;
+    border: 1px solid #1e293b;
+    border-radius: 9px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    transition: background 0.15s, color 0.15s;
+}
+.side-theme:hover { background: #1e293b; color: #fff; }
+.side-theme .ico { font-size: 1rem; width: 1.25rem; text-align: center; }
+
+/* Header row inside sidebar (brand + mobile hamburger) */
+.side-head { display: flex; align-items: center; justify-content: space-between; }
+.side-toggle {
+    display: none;
+    background: transparent;
+    border: 1px solid #1e293b;
+    color: #cbd5e1;
+    border-radius: 9px;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ==================== */
+/* Global dark mode      */
+/* ==================== */
+html.dark {
+    --bg-primary: #0b1220;
+    --bg-card: #131c2e;
+    --border-color: #232c3d;
+    --text-primary: #e8edf5;
+    --text-secondary: #94a3b8;
+}
+html.dark { background: #0b1220; }
+html.dark body { background: #0b1220; }
+html.dark .card { background: #131c2e; }
+html.dark .stat-card { background: #131c2e; }
+html.dark input:not([type=checkbox]),
+html.dark select,
+html.dark textarea {
+    background: #0f1728;
+    color: #e8edf5;
+    border-color: #2a3446;
+}
+html.dark input::placeholder { color: #64748b; }
+html.dark input:focus { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+html.dark .btn-primary,
+html.dark button[type="submit"] { background: #2563eb; color: #fff; }
+html.dark .btn-primary:hover,
+html.dark button[type="submit"]:hover { background: #1d4ed8; }
+html.dark .btn-secondary { background: #131c2e; color: #e8edf5; border-color: #2a3446; }
+html.dark .data-table th { background: #0f1728; color: #94a3b8; border-color: #2a3446; }
+html.dark .data-table td { background: #131c2e; color: #e8edf5; border-color: #232c3d; }
+html.dark .data-table tr:hover td { background: #172136; }
+html.dark .empty-state { color: #94a3b8; }
+html.dark .count-badge { background: #1e293b; color: #c7d2fe; }
+html.dark .table-wrap { border-color: #232c3d; }
+html.dark .sec-title .ico { background: #1e293b; }
+html.dark .alert-success { background: #0e2a1a; border-color: #14532d; color: #86efac; }
+html.dark .alert-error { background: #2a1416; border-color: #7f1d1d; color: #fca5a5; }
+html.dark details { border-color: #232c3d; }
+html.dark a { color: #60a5fa; }
+html.dark hr { border-color: #232c3d; }
+html.dark .status::before { background: var(--text-secondary); }
+
+/* Main container (offset by the sidebar, fluid width) */
 main.container {
     margin-left: 244px;
-    max-width: 1200px;
-    padding: 2rem 2.25rem;
+    max-width: none;
+    width: auto;
+    padding: 2rem 2.5rem;
 }
 
 /* Page header → gradient hero (shared across pages) */
@@ -650,19 +730,20 @@ button:disabled {
 /* ==================== */
 
 @media (max-width: 860px) {
-    /* Sidebar collapses to a horizontal top strip */
+    /* Sidebar becomes a top bar with a hamburger-toggled drawer */
     .app-sidebar {
-        position: static;
+        position: sticky;
+        top: 0;
         width: auto;
-        flex-direction: column;
-        padding: 0.75rem;
+        bottom: auto;
+        padding: 0.6rem 0.9rem;
+        z-index: 60;
     }
-    .side-nav { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-    .side-group { display: none; }
-    .side-nav a { padding: 0.4rem 0.6rem; font-size: 0.82rem; }
-    .side-logout { margin-top: 0.5rem; padding-top: 0.5rem; }
-    .side-logout button { width: auto; padding: 0.4rem 0.9rem; }
-    main.container { margin-left: 0; }
+    .side-toggle { display: inline-flex; }
+    .side-nav, .side-foot { display: none; }
+    .app-sidebar.open .side-nav { display: flex; margin-top: 0.6rem; }
+    .app-sidebar.open .side-foot { display: block; }
+    main.container { margin-left: 0; padding: 1.25rem 1rem; }
 }
 
 @media (max-width: 768px) {
