@@ -14,6 +14,7 @@ func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, 
 	}
 
 	data["CSRFToken"] = CSRFTokenFromContext(r.Context())
+	data["AssetVersion"] = assetVersion
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
