@@ -1,7 +1,9 @@
 package admin
 
 import (
+	"encoding/csv"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -80,7 +82,54 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			}
 		}
 
+		// Advisor users only ever see their own assigned businesses.
+		if scope := advisorScope(r); scope != nil {
+			f.AdvisorID = scope
+		}
+
+		// Pagination.
+		const pageSize = 50
+
+		page, _ := strconv.Atoi(q.Get("page"))
+		if page < 1 {
+			page = 1
+		}
+
+		f.Limit = pageSize
+		f.Offset = (page - 1) * pageSize
+
 		tid, _ := effectiveTenant(appState, r)
+
+		total, _ := appState.Store.CountBusinesses(ctx, tid, f)
+
+		totalPages := (total + pageSize - 1) / pageSize
+		if totalPages < 1 {
+			totalPages = 1
+		}
+
+		// Preserve filters across page links.
+		params := url.Values{}
+		for _, kv := range []struct{ k, v string }{
+			{"q", f.Search}, {"city", f.City}, {"status", f.Status},
+			{"advisor", q.Get("advisor")}, {"category", q.Get("category")},
+		} {
+			if kv.v != "" {
+				params.Set(kv.k, kv.v)
+			}
+		}
+
+		exportURL := "/admin/b2b/negocios/export?" + params.Encode()
+
+		pageURL := func(p int) string {
+			pp := url.Values{}
+			for k, v := range params {
+				pp[k] = v
+			}
+
+			pp.Set("page", strconv.Itoa(p))
+
+			return "/admin/b2b/negocios?" + pp.Encode()
+		}
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
@@ -130,7 +179,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 
 		data := map[string]any{
 			"Rows":       rows,
-			"Count":      len(rows),
+			"Count":      total,
 			"Advisors":   advisors,
 			"Zones":      zones,
 			"Categories": categories,
@@ -140,11 +189,111 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			"StatVal":    f.Status,
 			"AdvVal":     q.Get("advisor"),
 			"CatVal":     q.Get("category"),
+			"Page":       page,
+			"TotalPages": totalPages,
+			"HasPrev":    page > 1,
+			"HasNext":    page < totalPages,
+			"PrevURL":    pageURL(page - 1),
+			"NextURL":    pageURL(page + 1),
+			"ExportURL":  exportURL,
+			"IsAdvisor":  advisorScope(r) != nil,
 			"Success":    q.Get("success"),
 			"Error":      q.Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "negocios.html", data)
+	}
+}
+
+// NegociosExportHandler streams the filtered businesses as a CSV download.
+func NegociosExportHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		ctx := r.Context()
+		q := r.URL.Query()
+
+		f := BusinessFilter{City: q.Get("city"), Status: q.Get("status"), Search: strings.TrimSpace(q.Get("q"))}
+
+		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
+			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
+				f.AdvisorID = &id
+			}
+		}
+
+		if c := strings.TrimSpace(q.Get("category")); c != "" {
+			if id, err := strconv.ParseInt(c, 10, 64); err == nil {
+				f.CategoryID = &id
+			}
+		}
+
+		if scope := advisorScope(r); scope != nil {
+			f.AdvisorID = scope
+		}
+
+		tid, _ := effectiveTenant(appState, r)
+
+		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
+		zones, _ := appState.Store.ListZones(ctx, tid)
+		categories, _ := appState.Store.ListCategories(ctx, tid)
+
+		advisorNames := map[int64]string{}
+		for i := range advisors {
+			advisorNames[advisors[i].ID] = advisors[i].Name
+		}
+
+		zoneNames := map[int64]string{}
+		for i := range zones {
+			zoneNames[zones[i].ID] = zones[i].Name
+		}
+
+		categoryNames := map[int64]string{}
+		for i := range categories {
+			categoryNames[categories[i].ID] = categories[i].Name
+		}
+
+		businesses, err := appState.Store.ListBusinesses(ctx, tid, f)
+		if err != nil {
+			log.Error("b2b: export", "error", err)
+			http.Error(w, "export failed", http.StatusInternalServerError)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="negocios.csv"`)
+		_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM for Excel
+
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"Negocio", "Categoría (Maps)", "Dirección", "Ciudad", "Teléfono", "Web", "Estado", "Asesor", "Zona", "Categoría", "Notas"})
+
+		for i := range businesses {
+			b := businesses[i]
+			label, _ := statusMeta(b.Status)
+
+			var advisorName, zoneName, categoryName string
+			if b.AdvisorID != nil {
+				advisorName = advisorNames[*b.AdvisorID]
+			}
+
+			if b.ZoneID != nil {
+				zoneName = zoneNames[*b.ZoneID]
+			}
+
+			if b.CategoryID != nil {
+				categoryName = categoryNames[*b.CategoryID]
+			}
+
+			_ = cw.Write([]string{
+				b.Title, b.Category, b.Address, b.City, b.Phone, b.Website,
+				label, advisorName, zoneName, categoryName, b.Notes,
+			})
+		}
+
+		cw.Flush()
 	}
 }
 

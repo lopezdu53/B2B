@@ -367,6 +367,12 @@ html.dark .bulk-bar.active { background: #172136; border-color: #2563eb; }
 
 .btn-edit { background: none; border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 8px; padding: 0.3rem 0.7rem; font-size: 0.82rem; font-weight: 500; cursor: pointer; }
 .btn-edit:hover { border-color: var(--accent); color: var(--accent); }
+a.btn-edit { text-decoration: none; display: inline-block; }
+.btn-edit.disabled { opacity: 0.4; pointer-events: none; }
+
+/* Pager */
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
+.pager-info { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
 
 /* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: none; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }

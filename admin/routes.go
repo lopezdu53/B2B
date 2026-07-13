@@ -46,6 +46,7 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 			// B2B map dashboard (prospecting / CRM)
 			r.Get("/b2b", B2BPageHandler(appState))
 			r.Get("/b2b/negocios", NegociosPageHandler(appState))
+			r.Get("/b2b/negocios/export", NegociosExportHandler(appState))
 			r.Post("/b2b/negocios/bulk", BulkBusinessHandler(appState))
 			r.Get("/b2b/asesores", AsesoresPageHandler(appState))
 			r.Get("/b2b/zonas", ZonasPageHandler(appState))

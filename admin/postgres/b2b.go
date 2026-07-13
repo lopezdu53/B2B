@@ -46,7 +46,7 @@ WHERE ($1 = '' OR city = $1)
   AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
   AND ($7 = 0 OR category_id = $7)
 ORDER BY bkey
-LIMIT $5`
+LIMIT $5 OFFSET $8`
 
 // ListBusinesses returns scraped businesses with the tenant's CRM overlay.
 func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.BusinessFilter) ([]admin.MapBusiness, error) {
@@ -65,7 +65,12 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		categoryID = *f.CategoryID
 	}
 
-	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID)
+	offset := f.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +92,55 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 	}
 
 	return out, rows.Err()
+}
+
+// countBusinessesQuery counts the distinct businesses matching the filters
+// (same shape as listBusinessesQuery, without paging). $6 is the tenant id.
+const countBusinessesQuery = `
+SELECT COUNT(*) FROM (
+    SELECT DISTINCT ON (bkey) bkey FROM (
+        SELECT
+            COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey,
+            elem->>'title'    AS title,
+            COALESCE(elem->>'category', '') AS category,
+            COALESCE(elem->>'address', '')  AS address,
+            COALESCE(elem->'complete_address'->>'city', '') AS city,
+            COALESCE(crm.status, 'prospect') AS status,
+            crm.advisor_id,
+            crm.category_id
+        FROM scrape_results sr
+        CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+        LEFT JOIN b2b_business_crm crm
+            ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
+           AND crm.tenant_id = $6
+        WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
+          AND (elem->>'latitude') ~ '^-?[0-9]'
+          AND (elem->>'latitude')::float8 <> 0
+    ) t
+    WHERE ($1 = '' OR city = $1)
+      AND ($2 = '' OR status = $2)
+      AND ($3 = 0 OR advisor_id = $3)
+      AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
+      AND ($5 = 0 OR category_id = $5)
+) c`
+
+// CountBusinesses returns how many businesses match the filter (for paging).
+func (s *store) CountBusinesses(ctx context.Context, tenantID int64, f admin.BusinessFilter) (int, error) {
+	var advisorID int64
+	if f.AdvisorID != nil {
+		advisorID = *f.AdvisorID
+	}
+
+	var categoryID int64
+	if f.CategoryID != nil {
+		categoryID = *f.CategoryID
+	}
+
+	var n int
+	err := s.db.QueryRow(ctx, countBusinessesQuery,
+		f.City, f.Status, advisorID, f.Search, categoryID, tenantID).Scan(&n)
+
+	return n, err
 }
 
 // ListBusinessCities returns the distinct cities present in the scraped data
@@ -160,15 +214,27 @@ SELECT COUNT(*) FROM (
 ) t`
 
 // B2BSummary returns aggregate counters for the tenant's dashboard header.
-func (s *store) B2BSummary(ctx context.Context, tenantID int64) (*admin.B2BSummary, error) {
+// When advisorID is non-nil the business counts are limited to that advisor's
+// assigned businesses (so an advisor only sees their own numbers).
+func (s *store) B2BSummary(ctx context.Context, tenantID int64, advisorID *int64) (*admin.B2BSummary, error) {
 	var sum admin.B2BSummary
 
-	if err := s.db.QueryRow(ctx, businessTotalQuery).Scan(&sum.Total); err != nil {
-		return nil, err
+	statusQ := `SELECT status, COUNT(*) FROM b2b_business_crm WHERE tenant_id = $1`
+	args := []any{tenantID}
+
+	if advisorID != nil {
+		statusQ += ` AND advisor_id = $2`
+		args = append(args, *advisorID)
+	} else {
+		// Tenant-wide total counts every scraped business (shared lead pool).
+		if err := s.db.QueryRow(ctx, businessTotalQuery).Scan(&sum.Total); err != nil {
+			return nil, err
+		}
 	}
 
-	statusRows, err := s.db.Query(ctx,
-		`SELECT status, COUNT(*) FROM b2b_business_crm WHERE tenant_id = $1 GROUP BY status`, tenantID)
+	statusQ += ` GROUP BY status`
+
+	statusRows, err := s.db.Query(ctx, statusQ, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +266,11 @@ func (s *store) B2BSummary(ctx context.Context, tenantID int64) (*admin.B2BSumma
 		return nil, err
 	}
 
-	// Every business without a CRM row yet counts as a prospect for this tenant.
-	if tracked := sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects; sum.Total > tracked {
+	if advisorID != nil {
+		// The advisor only sees their assigned businesses; total is their sum.
+		sum.Total = sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects
+	} else if tracked := sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects; sum.Total > tracked {
+		// Every business without a CRM row yet counts as a prospect.
 		sum.Prospects = sum.Total - sum.Clients - sum.InProgress - sum.Discarded
 	}
 

@@ -61,7 +61,11 @@
                     <button type="submit" class="btn-primary">Filtrar</button>
                 </div>
                 <div style="align-self:center;"><small>{{.Count}} negocios</small></div>
+                <div style="align-self:center; margin-left:auto;">
+                    <a href="{{.ExportURL}}" class="btn-edit">⬇ Exportar CSV</a>
+                </div>
             </form>
+            {{if .IsAdvisor}}<p class="empty-hint" style="margin:.6rem 0 0;">👤 Estás viendo solo los negocios asignados a ti.</p>{{end}}
         </div>
 
         <div class="card">
@@ -116,6 +120,13 @@
                     </table>
                 </div>
             </form>
+            {{if gt .TotalPages 1}}
+            <div class="pager">
+                {{if .HasPrev}}<a href="{{.PrevURL}}" class="btn-edit">← Anterior</a>{{else}}<span class="btn-edit disabled">← Anterior</span>{{end}}
+                <span class="pager-info">Página {{.Page}} de {{.TotalPages}}</span>
+                {{if .HasNext}}<a href="{{.NextURL}}" class="btn-edit">Siguiente →</a>{{else}}<span class="btn-edit disabled">Siguiente →</span>{{end}}
+            </div>
+            {{end}}
             {{else}}
             <div class="empty-state">
                 <div class="big">🔍</div>

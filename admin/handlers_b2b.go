@@ -45,7 +45,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			log.Error("b2b: list cities", "error", err)
 		}
 
-		summary, err := appState.Store.B2BSummary(ctx, tid)
+		summary, err := appState.Store.B2BSummary(ctx, tid, advisorScope(r))
 		if err != nil {
 			log.Error("b2b: summary", "error", err)
 			summary = &B2BSummary{}
@@ -97,6 +97,11 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 			}
 		}
 
+		// Advisor users only ever see their own assigned businesses.
+		if scope := advisorScope(r); scope != nil {
+			f.AdvisorID = scope
+		}
+
 		tid, _ := effectiveTenant(appState, r)
 
 		businesses, err := appState.Store.ListBusinesses(r.Context(), tid, f)
@@ -126,7 +131,7 @@ func B2BSummaryHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
-		sum, err := appState.Store.B2BSummary(r.Context(), tid)
+		sum, err := appState.Store.B2BSummary(r.Context(), tid, advisorScope(r))
 		if err != nil {
 			log.Error("b2b: summary json", "error", err)
 			http.Error(w, "failed to load summary", http.StatusInternalServerError)

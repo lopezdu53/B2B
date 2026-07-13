@@ -47,6 +47,18 @@ func effectiveTenant(appState *AppState, r *http.Request) (int64, *Tenant) {
 	return 1, nil
 }
 
+// advisorScope returns the advisor id a request's business data must be limited
+// to. Advisor users see only their own assigned businesses; everyone else (admin,
+// superadmin) sees the whole tenant, so it returns nil.
+func advisorScope(r *http.Request) *int64 {
+	u := UserFromContext(r.Context())
+	if u != nil && u.Role == RoleAdvisor && u.AdvisorID != nil {
+		return u.AdvisorID
+	}
+
+	return nil
+}
+
 // RequireSuperadmin blocks non-superadmin users from a route.
 func RequireSuperadmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

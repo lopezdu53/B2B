@@ -86,6 +86,7 @@ type BusinessFilter struct {
 	CategoryID *int64
 	Search     string // free-text match on title / category / address
 	Limit      int
+	Offset     int
 }
 
 // B2BSummary holds aggregate counters for the dashboard header.
@@ -104,9 +105,10 @@ type B2BSummary struct {
 type IB2BStore interface {
 	// Businesses (scraped + per-tenant CRM overlay)
 	ListBusinesses(ctx context.Context, tenantID int64, f BusinessFilter) ([]MapBusiness, error)
+	CountBusinesses(ctx context.Context, tenantID int64, f BusinessFilter) (int, error)
 	ListBusinessCities(ctx context.Context) ([]string, error)
 	SetBusinessCRM(ctx context.Context, tenantID int64, key, status string, advisorID, zoneID *int64, notes, title string) error
-	B2BSummary(ctx context.Context, tenantID int64) (*B2BSummary, error)
+	B2BSummary(ctx context.Context, tenantID int64, advisorID *int64) (*B2BSummary, error)
 
 	// Advisors
 	ListAdvisors(ctx context.Context, tenantID int64) ([]Advisor, error)

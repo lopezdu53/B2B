@@ -44,6 +44,14 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"StatVal":        "",
 		"AdvVal":         "",
 		"CatVal":         "",
+		"Page":           1,
+		"TotalPages":     1,
+		"HasPrev":        false,
+		"HasNext":        false,
+		"PrevURL":        "",
+		"NextURL":        "",
+		"ExportURL":      "/admin/b2b/negocios/export",
+		"IsAdvisor":      false,
 	}
 
 	for _, name := range []string{"b2b.html", "negocios.html", "asesores.html"} {
