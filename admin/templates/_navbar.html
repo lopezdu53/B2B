@@ -84,6 +84,7 @@
     paint();
     if (btn) btn.addEventListener("click", function () {
         var dark = document.documentElement.classList.toggle("dark");
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
         try { localStorage.setItem("admin-theme", dark ? "dark" : "light"); } catch (e) {}
         paint();
     });

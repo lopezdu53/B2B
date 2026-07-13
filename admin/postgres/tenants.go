@@ -72,6 +72,13 @@ func (s *store) TenantCounts(ctx context.Context, tenantID int64) (admins, advis
 	return admins, advisors
 }
 
+// LinkUserAdvisor links a login user to their advisor record.
+func (s *store) LinkUserAdvisor(ctx context.Context, userID int, advisorID int64) error {
+	_, err := s.db.Exec(ctx, `UPDATE users SET advisor_id = $1 WHERE id = $2`, advisorID, userID)
+
+	return err
+}
+
 // CreateTenantUser creates a user (admin or advisor) scoped to a tenant.
 func (s *store) CreateTenantUser(ctx context.Context, username, password, role string, tenantID int64) (*admin.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

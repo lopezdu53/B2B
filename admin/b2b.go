@@ -101,10 +101,12 @@ type IB2BStore interface {
 	// Advisors
 	ListAdvisors(ctx context.Context, tenantID int64) ([]Advisor, error)
 	CreateAdvisor(ctx context.Context, tenantID int64, name, email, phone, city string) (*Advisor, error)
+	UpdateAdvisor(ctx context.Context, tenantID, id int64, name, email, phone, city string) error
 	DeleteAdvisor(ctx context.Context, tenantID, id int64) error
 
 	// Zones
 	ListZones(ctx context.Context, tenantID int64) ([]Zone, error)
 	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string) (*Zone, error)
+	UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string) error
 	DeleteZone(ctx context.Context, tenantID, id int64) error
 }

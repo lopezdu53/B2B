@@ -46,6 +46,7 @@ type IStore interface {
 	// Users
 	CreateUser(ctx context.Context, username, password string) (*User, error)
 	CreateTenantUser(ctx context.Context, username, password, role string, tenantID int64) (*User, error)
+	LinkUserAdvisor(ctx context.Context, userID int, advisorID int64) error
 	GetUser(ctx context.Context, username string) (*User, error)
 	GetUserByID(ctx context.Context, id int) (*User, error)
 	UpdatePassword(ctx context.Context, username, password string) error

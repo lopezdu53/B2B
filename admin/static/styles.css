@@ -333,8 +333,9 @@ main.container {
     position: sticky;
     top: 0;
 }
-.data-table td { padding: 0.7rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
-.data-table tr:hover td { background: #fafbfc; }
+.data-table, .data-table tbody, .data-table tbody tr { background: var(--bg-card); }
+.data-table td { padding: 0.7rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; background: var(--bg-card); color: var(--text-primary); }
+.data-table tr:hover td { background: #f6f8fb; }
 .data-table .muted { color: var(--text-secondary); }
 .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border-color); }
 .table-wrap .data-table th:first-child, .table-wrap .data-table td:first-child { padding-left: 1rem; }
@@ -352,6 +353,21 @@ main.container {
 .empty-state .big { font-size: 2rem; margin-bottom: 0.5rem; }
 
 .count-badge { font-size: 0.75rem; background: #eef2ff; color: #3730a3; padding: 0.12rem 0.55rem; border-radius: 999px; font-weight: 600; }
+
+.btn-edit { background: none; border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 8px; padding: 0.3rem 0.7rem; font-size: 0.82rem; font-weight: 500; cursor: pointer; }
+.btn-edit:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: none; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.5rem; width: 100%; max-width: 460px; box-shadow: 0 20px 50px -12px rgba(0,0,0,0.35); }
+.modal h3 { margin: 0 0 1rem; font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+.modal .field { margin-bottom: 0.8rem; display: flex; flex-direction: column; }
+.modal label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem; }
+.modal input, .modal select, .modal textarea { margin: 0; border-radius: 9px; width: 100%; }
+.modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1.2rem; }
+.modal-actions .btn-secondary { padding: 0.55rem 1rem; border-radius: 9px; font-weight: 500; cursor: pointer; }
+html.dark .modal { background: #131c2e; border-color: #232c3d; }
 
 .card-header {
     display: flex;
@@ -564,6 +580,14 @@ input:not([type="checkbox"]) {
     padding: 0.625rem 0.875rem;
     font-size: 0.9375rem;
     transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* Force form controls to our theme so the OS colour scheme can't leak in. */
+input:not([type="checkbox"]):not([type="color"]),
+select,
+textarea {
+    background: var(--bg-card);
+    color: var(--text-primary);
 }
 
 input:focus {

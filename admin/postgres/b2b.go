@@ -249,6 +249,22 @@ RETURNING id, name, COALESCE(email, ''), COALESCE(phone, ''), COALESCE(city, '')
 	return &a, nil
 }
 
+// UpdateAdvisor edits one of the tenant's advisors.
+func (s *store) UpdateAdvisor(ctx context.Context, tenantID, id int64, name, email, phone, city string) error {
+	ct, err := s.db.Exec(ctx,
+		`UPDATE b2b_advisors SET name = $1, email = $2, phone = $3, city = $4 WHERE id = $5 AND tenant_id = $6`,
+		name, email, phone, city, id, tenantID)
+	if err != nil {
+		return err
+	}
+
+	if ct.RowsAffected() == 0 {
+		return admin.ErrResourceNotFound
+	}
+
+	return nil
+}
+
 // DeleteAdvisor removes one of the tenant's advisors.
 func (s *store) DeleteAdvisor(ctx context.Context, tenantID, id int64) error {
 	_, err := s.db.Exec(ctx, `DELETE FROM b2b_advisors WHERE id = $1 AND tenant_id = $2`, id, tenantID)
@@ -297,6 +313,26 @@ RETURNING id, name, city, advisor_id, color, created_at`
 	}
 
 	return &z, nil
+}
+
+// UpdateZone edits one of the tenant's zones.
+func (s *store) UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string) error {
+	if color == "" {
+		color = "#2563eb"
+	}
+
+	ct, err := s.db.Exec(ctx,
+		`UPDATE b2b_zones SET name = $1, city = $2, advisor_id = $3, color = $4 WHERE id = $5 AND tenant_id = $6`,
+		name, city, advisorID, color, id, tenantID)
+	if err != nil {
+		return err
+	}
+
+	if ct.RowsAffected() == 0 {
+		return admin.ErrResourceNotFound
+	}
+
+	return nil
 }
 
 // DeleteZone removes one of the tenant's zones.

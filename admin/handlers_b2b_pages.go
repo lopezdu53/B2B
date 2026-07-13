@@ -115,6 +115,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			"Rows":     rows,
 			"Count":    len(rows),
 			"Advisors": advisors,
+			"Zones":    zones,
 			"Cities":   cities,
 			"QVal":     f.Search,
 			"CityVal":  f.City,

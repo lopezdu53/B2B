@@ -63,7 +63,7 @@
                     <thead>
                         <tr>
                             <th>Negocio</th><th>Ciudad</th><th>Teléfono</th><th>Web</th>
-                            <th>Estado</th><th>Asesor</th><th>Zona</th>
+                            <th>Estado</th><th>Asesor</th><th>Zona</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -80,6 +80,12 @@
                             <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
                             <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
                             <td>{{if .ZoneName}}{{.ZoneName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td style="text-align:right;">
+                                <button type="button" class="btn-edit"
+                                    data-key="{{.Key}}" data-title="{{.Title}}" data-status="{{.Status}}"
+                                    data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}" data-zone="{{if .ZoneID}}{{.ZoneID}}{{end}}" data-notes="{{.Notes}}"
+                                    onclick="editBiz(this)">Editar</button>
+                            </td>
                         </tr>
                     {{end}}
                     </tbody>
@@ -93,6 +99,60 @@
             {{end}}
         </div>
     </main>
+
+    <div class="modal-overlay" id="edit-modal">
+        <form class="modal" method="POST" action="/admin/b2b/business/update" id="edit-form">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <input type="hidden" name="key" id="e-key">
+            <input type="hidden" name="title" id="e-title">
+            <h3 id="e-heading">Editar negocio</h3>
+            <div class="field">
+                <label>Estado</label>
+                <select name="status" id="e-status">
+                    <option value="prospect">Prospecto</option>
+                    <option value="in_progress">En gestión</option>
+                    <option value="client">Cliente</option>
+                    <option value="discarded">Descartado</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>Asesor</label>
+                <select name="advisor_id" id="e-advisor">
+                    <option value="">Sin asignar</option>
+                    {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
+            <div class="field">
+                <label>Zona</label>
+                <select name="zone_id" id="e-zone">
+                    <option value="">Sin zona</option>
+                    {{range .Zones}}<option value="{{.ID}}">{{.Name}} · {{.City}}</option>{{end}}
+                </select>
+            </div>
+            <div class="field"><label>Notas</label><textarea name="notes" id="e-notes" rows="3"></textarea></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('edit-modal')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+    function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+    function editBiz(btn) {
+        document.getElementById("e-key").value = btn.dataset.key || "";
+        document.getElementById("e-title").value = btn.dataset.title || "";
+        document.getElementById("e-heading").textContent = btn.dataset.title || "Editar negocio";
+        document.getElementById("e-status").value = btn.dataset.status || "prospect";
+        document.getElementById("e-advisor").value = btn.dataset.advisor || "";
+        document.getElementById("e-zone").value = btn.dataset.zone || "";
+        document.getElementById("e-notes").value = btn.dataset.notes || "";
+        document.getElementById("edit-modal").classList.add("open");
+    }
+    document.getElementById("edit-modal").addEventListener("click", function (e) {
+        if (e.target === this) closeModal("edit-modal");
+    });
+    </script>
 </body>
 </html>
 {{end}}

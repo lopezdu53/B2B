@@ -50,7 +50,11 @@
                             <td><span class="swatch" style="background:{{.Color}};"></span> <strong>{{.Name}}</strong></td>
                             <td>{{.City}}</td>
                             <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
-                            <td style="text-align:right;">
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button type="button" class="btn-edit"
+                                    data-id="{{.ID}}" data-name="{{.Name}}" data-city="{{.City}}" data-color="{{.Color}}"
+                                    data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}"
+                                    onclick="editZone(this)">Editar</button>
                                 <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar zona?');">
                                     <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                                     <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
@@ -69,14 +73,47 @@
             {{end}}
         </div>
     </main>
+
+    <div class="modal-overlay" id="edit-modal">
+        <form class="modal" method="POST" id="edit-form">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <h3>Editar zona</h3>
+            <div class="field"><label>Nombre *</label><input type="text" name="name" id="e-name" required></div>
+            <div class="field"><label>Ciudad *</label><input type="text" name="city" id="e-city" required></div>
+            <div class="field">
+                <label>Asesor</label>
+                <select name="advisor_id" id="e-advisor">
+                    <option value="">Sin asignar</option>
+                    {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
+            <div class="field"><label>Color</label><input type="color" name="color" id="e-color" style="width:60px;height:40px;padding:2px;"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('edit-modal')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+
     <script>
     function filterRows(inputId, tableId) {
         var q = document.getElementById(inputId).value.toLowerCase();
-        var rows = document.querySelectorAll("#" + tableId + " tbody tr");
-        rows.forEach(function (tr) {
+        document.querySelectorAll("#" + tableId + " tbody tr").forEach(function (tr) {
             tr.style.display = tr.textContent.toLowerCase().indexOf(q) > -1 ? "" : "none";
         });
     }
+    function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+    function editZone(btn) {
+        document.getElementById("edit-form").action = "/admin/b2b/zones/" + btn.dataset.id + "/update";
+        document.getElementById("e-name").value = btn.dataset.name || "";
+        document.getElementById("e-city").value = btn.dataset.city || "";
+        document.getElementById("e-advisor").value = btn.dataset.advisor || "";
+        document.getElementById("e-color").value = btn.dataset.color || "#2563eb";
+        document.getElementById("edit-modal").classList.add("open");
+    }
+    document.getElementById("edit-modal").addEventListener("click", function (e) {
+        if (e.target === this) closeModal("edit-modal");
+    });
     </script>
 </body>
 </html>
