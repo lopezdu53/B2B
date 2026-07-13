@@ -74,6 +74,12 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			}
 		}
 
+		if c := strings.TrimSpace(q.Get("category")); c != "" {
+			if id, err := strconv.ParseInt(c, 10, 64); err == nil {
+				f.CategoryID = &id
+			}
+		}
+
 		tid, _ := effectiveTenant(appState, r)
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
@@ -133,6 +139,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			"CityVal":    f.City,
 			"StatVal":    f.Status,
 			"AdvVal":     q.Get("advisor"),
+			"CatVal":     q.Get("category"),
 			"Success":    q.Get("success"),
 			"Error":      q.Get("error"),
 		}

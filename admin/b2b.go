@@ -80,11 +80,12 @@ type MapBusiness struct {
 
 // BusinessFilter narrows down the businesses returned for the map.
 type BusinessFilter struct {
-	City      string
-	Status    string
-	AdvisorID *int64
-	Search    string // free-text match on title / category / address
-	Limit     int
+	City       string
+	Status     string
+	AdvisorID  *int64
+	CategoryID *int64
+	Search     string // free-text match on title / category / address
+	Limit      int
 }
 
 // B2BSummary holds aggregate counters for the dashboard header.

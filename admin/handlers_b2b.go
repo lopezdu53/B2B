@@ -35,6 +35,11 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			log.Error("b2b: list zones", "error", err)
 		}
 
+		categories, err := appState.Store.ListCategories(ctx, tid)
+		if err != nil {
+			log.Error("b2b: list categories", "error", err)
+		}
+
 		cities, err := appState.Store.ListBusinessCities(ctx)
 		if err != nil {
 			log.Error("b2b: list cities", "error", err)
@@ -47,16 +52,18 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		data := map[string]any{
-			"Advisors": advisors,
-			"Zones":    zones,
-			"Cities":   cities,
-			"Summary":  summary,
+			"Advisors":   advisors,
+			"Zones":      zones,
+			"Categories": categories,
+			"Cities":     cities,
+			"Summary":    summary,
 			// Passed into a <script> context; html/template JSON-encodes these
 			// safely for the map colouring logic.
-			"AdvisorsData": advisors,
-			"ZonesData":    zones,
-			"Success":      r.URL.Query().Get("success"),
-			"Error":        r.URL.Query().Get("error"),
+			"AdvisorsData":   advisors,
+			"ZonesData":      zones,
+			"CategoriesData": categories,
+			"Success":        r.URL.Query().Get("success"),
+			"Error":          r.URL.Query().Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "b2b.html", data)
@@ -81,6 +88,12 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 		if a := strings.TrimSpace(r.URL.Query().Get("advisor")); a != "" {
 			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
 				f.AdvisorID = &id
+			}
+		}
+
+		if c := strings.TrimSpace(r.URL.Query().Get("category")); c != "" {
+			if id, err := strconv.ParseInt(c, 10, 64); err == nil {
+				f.CategoryID = &id
 			}
 		}
 

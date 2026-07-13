@@ -266,6 +266,7 @@
                         <option value="status">Estado</option>
                         <option value="advisor">Asesor</option>
                         <option value="zone">Zona</option>
+                        <option value="category">Categoría</option>
                     </select>
                 </div>
                 <div>
@@ -414,15 +415,18 @@
             discarded: "Descartado"
         };
 
-        // Data for colouring markers by advisor / zone.
+        // Data for colouring markers by advisor / zone / category.
         const ADVISORS_LIST = {{.AdvisorsData}} || [];
         const ZONES_LIST = {{.ZonesData}} || [];
+        const CATEGORIES_LIST = {{.CategoriesData}} || [];
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
         const advisorMeta = {}; // id -> {name, color}
         ADVISORS_LIST.forEach((a, i) => { advisorMeta[a.ID] = { name: a.Name, color: CAT_PALETTE[i % CAT_PALETTE.length] }; });
         const zoneMeta = {}; // id -> {name, color}
         ZONES_LIST.forEach(z => { zoneMeta[z.ID] = { name: z.Name + " · " + z.City, color: z.Color || NEUTRAL }; });
+        const categoryMeta = {}; // id -> {name, color}
+        CATEGORIES_LIST.forEach((c, i) => { categoryMeta[c.ID] = { name: c.Name, color: CAT_PALETTE[i % CAT_PALETTE.length] }; });
         let colorMode = "status";
 
         function colorFor(biz) {
@@ -431,6 +435,9 @@
             }
             if (colorMode === "zone") {
                 return biz.zone_id && zoneMeta[biz.zone_id] ? zoneMeta[biz.zone_id].color : NEUTRAL;
+            }
+            if (colorMode === "category") {
+                return biz.category_id && categoryMeta[biz.category_id] ? categoryMeta[biz.category_id].color : NEUTRAL;
             }
             return STATUS_COLORS[biz.status] || STATUS_COLORS.prospect;
         }
@@ -472,6 +479,9 @@
             } else if (colorMode === "zone") {
                 items = ZONES_LIST.map(z => ({ color: zoneMeta[z.ID].color, label: z.Name }));
                 items.push({ color: NEUTRAL, label: "Sin zona" });
+            } else if (colorMode === "category") {
+                items = CATEGORIES_LIST.map(c => ({ color: categoryMeta[c.ID].color, label: c.Name }));
+                items.push({ color: NEUTRAL, label: "Sin categoría" });
             } else {
                 items = [
                     { color: STATUS_COLORS.prospect, label: "Prospecto" },

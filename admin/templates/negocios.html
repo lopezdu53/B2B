@@ -50,6 +50,14 @@
                     </select>
                 </div>
                 <div>
+                    <label for="category">Categoría</label>
+                    <select id="category" name="category">
+                        {{$cat := .CatVal}}
+                        <option value="">Todas</option>
+                        {{range .Categories}}<option value="{{.ID}}" {{if eq (printf "%d" .ID) $cat}}selected{{end}}>{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
                     <button type="submit" class="btn-primary">Filtrar</button>
                 </div>
                 <div style="align-self:center;"><small>{{.Count}} negocios</small></div>

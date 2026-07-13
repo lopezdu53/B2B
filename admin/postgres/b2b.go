@@ -44,6 +44,7 @@ WHERE ($1 = '' OR city = $1)
   AND ($2 = '' OR status = $2)
   AND ($3 = 0 OR advisor_id = $3)
   AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
+  AND ($7 = 0 OR category_id = $7)
 ORDER BY bkey
 LIMIT $5`
 
@@ -59,7 +60,12 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		advisorID = *f.AdvisorID
 	}
 
-	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID)
+	var categoryID int64
+	if f.CategoryID != nil {
+		categoryID = *f.CategoryID
+	}
+
+	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID)
 	if err != nil {
 		return nil, err
 	}
