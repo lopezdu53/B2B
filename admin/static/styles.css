@@ -112,7 +112,8 @@ body {
 .side-tenant { color: #fff; font-weight: 600; font-size: 0.92rem; }
 .side-role { color: #94a3b8; font-size: 0.78rem; margin-top: 0.2rem; }
 
-.side-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.side-nav { display: flex; flex-direction: column; justify-content: flex-start; align-content: flex-start; gap: 2px; flex: 1; overflow: visible; }
+.side-nav a { margin: 0; }
 
 .side-group {
     font-size: 0.68rem;
