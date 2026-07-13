@@ -143,6 +143,8 @@ func BulkBusinessHandler(appState *AppState) http.HandlerFunc {
 			}
 
 			err = appState.Store.BulkSetCategory(ctx, tid, keys, id)
+		case "delete":
+			err = appState.Store.BulkSetHidden(ctx, tid, keys, true)
 		default:
 			b2bRedirectBack(w, r, "/admin/b2b/negocios", "error", "Acción+invalida")
 			return

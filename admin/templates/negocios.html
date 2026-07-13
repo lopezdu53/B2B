@@ -58,6 +58,15 @@
                     </select>
                 </div>
                 <div>
+                    <label for="sort">Ordenar por</label>
+                    <select id="sort" name="sort" onchange="this.form.submit()">
+                        {{$s := .SortVal}}
+                        <option value="name" {{if eq $s "name"}}selected{{end}}>Nombre (A-Z)</option>
+                        <option value="category" {{if eq $s "category"}}selected{{end}}>Categoría</option>
+                        <option value="added" {{if eq $s "added"}}selected{{end}}>Últimos agregados</option>
+                    </select>
+                </div>
+                <div>
                     <button type="submit" class="btn-primary">Filtrar</button>
                 </div>
                 <div style="align-self:center;"><small>{{.Count}} negocios</small></div>
@@ -79,6 +88,7 @@
                         <option value="advisor">Asignar asesor</option>
                         <option value="zone">Asignar zona</option>
                         <option value="category">Asignar categoría</option>
+                        <option value="delete">🗑 Eliminar de la lista</option>
                     </select>
                     <select name="value" id="bulk-value"></select>
                     <button type="submit" class="btn-primary" id="bulk-apply">Aplicar a la selección</button>
@@ -215,7 +225,12 @@
         var bar = document.getElementById("bulk-bar");
         var checks = function () { return Array.prototype.slice.call(document.querySelectorAll(".row-check")); };
 
+        var applyBtn = document.getElementById("bulk-apply");
         function fillValues() {
+            var isDelete = actionSel.value === "delete";
+            valueSel.style.display = isDelete ? "none" : "";
+            applyBtn.textContent = isDelete ? "🗑 Eliminar" : "Aplicar a la selección";
+            applyBtn.classList.toggle("btn-danger", isDelete);
             var opts = BULK[actionSel.value] || [];
             valueSel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join("");
         }
@@ -232,9 +247,14 @@
         });
         checks().forEach(function (c) { c.addEventListener("change", updateCount); });
         form.addEventListener("submit", function (e) {
-            if (checks().filter(function (c) { return c.checked; }).length === 0) {
+            var n = checks().filter(function (c) { return c.checked; }).length;
+            if (n === 0) {
                 e.preventDefault();
                 alert("Selecciona al menos un negocio.");
+                return;
+            }
+            if (actionSel.value === "delete" && !confirm("¿Eliminar " + n + " negocio(s) de tu lista? (No afecta a otros clientes)")) {
+                e.preventDefault();
             }
         });
 

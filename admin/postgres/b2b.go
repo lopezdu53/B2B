@@ -15,37 +15,51 @@ const defaultBusinessLimit = 5000
 // the requesting tenant's CRM overlay. All filters are parameterized so the
 // query stays a compile-time constant. $6 is the tenant id.
 const listBusinessesQuery = `
-SELECT DISTINCT ON (bkey) * FROM (
-    SELECT
-        COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey,
-        elem->>'title'    AS title,
-        COALESCE(elem->>'category', '') AS category,
-        COALESCE(elem->>'address', '')  AS address,
-        COALESCE(elem->'complete_address'->>'city', '') AS city,
-        COALESCE(elem->>'phone', '')    AS phone,
-        COALESCE(elem->>'web_site', '') AS website,
-        (elem->>'latitude')::float8 AS lat,
-        COALESCE(NULLIF(elem->>'longitude', '')::float8, NULLIF(elem->>'longtitude', '')::float8) AS lng,
-        COALESCE(crm.status, 'prospect') AS status,
-        crm.advisor_id,
-        crm.zone_id,
-        crm.category_id,
-        COALESCE(crm.notes, '') AS notes
-    FROM scrape_results sr
-    CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
-    LEFT JOIN b2b_business_crm crm
-        ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
-       AND crm.tenant_id = $6
-    WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
-      AND (elem->>'latitude') ~ '^-?[0-9]'
-      AND (elem->>'latitude')::float8 <> 0
+SELECT bkey, title, category, address, city, phone, website, lat, lng, status, advisor_id, zone_id, category_id, notes
+FROM (
+    SELECT DISTINCT ON (bkey)
+        bkey, title, category, address, city, phone, website, lat, lng,
+        status, advisor_id, zone_id, category_id, category_name, notes, added_at
+    FROM (
+        SELECT
+            COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey,
+            elem->>'title'    AS title,
+            COALESCE(elem->>'category', '') AS category,
+            COALESCE(elem->>'address', '')  AS address,
+            COALESCE(elem->'complete_address'->>'city', '') AS city,
+            COALESCE(elem->>'phone', '')    AS phone,
+            COALESCE(elem->>'web_site', '') AS website,
+            (elem->>'latitude')::float8 AS lat,
+            COALESCE(NULLIF(elem->>'longitude', '')::float8, NULLIF(elem->>'longtitude', '')::float8) AS lng,
+            COALESCE(crm.status, 'prospect') AS status,
+            crm.advisor_id,
+            crm.zone_id,
+            crm.category_id,
+            cat.name AS category_name,
+            COALESCE(crm.notes, '') AS notes,
+            sr.created_at AS added_at
+        FROM scrape_results sr
+        CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+        LEFT JOIN b2b_business_crm crm
+            ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
+           AND crm.tenant_id = $6
+        LEFT JOIN b2b_categories cat ON cat.id = crm.category_id AND cat.tenant_id = $6
+        WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
+          AND (elem->>'latitude') ~ '^-?[0-9]'
+          AND (elem->>'latitude')::float8 <> 0
+          AND NOT COALESCE(crm.hidden, false)
+    ) raw
+    WHERE ($1 = '' OR city = $1)
+      AND ($2 = '' OR status = $2)
+      AND ($3 = 0 OR advisor_id = $3)
+      AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
+      AND ($7 = 0 OR category_id = $7)
+    ORDER BY bkey, added_at DESC
 ) t
-WHERE ($1 = '' OR city = $1)
-  AND ($2 = '' OR status = $2)
-  AND ($3 = 0 OR advisor_id = $3)
-  AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
-  AND ($7 = 0 OR category_id = $7)
-ORDER BY bkey
+ORDER BY
+    (CASE WHEN $9 = 'added' THEN added_at END) DESC NULLS LAST,
+    (CASE WHEN $9 = 'category' THEN lower(coalesce(category_name, '~')) END) ASC NULLS LAST,
+    lower(title) ASC
 LIMIT $5 OFFSET $8`
 
 // ListBusinesses returns scraped businesses with the tenant's CRM overlay.
@@ -70,7 +84,12 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		offset = 0
 	}
 
-	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset)
+	sort := f.Sort
+	if sort != "category" && sort != "added" {
+		sort = "name"
+	}
+
+	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset, sort)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +135,7 @@ SELECT COUNT(*) FROM (
         WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
           AND (elem->>'latitude') ~ '^-?[0-9]'
           AND (elem->>'latitude')::float8 <> 0
+          AND NOT COALESCE(crm.hidden, false)
     ) t
     WHERE ($1 = '' OR city = $1)
       AND ($2 = '' OR status = $2)

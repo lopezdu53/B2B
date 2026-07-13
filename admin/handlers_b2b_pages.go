@@ -68,6 +68,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			City:   q.Get("city"),
 			Status: q.Get("status"),
 			Search: strings.TrimSpace(q.Get("q")),
+			Sort:   q.Get("sort"),
 		}
 
 		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
@@ -111,7 +112,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		params := url.Values{}
 		for _, kv := range []struct{ k, v string }{
 			{"q", f.Search}, {"city", f.City}, {"status", f.Status},
-			{"advisor", q.Get("advisor")}, {"category", q.Get("category")},
+			{"advisor", q.Get("advisor")}, {"category", q.Get("category")}, {"sort", f.Sort},
 		} {
 			if kv.v != "" {
 				params.Set(kv.k, kv.v)
@@ -189,6 +190,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			"StatVal":    f.Status,
 			"AdvVal":     q.Get("advisor"),
 			"CatVal":     q.Get("category"),
+			"SortVal":    f.Sort,
 			"Page":       page,
 			"TotalPages": totalPages,
 			"HasPrev":    page > 1,

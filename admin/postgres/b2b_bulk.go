@@ -128,6 +128,22 @@ ON CONFLICT (place_id, tenant_id) DO UPDATE SET zone_id = EXCLUDED.zone_id, upda
 	return err
 }
 
+// BulkSetHidden "deletes" (hides) or restores many businesses for the tenant.
+func (s *store) BulkSetHidden(ctx context.Context, tenantID int64, keys []string, hidden bool) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	const q = `
+INSERT INTO b2b_business_crm (place_id, tenant_id, hidden)
+SELECT k, $2, $3 FROM unnest($1::text[]) AS k
+ON CONFLICT (place_id, tenant_id) DO UPDATE SET hidden = EXCLUDED.hidden, updated_at = NOW()`
+
+	_, err := s.db.Exec(ctx, q, keys, tenantID, hidden)
+
+	return err
+}
+
 // BulkSetCategory files many businesses under a category at once (upsert).
 func (s *store) BulkSetCategory(ctx context.Context, tenantID int64, keys []string, categoryID int64) error {
 	if len(keys) == 0 {

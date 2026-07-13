@@ -44,6 +44,7 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"StatVal":        "",
 		"AdvVal":         "",
 		"CatVal":         "",
+		"SortVal":        "name",
 		"Page":           1,
 		"TotalPages":     1,
 		"HasPrev":        false,

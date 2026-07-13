@@ -85,6 +85,7 @@ type BusinessFilter struct {
 	AdvisorID  *int64
 	CategoryID *int64
 	Search     string // free-text match on title / category / address
+	Sort       string // "name" (default) | "category" | "added"
 	Limit      int
 	Offset     int
 }
@@ -133,4 +134,5 @@ type IB2BStore interface {
 	BulkSetAdvisor(ctx context.Context, tenantID int64, keys []string, advisorID int64) error
 	BulkSetZone(ctx context.Context, tenantID int64, keys []string, zoneID int64) error
 	BulkSetCategory(ctx context.Context, tenantID int64, keys []string, categoryID int64) error
+	BulkSetHidden(ctx context.Context, tenantID int64, keys []string, hidden bool) error
 }
