@@ -29,6 +29,7 @@ SELECT DISTINCT ON (bkey) * FROM (
         COALESCE(crm.status, 'prospect') AS status,
         crm.advisor_id,
         crm.zone_id,
+        crm.category_id,
         COALESCE(crm.notes, '') AS notes
     FROM scrape_results sr
     CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
@@ -71,7 +72,7 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		if err := rows.Scan(
 			&mb.Key, &mb.Title, &mb.Category, &mb.Address, &mb.City,
 			&mb.Phone, &mb.Website, &mb.Lat, &mb.Lng,
-			&mb.Status, &mb.AdvisorID, &mb.ZoneID, &mb.Notes,
+			&mb.Status, &mb.AdvisorID, &mb.ZoneID, &mb.CategoryID, &mb.Notes,
 		); err != nil {
 			return nil, err
 		}

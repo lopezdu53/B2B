@@ -51,22 +51,31 @@ type Zone struct {
 	CreatedAt time.Time
 }
 
+// Category is a per-tenant business category (Restaurantes, Hoteles, …).
+type Category struct {
+	ID        int64
+	Name      string
+	Count     int
+	CreatedAt time.Time
+}
+
 // MapBusiness is a scraped business enriched with its CRM overlay, ready to be
 // plotted on the map.
 type MapBusiness struct {
-	Key       string  `json:"key"`
-	Title     string  `json:"title"`
-	Category  string  `json:"category"`
-	Address   string  `json:"address"`
-	City      string  `json:"city"`
-	Phone     string  `json:"phone"`
-	Website   string  `json:"website"`
-	Lat       float64 `json:"lat"`
-	Lng       float64 `json:"lng"`
-	Status    string  `json:"status"`
-	AdvisorID *int64  `json:"advisor_id"`
-	ZoneID    *int64  `json:"zone_id"`
-	Notes     string  `json:"notes"`
+	Key        string  `json:"key"`
+	Title      string  `json:"title"`
+	Category   string  `json:"category"`
+	Address    string  `json:"address"`
+	City       string  `json:"city"`
+	Phone      string  `json:"phone"`
+	Website    string  `json:"website"`
+	Lat        float64 `json:"lat"`
+	Lng        float64 `json:"lng"`
+	Status     string  `json:"status"`
+	AdvisorID  *int64  `json:"advisor_id"`
+	ZoneID     *int64  `json:"zone_id"`
+	CategoryID *int64  `json:"category_id"`
+	Notes      string  `json:"notes"`
 }
 
 // BusinessFilter narrows down the businesses returned for the map.
@@ -109,4 +118,16 @@ type IB2BStore interface {
 	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string) (*Zone, error)
 	UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string) error
 	DeleteZone(ctx context.Context, tenantID, id int64) error
+
+	// Categories
+	ListCategories(ctx context.Context, tenantID int64) ([]Category, error)
+	CreateCategory(ctx context.Context, tenantID int64, name string) (*Category, error)
+	DeleteCategory(ctx context.Context, tenantID, id int64) error
+	SetBusinessCategory(ctx context.Context, tenantID int64, key string, categoryID *int64) error
+
+	// Bulk CRM operations on a set of business keys (each is an upsert)
+	BulkSetStatus(ctx context.Context, tenantID int64, keys []string, status string) error
+	BulkSetAdvisor(ctx context.Context, tenantID int64, keys []string, advisorID int64) error
+	BulkSetZone(ctx context.Context, tenantID int64, keys []string, zoneID int64) error
+	BulkSetCategory(ctx context.Context, tenantID int64, keys []string, categoryID int64) error
 }

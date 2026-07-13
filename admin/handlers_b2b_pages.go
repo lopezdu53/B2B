@@ -39,15 +39,16 @@ func b2bRedirectBack(w http.ResponseWriter, r *http.Request, fallback, key, msg 
 	http.Redirect(w, r, dest+sep+key+"="+msg, http.StatusSeeOther)
 }
 
-// businessRow is a scraped business enriched with resolved advisor/zone names
-// for the list view.
+// businessRow is a scraped business enriched with resolved advisor/zone/category
+// names for the list view.
 type businessRow struct {
 	MapBusiness
 
-	StatusLabel string
-	StatusClass string
-	AdvisorName string
-	ZoneName    string
+	StatusLabel  string
+	StatusClass  string
+	AdvisorName  string
+	ZoneName     string
+	CategoryName string
 }
 
 // NegociosPageHandler renders the searchable list of businesses.
@@ -77,6 +78,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
+		categories, _ := appState.Store.ListCategories(ctx, tid)
 		cities, _ := appState.Store.ListBusinessCities(ctx)
 
 		advisorNames := map[int64]string{}
@@ -87,6 +89,11 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		zoneNames := map[int64]string{}
 		for i := range zones {
 			zoneNames[zones[i].ID] = zones[i].Name
+		}
+
+		categoryNames := map[int64]string{}
+		for i := range categories {
+			categoryNames[categories[i].ID] = categories[i].Name
 		}
 
 		businesses, err := appState.Store.ListBusinesses(ctx, tid, f)
@@ -108,21 +115,26 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 				row.ZoneName = zoneNames[*b.ZoneID]
 			}
 
+			if b.CategoryID != nil {
+				row.CategoryName = categoryNames[*b.CategoryID]
+			}
+
 			rows = append(rows, row)
 		}
 
 		data := map[string]any{
-			"Rows":     rows,
-			"Count":    len(rows),
-			"Advisors": advisors,
-			"Zones":    zones,
-			"Cities":   cities,
-			"QVal":     f.Search,
-			"CityVal":  f.City,
-			"StatVal":  f.Status,
-			"AdvVal":   q.Get("advisor"),
-			"Success":  q.Get("success"),
-			"Error":    q.Get("error"),
+			"Rows":       rows,
+			"Count":      len(rows),
+			"Advisors":   advisors,
+			"Zones":      zones,
+			"Categories": categories,
+			"Cities":     cities,
+			"QVal":       f.Search,
+			"CityVal":    f.City,
+			"StatVal":    f.Status,
+			"AdvVal":     q.Get("advisor"),
+			"Success":    q.Get("success"),
+			"Error":      q.Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "negocios.html", data)

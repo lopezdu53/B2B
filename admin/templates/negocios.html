@@ -58,39 +58,56 @@
 
         <div class="card">
             {{if .Rows}}
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Negocio</th><th>Ciudad</th><th>Teléfono</th><th>Web</th>
-                            <th>Estado</th><th>Asesor</th><th>Zona</th><th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {{range .Rows}}
-                        <tr>
-                            <td>
-                                <strong>{{if .Title}}{{.Title}}{{else}}(sin nombre){{end}}</strong>
-                                {{if .Category}}<br><span class="muted">{{.Category}}</span>{{end}}
-                                {{if .Address}}<br><span class="muted" style="font-size:.8rem;">{{.Address}}</span>{{end}}
-                            </td>
-                            <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
-                            <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
-                            <td>{{if .Website}}<a href="{{.Website}}" target="_blank" rel="noopener">Sitio ↗</a>{{else}}<span class="muted">—</span>{{end}}</td>
-                            <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
-                            <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
-                            <td>{{if .ZoneName}}{{.ZoneName}}{{else}}<span class="muted">—</span>{{end}}</td>
-                            <td style="text-align:right;">
-                                <button type="button" class="btn-edit"
-                                    data-key="{{.Key}}" data-title="{{.Title}}" data-status="{{.Status}}"
-                                    data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}" data-zone="{{if .ZoneID}}{{.ZoneID}}{{end}}" data-notes="{{.Notes}}"
-                                    onclick="editBiz(this)">Editar</button>
-                            </td>
-                        </tr>
-                    {{end}}
-                    </tbody>
-                </table>
-            </div>
+            <form method="POST" action="/admin/b2b/negocios/bulk" id="bulk-form">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div class="bulk-bar" id="bulk-bar">
+                    <span class="bulk-count" id="bulk-count">0 seleccionados</span>
+                    <select name="action" id="bulk-action">
+                        <option value="status">Cambiar estado</option>
+                        <option value="advisor">Asignar asesor</option>
+                        <option value="zone">Asignar zona</option>
+                        <option value="category">Asignar categoría</option>
+                    </select>
+                    <select name="value" id="bulk-value"></select>
+                    <button type="submit" class="btn-primary" id="bulk-apply">Aplicar a la selección</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:34px;"><input type="checkbox" id="check-all" title="Seleccionar todo"></th>
+                                <th>Negocio</th><th>Ciudad</th><th>Teléfono</th>
+                                <th>Estado</th><th>Categoría</th><th>Asesor</th><th>Zona</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {{range .Rows}}
+                            <tr>
+                                <td><input type="checkbox" class="row-check" name="keys" value="{{.Key}}"></td>
+                                <td>
+                                    <strong>{{if .Title}}{{.Title}}{{else}}(sin nombre){{end}}</strong>
+                                    {{if .Category}}<br><span class="muted">{{.Category}}</span>{{end}}
+                                    {{if .Address}}<br><span class="muted" style="font-size:.8rem;">{{.Address}}</span>{{end}}
+                                </td>
+                                <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
+                                <td>{{if .CategoryName}}{{.CategoryName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
+                                <td>{{if .ZoneName}}{{.ZoneName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td style="text-align:right;">
+                                    <button type="button" class="btn-edit"
+                                        data-key="{{.Key}}" data-title="{{.Title}}" data-status="{{.Status}}"
+                                        data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}" data-zone="{{if .ZoneID}}{{.ZoneID}}{{end}}"
+                                        data-category="{{if .CategoryID}}{{.CategoryID}}{{end}}" data-notes="{{.Notes}}"
+                                        onclick="editBiz(this)">Editar</button>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
             {{else}}
             <div class="empty-state">
                 <div class="big">🔍</div>
@@ -129,6 +146,13 @@
                     {{range .Zones}}<option value="{{.ID}}">{{.Name}} · {{.City}}</option>{{end}}
                 </select>
             </div>
+            <div class="field">
+                <label>Categoría</label>
+                <select name="category_id" id="e-category">
+                    <option value="">Sin categoría</option>
+                    {{range .Categories}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
             <div class="field"><label>Notas</label><textarea name="notes" id="e-notes" rows="3"></textarea></div>
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" onclick="closeModal('edit-modal')">Cancelar</button>
@@ -146,12 +170,58 @@
         document.getElementById("e-status").value = btn.dataset.status || "prospect";
         document.getElementById("e-advisor").value = btn.dataset.advisor || "";
         document.getElementById("e-zone").value = btn.dataset.zone || "";
+        document.getElementById("e-category").value = btn.dataset.category || "";
         document.getElementById("e-notes").value = btn.dataset.notes || "";
         document.getElementById("edit-modal").classList.add("open");
     }
     document.getElementById("edit-modal").addEventListener("click", function (e) {
         if (e.target === this) closeModal("edit-modal");
     });
+
+    // --- Bulk selection + actions ---
+    (function () {
+        var form = document.getElementById("bulk-form");
+        if (!form) return;
+
+        var BULK = {
+            status: [["prospect","Prospecto"],["in_progress","En gestión"],["client","Cliente"],["discarded","Descartado"]],
+            advisor: [{{range .Advisors}}["{{.ID}}","{{.Name}}"],{{end}}],
+            zone: [{{range .Zones}}["{{.ID}}","{{.Name}}"],{{end}}],
+            category: [{{range .Categories}}["{{.ID}}","{{.Name}}"],{{end}}]
+        };
+
+        var actionSel = document.getElementById("bulk-action");
+        var valueSel = document.getElementById("bulk-value");
+        var countEl = document.getElementById("bulk-count");
+        var bar = document.getElementById("bulk-bar");
+        var checks = function () { return Array.prototype.slice.call(document.querySelectorAll(".row-check")); };
+
+        function fillValues() {
+            var opts = BULK[actionSel.value] || [];
+            valueSel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join("");
+        }
+        function updateCount() {
+            var n = checks().filter(function (c) { return c.checked; }).length;
+            countEl.textContent = n + " seleccionados";
+            bar.classList.toggle("active", n > 0);
+        }
+
+        actionSel.addEventListener("change", fillValues);
+        document.getElementById("check-all").addEventListener("change", function () {
+            checks().forEach(function (c) { c.checked = this.checked; }, this);
+            updateCount();
+        });
+        checks().forEach(function (c) { c.addEventListener("change", updateCount); });
+        form.addEventListener("submit", function (e) {
+            if (checks().filter(function (c) { return c.checked; }).length === 0) {
+                e.preventDefault();
+                alert("Selecciona al menos un negocio.");
+            }
+        });
+
+        fillValues();
+        updateCount();
+    })();
     </script>
 </body>
 </html>

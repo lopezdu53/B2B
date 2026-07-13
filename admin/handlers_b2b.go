@@ -527,6 +527,17 @@ func UpdateBusinessFormHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		var categoryID *int64
+		if c := strings.TrimSpace(r.FormValue("category_id")); c != "" {
+			if v, perr := strconv.ParseInt(c, 10, 64); perr == nil {
+				categoryID = &v
+			}
+		}
+
+		if err := appState.Store.SetBusinessCategory(r.Context(), tid, key, categoryID); err != nil {
+			log.Error("b2b: set business category", "error", err, "key", key)
+		}
+
 		b2bRedirectBack(w, r, "/admin/b2b/negocios", "success", "Negocio+actualizado")
 	}
 }

@@ -1,0 +1,61 @@
+{{define "categorias.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <title>Categorías - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Categorías de negocios</h1>
+            <p>Agrupa tus negocios (Restaurantes, Hoteles, Supermercados…). Asígnalos desde la página de Negocios con acciones en lote.</p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">➕</span> Nueva categoría</h2>
+            <form method="POST" action="/admin/b2b/categorias" class="filters-bar">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div><label>Nombre *</label><input type="text" name="name" placeholder="Ej. Cafeterías" required></div>
+                <div><button type="submit" class="btn-primary">Crear</button></div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🏷️</span> Categorías <span class="count-badge">{{len .Rows}}</span></h2>
+            {{if .Rows}}
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Categoría</th><th>Negocios</th><th></th></tr></thead>
+                    <tbody>
+                    {{range .Rows}}
+                        <tr>
+                            <td><strong>{{.Name}}</strong></td>
+                            <td><span class="count-badge">{{.Count}}</span></td>
+                            <td style="text-align:right;">
+                                <form method="POST" action="/admin/b2b/categorias/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar categoría? Los negocios quedarán sin categoría.');">
+                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                    <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🏷️</div>
+                <p>Aún no hay categorías. Crea la primera arriba.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+</body>
+</html>
+{{end}}

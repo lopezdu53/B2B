@@ -36,11 +36,12 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Rows": []businessRow{
 			{MapBusiness: MapBusiness{Title: "Rest", City: "Bogotá", Status: "client"}, StatusLabel: "Cliente", StatusClass: "client", AdvisorName: "Ana"},
 		},
-		"Count":   1,
-		"QVal":    "",
-		"CityVal": "",
-		"StatVal": "",
-		"AdvVal":  "",
+		"Categories": []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
+		"Count":      1,
+		"QVal":       "",
+		"CityVal":    "",
+		"StatVal":    "",
+		"AdvVal":     "",
 	}
 
 	for _, name := range []string{"b2b.html", "negocios.html", "asesores.html"} {
@@ -67,5 +68,13 @@ func TestB2BTemplateRenders(t *testing.T) {
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "clientes.html", cdata); err != nil {
 		t.Fatalf("execute clientes.html: %v", err)
+	}
+
+	catData := map[string]any{
+		"CSRFToken": "t",
+		"Rows":      []Category{{ID: 1, Name: "Restaurantes", Count: 5}},
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "categorias.html", catData); err != nil {
+		t.Fatalf("execute categorias.html: %v", err)
 	}
 }

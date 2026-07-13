@@ -116,6 +116,11 @@ func CreateTenantHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		// Seed the new client with the common categories.
+		for _, c := range []string{"Restaurantes", "Hoteles", "Supermercados"} {
+			_, _ = appState.Store.CreateCategory(r.Context(), tenant.ID, c)
+		}
+
 		if _, err := appState.Store.CreateTenantUser(r.Context(), username, password, RoleAdmin, tenant.ID); err != nil {
 			if err == ErrUserExists {
 				http.Redirect(w, r, "/admin/clientes?error=Ese+usuario+ya+existe", http.StatusSeeOther)
