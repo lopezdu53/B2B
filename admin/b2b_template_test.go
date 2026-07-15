@@ -55,7 +55,7 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"IsAdvisor":      false,
 	}
 
-	for _, name := range []string{"b2b.html", "negocios.html", "asesores.html"} {
+	for _, name := range []string{"b2b.html", "negocios.html", "papelera.html", "asesores.html"} {
 		if err := tmpl.ExecuteTemplate(io.Discard, name, data); err != nil {
 			t.Fatalf("execute %s: %v", name, err)
 		}

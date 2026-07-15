@@ -48,6 +48,8 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 			r.Get("/b2b/negocios", NegociosPageHandler(appState))
 			r.Get("/b2b/negocios/export", NegociosExportHandler(appState))
 			r.Post("/b2b/negocios/bulk", BulkBusinessHandler(appState))
+			r.Get("/b2b/papelera", PapeleraPageHandler(appState))
+			r.Post("/b2b/papelera/bulk", PapeleraBulkHandler(appState))
 			r.Get("/b2b/asesores", AsesoresPageHandler(appState))
 			r.Get("/b2b/zonas", ZonasPageHandler(appState))
 			r.Get("/b2b/categorias", CategoriasPageHandler(appState))

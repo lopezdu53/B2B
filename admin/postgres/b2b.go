@@ -47,7 +47,7 @@ FROM (
         WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
           AND (elem->>'latitude') ~ '^-?[0-9]'
           AND (elem->>'latitude')::float8 <> 0
-          AND NOT COALESCE(crm.hidden, false)
+          AND COALESCE(crm.hidden, false) = $10
     ) raw
     WHERE ($1 = '' OR city = $1)
       AND ($2 = '' OR status = $2)
@@ -89,7 +89,7 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		sort = "name"
 	}
 
-	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset, sort)
+	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset, sort, f.Hidden)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ SELECT COUNT(*) FROM (
         WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
           AND (elem->>'latitude') ~ '^-?[0-9]'
           AND (elem->>'latitude')::float8 <> 0
-          AND NOT COALESCE(crm.hidden, false)
+          AND COALESCE(crm.hidden, false) = $7
     ) t
     WHERE ($1 = '' OR city = $1)
       AND ($2 = '' OR status = $2)
@@ -158,7 +158,7 @@ func (s *store) CountBusinesses(ctx context.Context, tenantID int64, f admin.Bus
 
 	var n int
 	err := s.db.QueryRow(ctx, countBusinessesQuery,
-		f.City, f.Status, advisorID, f.Search, categoryID, tenantID).Scan(&n)
+		f.City, f.Status, advisorID, f.Search, categoryID, tenantID, f.Hidden).Scan(&n)
 
 	return n, err
 }
@@ -221,16 +221,20 @@ ON CONFLICT (place_id, tenant_id) DO UPDATE SET
 	return err
 }
 
-// businessTotalQuery counts distinct scraped businesses that have coordinates
-// (shared across tenants).
+// businessTotalQuery counts distinct scraped businesses that have coordinates,
+// excluding the ones the tenant sent to the trash (hidden). $1 is the tenant id.
 const businessTotalQuery = `
 SELECT COUNT(*) FROM (
     SELECT DISTINCT COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey
     FROM scrape_results sr
     CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+    LEFT JOIN b2b_business_crm crm
+        ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
+       AND crm.tenant_id = $1
     WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
       AND (elem->>'latitude') ~ '^-?[0-9]'
       AND (elem->>'latitude')::float8 <> 0
+      AND NOT COALESCE(crm.hidden, false)
 ) t`
 
 // B2BSummary returns aggregate counters for the tenant's dashboard header.
@@ -239,15 +243,17 @@ SELECT COUNT(*) FROM (
 func (s *store) B2BSummary(ctx context.Context, tenantID int64, advisorID *int64) (*admin.B2BSummary, error) {
 	var sum admin.B2BSummary
 
-	statusQ := `SELECT status, COUNT(*) FROM b2b_business_crm WHERE tenant_id = $1`
+	// Trashed (hidden) businesses never count toward any totalizer.
+	statusQ := `SELECT status, COUNT(*) FROM b2b_business_crm WHERE tenant_id = $1 AND NOT hidden`
 	args := []any{tenantID}
 
 	if advisorID != nil {
 		statusQ += ` AND advisor_id = $2`
 		args = append(args, *advisorID)
 	} else {
-		// Tenant-wide total counts every scraped business (shared lead pool).
-		if err := s.db.QueryRow(ctx, businessTotalQuery).Scan(&sum.Total); err != nil {
+		// Tenant-wide total counts every scraped business (shared lead pool),
+		// minus the ones this tenant sent to the trash.
+		if err := s.db.QueryRow(ctx, businessTotalQuery, tenantID).Scan(&sum.Total); err != nil {
 			return nil, err
 		}
 	}

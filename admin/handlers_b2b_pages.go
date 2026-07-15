@@ -299,6 +299,149 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
+// PapeleraPageHandler renders the trash: businesses the tenant sent to trash
+// (hidden). From here they can be restored back into the active list.
+func PapeleraPageHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		ctx := r.Context()
+		q := r.URL.Query()
+
+		f := BusinessFilter{
+			Search: strings.TrimSpace(q.Get("q")),
+			Hidden: true,
+		}
+
+		// Advisor users only ever see their own assigned businesses.
+		if scope := advisorScope(r); scope != nil {
+			f.AdvisorID = scope
+		}
+
+		const pageSize = 50
+
+		page, _ := strconv.Atoi(q.Get("page"))
+		if page < 1 {
+			page = 1
+		}
+
+		f.Limit = pageSize
+		f.Offset = (page - 1) * pageSize
+
+		tid, _ := effectiveTenant(appState, r)
+
+		total, _ := appState.Store.CountBusinesses(ctx, tid, f)
+
+		totalPages := (total + pageSize - 1) / pageSize
+		if totalPages < 1 {
+			totalPages = 1
+		}
+
+		params := url.Values{}
+		if f.Search != "" {
+			params.Set("q", f.Search)
+		}
+
+		pageURL := func(p int) string {
+			pp := url.Values{}
+			for k, v := range params {
+				pp[k] = v
+			}
+
+			pp.Set("page", strconv.Itoa(p))
+
+			return "/admin/b2b/papelera?" + pp.Encode()
+		}
+
+		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
+		categories, _ := appState.Store.ListCategories(ctx, tid)
+
+		advisorNames := map[int64]string{}
+		for i := range advisors {
+			advisorNames[advisors[i].ID] = advisors[i].Name
+		}
+
+		categoryNames := map[int64]string{}
+		for i := range categories {
+			categoryNames[categories[i].ID] = categories[i].Name
+		}
+
+		businesses, err := appState.Store.ListBusinesses(ctx, tid, f)
+		if err != nil {
+			log.Error("b2b: papelera list", "error", err)
+		}
+
+		rows := make([]businessRow, 0, len(businesses))
+		for i := range businesses {
+			b := businesses[i]
+			label, class := statusMeta(b.Status)
+			row := businessRow{MapBusiness: b, StatusLabel: label, StatusClass: class}
+
+			if b.AdvisorID != nil {
+				row.AdvisorName = advisorNames[*b.AdvisorID]
+			}
+
+			if b.CategoryID != nil {
+				row.CategoryName = categoryNames[*b.CategoryID]
+			}
+
+			rows = append(rows, row)
+		}
+
+		data := map[string]any{
+			"Rows":       rows,
+			"Count":      total,
+			"QVal":       f.Search,
+			"Page":       page,
+			"TotalPages": totalPages,
+			"HasPrev":    page > 1,
+			"HasNext":    page < totalPages,
+			"PrevURL":    pageURL(page - 1),
+			"NextURL":    pageURL(page + 1),
+			"IsAdvisor":  advisorScope(r) != nil,
+			"Success":    q.Get("success"),
+			"Error":      q.Get("error"),
+		}
+
+		renderTemplate(appState, w, r, "papelera.html", data)
+	}
+}
+
+// PapeleraBulkHandler restores selected businesses from the trash.
+func PapeleraBulkHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			b2bRedirectBack(w, r, "/admin/b2b/papelera", "error", "Formulario+invalido")
+			return
+		}
+
+		keys := r.PostForm["keys"]
+		if len(keys) == 0 {
+			b2bRedirectBack(w, r, "/admin/b2b/papelera", "error", "Selecciona+al+menos+un+negocio")
+			return
+		}
+
+		tid, _ := effectiveTenant(appState, r)
+
+		if err := appState.Store.BulkSetHidden(r.Context(), tid, keys, false); err != nil {
+			log.Error("b2b: papelera restore", "error", err)
+			b2bRedirectBack(w, r, "/admin/b2b/papelera", "error", "No+se+pudo+restaurar")
+
+			return
+		}
+
+		b2bRedirectBack(w, r, "/admin/b2b/papelera", "success", strconv.Itoa(len(keys))+"+negocios+restaurados")
+	}
+}
+
 // AsesoresPageHandler renders the advisors management page.
 func AsesoresPageHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -86,6 +86,7 @@ type BusinessFilter struct {
 	CategoryID *int64
 	Search     string // free-text match on title / category / address
 	Sort       string // "name" (default) | "category" | "added"
+	Hidden     bool   // true = only trashed businesses (Papelera)
 	Limit      int
 	Offset     int
 }

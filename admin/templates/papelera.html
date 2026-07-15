@@ -1,0 +1,125 @@
+{{define "papelera.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <title>Papelera - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>🗑️ Papelera</h1>
+            <p>Negocios que enviaste a la papelera. No cuentan en los totalizadores ni aparecen en el mapa. Puedes restaurarlos cuando quieras.</p>
+        </div>
+
+        <div class="card">
+            <form method="GET" action="/admin/b2b/papelera" class="filters-bar">
+                <div>
+                    <label for="q">Buscar</label>
+                    <input type="search" id="q" name="q" value="{{.QVal}}" placeholder="Nombre, categoría o dirección…">
+                </div>
+                <div>
+                    <button type="submit" class="btn-primary">Filtrar</button>
+                </div>
+                <div style="align-self:center;"><small>{{.Count}} en papelera</small></div>
+            </form>
+            {{if .IsAdvisor}}<p class="empty-hint" style="margin:.6rem 0 0;">👤 Estás viendo solo los negocios asignados a ti.</p>{{end}}
+        </div>
+
+        <div class="card">
+            {{if .Rows}}
+            <form method="POST" action="/admin/b2b/papelera/bulk" id="bulk-form">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div class="bulk-bar" id="bulk-bar">
+                    <span class="bulk-count" id="bulk-count">0 seleccionados</span>
+                    <button type="submit" class="btn-primary" id="bulk-apply">♻ Restaurar selección</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:34px;"><input type="checkbox" id="check-all" title="Seleccionar todo"></th>
+                                <th>Negocio</th><th>Ciudad</th><th>Teléfono</th>
+                                <th>Estado</th><th>Categoría</th><th>Asesor</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {{range .Rows}}
+                            <tr>
+                                <td><input type="checkbox" class="row-check" name="keys" value="{{.Key}}"></td>
+                                <td>
+                                    <strong>{{if .Title}}{{.Title}}{{else}}(sin nombre){{end}}</strong>
+                                    {{if .Category}}<br><span class="muted">{{.Category}}</span>{{end}}
+                                    {{if .Address}}<br><span class="muted" style="font-size:.8rem;">{{.Address}}</span>{{end}}
+                                </td>
+                                <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
+                                <td>{{if .CategoryName}}{{.CategoryName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
+                                <td style="text-align:right;">
+                                    <button type="submit" class="btn-edit" name="keys" value="{{.Key}}"
+                                        formaction="/admin/b2b/papelera/bulk">♻ Restaurar</button>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+            {{if gt .TotalPages 1}}
+            <div class="pager">
+                {{if .HasPrev}}<a href="{{.PrevURL}}" class="btn-edit">← Anterior</a>{{else}}<span class="btn-edit disabled">← Anterior</span>{{end}}
+                <span class="pager-info">Página {{.Page}} de {{.TotalPages}}</span>
+                {{if .HasNext}}<a href="{{.NextURL}}" class="btn-edit">Siguiente →</a>{{else}}<span class="btn-edit disabled">Siguiente →</span>{{end}}
+            </div>
+            {{end}}
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🗑️</div>
+                <p>La papelera está vacía. Los negocios que elimines desde <a href="/admin/b2b/negocios">Negocios</a> aparecerán aquí.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+
+    <script>
+    (function () {
+        var form = document.getElementById("bulk-form");
+        if (!form) return;
+
+        var countEl = document.getElementById("bulk-count");
+        var bar = document.getElementById("bulk-bar");
+        var checks = function () { return Array.prototype.slice.call(document.querySelectorAll(".row-check")); };
+
+        function updateCount() {
+            var n = checks().filter(function (c) { return c.checked; }).length;
+            countEl.textContent = n + " seleccionados";
+            bar.classList.toggle("active", n > 0);
+        }
+
+        document.getElementById("check-all").addEventListener("change", function () {
+            checks().forEach(function (c) { c.checked = this.checked; }, this);
+            updateCount();
+        });
+        checks().forEach(function (c) { c.addEventListener("change", updateCount); });
+
+        document.getElementById("bulk-apply").addEventListener("click", function (e) {
+            var n = checks().filter(function (c) { return c.checked; }).length;
+            if (n === 0) {
+                e.preventDefault();
+                alert("Selecciona al menos un negocio para restaurar.");
+            }
+        });
+
+        updateCount();
+    })();
+    </script>
+</body>
+</html>
+{{end}}
