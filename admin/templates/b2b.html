@@ -508,6 +508,7 @@
 
             const meta = [];
             if (biz.category) meta.push("<div>" + escapeHtml(biz.category) + "</div>");
+            if (biz.review_count > 0) meta.push("<div>⭐ " + Number(biz.rating).toFixed(1) + " <span class='muted'>(" + biz.review_count + " reseñas)</span></div>");
             if (biz.address) meta.push("<div>" + escapeHtml(biz.address) + "</div>");
             if (biz.phone) meta.push("<div>📞 " + escapeHtml(biz.phone) + "</div>");
             if (biz.website) meta.push('<div>🌐 <a href="' + escapeHtml(biz.website) + '" target="_blank" rel="noopener">' + escapeHtml(biz.website) + "</a></div>");

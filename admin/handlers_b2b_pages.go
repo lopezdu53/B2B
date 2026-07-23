@@ -270,7 +270,7 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 		_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM for Excel
 
 		cw := csv.NewWriter(w)
-		_ = cw.Write([]string{"Negocio", "Categoría (Maps)", "Dirección", "Ciudad", "Teléfono", "Web", "Estado", "Asesor", "Zona", "Categoría", "Notas"})
+		_ = cw.Write([]string{"Negocio", "Categoría (Maps)", "Dirección", "Ciudad", "Teléfono", "Web", "Calificación", "N.º reseñas", "Estado", "Asesor", "Zona", "Categoría", "Notas"})
 
 		for i := range businesses {
 			b := businesses[i]
@@ -289,9 +289,17 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 				categoryName = categoryNames[*b.CategoryID]
 			}
 
+			rating := ""
+			reviews := ""
+
+			if b.ReviewCount > 0 {
+				rating = strconv.FormatFloat(b.Rating, 'f', 1, 64)
+				reviews = strconv.Itoa(b.ReviewCount)
+			}
+
 			_ = cw.Write([]string{
 				b.Title, b.Category, b.Address, b.City, b.Phone, b.Website,
-				label, advisorName, zoneName, categoryName, b.Notes,
+				rating, reviews, label, advisorName, zoneName, categoryName, b.Notes,
 			})
 		}
 

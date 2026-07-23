@@ -98,7 +98,7 @@
                         <thead>
                             <tr>
                                 <th style="width:34px;"><input type="checkbox" id="check-all" title="Seleccionar todo"></th>
-                                <th>Negocio</th><th>Ciudad</th><th>Teléfono</th>
+                                <th>Negocio</th><th>Ciudad</th><th>Teléfono</th><th>Calificación</th>
                                 <th>Estado</th><th>Categoría</th><th>Asesor</th><th>Zona</th><th></th>
                             </tr>
                         </thead>
@@ -113,6 +113,7 @@
                                 </td>
                                 <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
                                 <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if gt .ReviewCount 0}}<span class="rating">⭐ {{printf "%.1f" .Rating}}</span> <span class="muted">({{.ReviewCount}})</span>{{else}}<span class="muted">—</span>{{end}}</td>
                                 <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
                                 <td>{{if .CategoryName}}{{.CategoryName}}{{else}}<span class="muted">—</span>{{end}}</td>
                                 <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>

@@ -338,6 +338,7 @@ main.container {
 .data-table td { padding: 0.7rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; background: var(--bg-card); color: var(--text-primary); }
 .data-table tr:hover td { background: #f6f8fb; }
 .data-table .muted { color: var(--text-secondary); }
+.rating { font-weight: 600; white-space: nowrap; }
 .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border-color); }
 .table-wrap .data-table th:first-child, .table-wrap .data-table td:first-child { padding-left: 1rem; }
 

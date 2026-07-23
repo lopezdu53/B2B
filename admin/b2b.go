@@ -62,20 +62,22 @@ type Category struct {
 // MapBusiness is a scraped business enriched with its CRM overlay, ready to be
 // plotted on the map.
 type MapBusiness struct {
-	Key        string  `json:"key"`
-	Title      string  `json:"title"`
-	Category   string  `json:"category"`
-	Address    string  `json:"address"`
-	City       string  `json:"city"`
-	Phone      string  `json:"phone"`
-	Website    string  `json:"website"`
-	Lat        float64 `json:"lat"`
-	Lng        float64 `json:"lng"`
-	Status     string  `json:"status"`
-	AdvisorID  *int64  `json:"advisor_id"`
-	ZoneID     *int64  `json:"zone_id"`
-	CategoryID *int64  `json:"category_id"`
-	Notes      string  `json:"notes"`
+	Key         string  `json:"key"`
+	Title       string  `json:"title"`
+	Category    string  `json:"category"`
+	Address     string  `json:"address"`
+	City        string  `json:"city"`
+	Phone       string  `json:"phone"`
+	Website     string  `json:"website"`
+	Lat         float64 `json:"lat"`
+	Lng         float64 `json:"lng"`
+	Rating      float64 `json:"rating"`
+	ReviewCount int     `json:"review_count"`
+	Status      string  `json:"status"`
+	AdvisorID   *int64  `json:"advisor_id"`
+	ZoneID      *int64  `json:"zone_id"`
+	CategoryID  *int64  `json:"category_id"`
+	Notes       string  `json:"notes"`
 }
 
 // BusinessFilter narrows down the businesses returned for the map.

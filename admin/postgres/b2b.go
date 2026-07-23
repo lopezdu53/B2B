@@ -15,10 +15,10 @@ const defaultBusinessLimit = 5000
 // the requesting tenant's CRM overlay. All filters are parameterized so the
 // query stays a compile-time constant. $6 is the tenant id.
 const listBusinessesQuery = `
-SELECT bkey, title, category, address, city, phone, website, lat, lng, status, advisor_id, zone_id, category_id, notes
+SELECT bkey, title, category, address, city, phone, website, lat, lng, rating, review_count, status, advisor_id, zone_id, category_id, notes
 FROM (
     SELECT DISTINCT ON (bkey)
-        bkey, title, category, address, city, phone, website, lat, lng,
+        bkey, title, category, address, city, phone, website, lat, lng, rating, review_count,
         status, advisor_id, zone_id, category_id, category_name, notes, added_at
     FROM (
         SELECT
@@ -31,6 +31,8 @@ FROM (
             COALESCE(elem->>'web_site', '') AS website,
             (elem->>'latitude')::float8 AS lat,
             COALESCE(NULLIF(elem->>'longitude', '')::float8, NULLIF(elem->>'longtitude', '')::float8) AS lng,
+            COALESCE(NULLIF(elem->>'review_rating', '')::float8, 0) AS rating,
+            COALESCE(NULLIF(elem->>'review_count', '')::int, 0) AS review_count,
             COALESCE(crm.status, 'prospect') AS status,
             crm.advisor_id,
             crm.zone_id,
@@ -101,7 +103,7 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		var mb admin.MapBusiness
 		if err := rows.Scan(
 			&mb.Key, &mb.Title, &mb.Category, &mb.Address, &mb.City,
-			&mb.Phone, &mb.Website, &mb.Lat, &mb.Lng,
+			&mb.Phone, &mb.Website, &mb.Lat, &mb.Lng, &mb.Rating, &mb.ReviewCount,
 			&mb.Status, &mb.AdvisorID, &mb.ZoneID, &mb.CategoryID, &mb.Notes,
 		); err != nil {
 			return nil, err
