@@ -1,0 +1,210 @@
+{{define "embed_map.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/admin/static/leaflet.css">
+    <title>Mapa de negocios</title>
+    <style>
+        :root {
+            --ink:#0f172a; --muted:#64748b; --line:#e5e8ee; --surface:#ffffff;
+            --c-prospect:#2563eb; --c-progress:#f59e0b; --c-client:#16a34a; --c-discard:#94a3b8;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color: var(--ink); background: #f8fafc; display: flex; flex-direction: column;
+        }
+        .bar {
+            display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end;
+            padding: .55rem .7rem; background: var(--surface); border-bottom: 1px solid var(--line);
+        }
+        .bar .fld { display: flex; flex-direction: column; }
+        .bar label { font-size: .66rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: .18rem; }
+        .bar select { margin: 0; font-size: .82rem; padding: .32rem .5rem; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); min-width: 120px; }
+        .bar button {
+            font-size: .82rem; font-weight: 600; padding: .42rem .9rem; border: 0; border-radius: 8px;
+            background: #111827; color: #fff; cursor: pointer;
+        }
+        .bar button:hover { background: #1f2937; }
+        .bar .count { font-size: .78rem; color: var(--muted); align-self: center; margin-left: auto; }
+        .stage { flex: 1; min-height: 0; position: relative; }
+        #map { position: absolute; inset: 0; z-index: 0; }
+        .legend {
+            position: absolute; left: 10px; bottom: 14px; z-index: 500;
+            display: flex; flex-wrap: wrap; gap: .35rem; max-width: 60%;
+            background: rgba(255,255,255,.94); padding: .4rem .5rem; border-radius: 10px;
+            border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(16,24,40,.12);
+        }
+        .legend span { display: inline-flex; align-items: center; gap: .32rem; font-size: .74rem; font-weight: 500; color: #334155; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
+        .pop { font-family: inherit; min-width: 190px; max-width: 260px; }
+        .pop h4 { margin: 0 0 .25rem; font-size: .92rem; color: var(--ink); }
+        .pop .meta { font-size: .8rem; line-height: 1.5; color: #334155; }
+        .pop .meta a { color: var(--c-prospect); word-break: break-all; }
+        .pop .badge {
+            display: inline-block; margin-top: .4rem; font-size: .7rem; font-weight: 600;
+            padding: .12rem .5rem; border-radius: 999px; color: #fff;
+        }
+        .muted { color: var(--muted); }
+    </style>
+</head>
+<body>
+    <div class="bar">
+        <div class="fld">
+            <label for="f-city">Ciudad</label>
+            <select id="f-city">
+                <option value="">Todas</option>
+                {{range .Cities}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+        </div>
+        <div class="fld">
+            <label for="f-status">Estado</label>
+            <select id="f-status">
+                <option value="">Todos</option>
+                <option value="prospect">Prospecto</option>
+                <option value="in_progress">En gestión</option>
+                <option value="client">Cliente</option>
+                <option value="discarded">Descartado</option>
+            </select>
+        </div>
+        <div class="fld">
+            <label for="f-advisor">Asesor</label>
+            <select id="f-advisor">
+                <option value="">Todos</option>
+                {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+        </div>
+        <div class="fld">
+            <label for="f-colorby">Colorear por</label>
+            <select id="f-colorby">
+                <option value="status">Estado</option>
+                <option value="advisor">Asesor</option>
+                <option value="zone">Zona</option>
+                <option value="category">Categoría</option>
+            </select>
+        </div>
+        <button type="button" id="btn-apply">Aplicar</button>
+        <span class="count" id="count"></span>
+    </div>
+
+    <div class="stage">
+        <div id="map"></div>
+        <div class="legend" id="legend"></div>
+    </div>
+
+    <script src="/admin/static/leaflet.js"></script>
+    <script>
+    (function () {
+        const TOKEN = "{{.Token}}";
+        const STATUS_COLORS = { prospect:"#2563eb", in_progress:"#f59e0b", client:"#16a34a", discarded:"#9ca3af" };
+        const STATUS_LABELS = { prospect:"Prospecto", in_progress:"En gestión", client:"Cliente", discarded:"Descartado" };
+
+        const ADVISORS_LIST = {{.AdvisorsData}} || [];
+        const ZONES_LIST = {{.ZonesData}} || [];
+        const CATEGORIES_LIST = {{.CategoriesData}} || [];
+        const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
+        const NEUTRAL = "#94a3b8";
+        const advisorMeta = {}, zoneMeta = {}, categoryMeta = {};
+        ADVISORS_LIST.forEach((a,i) => { advisorMeta[a.ID] = { name:a.Name, color:CAT_PALETTE[i%CAT_PALETTE.length] }; });
+        ZONES_LIST.forEach(z => { zoneMeta[z.ID] = { name:z.Name+" · "+z.City, color:z.Color||NEUTRAL }; });
+        CATEGORIES_LIST.forEach((c,i) => { categoryMeta[c.ID] = { name:c.Name, color:CAT_PALETTE[i%CAT_PALETTE.length] }; });
+        let colorMode = "status";
+
+        function colorFor(b) {
+            if (colorMode === "advisor") return b.advisor_id && advisorMeta[b.advisor_id] ? advisorMeta[b.advisor_id].color : NEUTRAL;
+            if (colorMode === "zone") return b.zone_id && zoneMeta[b.zone_id] ? zoneMeta[b.zone_id].color : NEUTRAL;
+            if (colorMode === "category") return b.category_id && categoryMeta[b.category_id] ? categoryMeta[b.category_id].color : NEUTRAL;
+            return STATUS_COLORS[b.status] || STATUS_COLORS.prospect;
+        }
+
+        function escapeHtml(s) {
+            return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+        }
+
+        const map = L.map("map", { scrollWheelZoom: true }).setView([4.5709, -74.2973], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
+        const markersLayer = L.layerGroup().addTo(map);
+        const allMarkers = [];
+
+        function markerStyle(b) {
+            return { radius: 7, fillColor: colorFor(b), color: "#111827", weight: 1, opacity: 1, fillOpacity: 0.85 };
+        }
+
+        function popupHtml(b) {
+            const parts = ['<div class="pop"><h4>' + escapeHtml(b.title || "(sin nombre)") + "</h4>", '<div class="meta">'];
+            if (b.category) parts.push("<div>" + escapeHtml(b.category) + "</div>");
+            if (b.review_count > 0) parts.push("<div>⭐ " + Number(b.rating).toFixed(1) + " <span class='muted'>(" + b.review_count + " reseñas)</span></div>");
+            if (b.address) parts.push("<div>" + escapeHtml(b.address) + "</div>");
+            if (b.phone) parts.push("<div>📞 " + escapeHtml(b.phone) + "</div>");
+            if (b.website) parts.push('<div>🌐 <a href="' + escapeHtml(b.website) + '" target="_blank" rel="noopener">' + escapeHtml(b.website) + "</a></div>");
+            parts.push("</div>");
+            const st = b.status || "prospect";
+            parts.push('<span class="badge" style="background:' + (STATUS_COLORS[st] || NEUTRAL) + '">' + (STATUS_LABELS[st] || st) + "</span>");
+            parts.push("</div>");
+            return parts.join("");
+        }
+
+        function renderLegend() {
+            const el = document.getElementById("legend");
+            let items;
+            if (colorMode === "advisor") { items = ADVISORS_LIST.map(a => ({ color: advisorMeta[a.ID].color, label: a.Name })); items.push({ color: NEUTRAL, label: "Sin asignar" }); }
+            else if (colorMode === "zone") { items = ZONES_LIST.map(z => ({ color: zoneMeta[z.ID].color, label: z.Name })); items.push({ color: NEUTRAL, label: "Sin zona" }); }
+            else if (colorMode === "category") { items = CATEGORIES_LIST.map(c => ({ color: categoryMeta[c.ID].color, label: c.Name })); items.push({ color: NEUTRAL, label: "Sin categoría" }); }
+            else items = [
+                { color: STATUS_COLORS.prospect, label: "Prospecto" },
+                { color: STATUS_COLORS.in_progress, label: "En gestión" },
+                { color: STATUS_COLORS.client, label: "Cliente" },
+                { color: STATUS_COLORS.discarded, label: "Descartado" }
+            ];
+            el.innerHTML = items.map(it => '<span><i class="dot" style="background:' + it.color + '"></i> ' + escapeHtml(it.label) + "</span>").join("");
+        }
+
+        function recolor() {
+            allMarkers.forEach(m => m.marker.setStyle(markerStyle(m.biz)));
+            renderLegend();
+        }
+
+        function load() {
+            const count = document.getElementById("count");
+            count.textContent = "Cargando…";
+            const params = new URLSearchParams({
+                t: TOKEN,
+                city: document.getElementById("f-city").value,
+                status: document.getElementById("f-status").value,
+                advisor: document.getElementById("f-advisor").value
+            });
+            fetch("/embed/businesses?" + params.toString())
+                .then(r => r.json())
+                .then(list => {
+                    markersLayer.clearLayers();
+                    allMarkers.length = 0;
+                    const bounds = [];
+                    list.forEach(b => {
+                        const marker = L.circleMarker([b.lat, b.lng], markerStyle(b));
+                        marker.bindTooltip(escapeHtml(b.title || "(sin nombre)"));
+                        marker.bindPopup(popupHtml(b));
+                        marker.addTo(markersLayer);
+                        allMarkers.push({ biz: b, marker: marker });
+                        bounds.push([b.lat, b.lng]);
+                    });
+                    count.textContent = list.length + " negocios";
+                    renderLegend();
+                    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+                })
+                .catch(() => { count.textContent = "Error al cargar"; });
+        }
+
+        document.getElementById("btn-apply").addEventListener("click", load);
+        document.getElementById("f-colorby").addEventListener("change", function () { colorMode = this.value; recolor(); });
+
+        renderLegend();
+        load();
+    })();
+    </script>
+</body>
+</html>
+{{end}}

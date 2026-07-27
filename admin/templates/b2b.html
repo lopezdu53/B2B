@@ -33,6 +33,34 @@
         }
         .b2b-hero h1 { margin: 0 0 .3rem; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color:#fff; }
         .b2b-hero p { margin: 0; max-width: 640px; color: rgba(255,255,255,.9); font-size: .95rem; line-height: 1.5; }
+        .btn-embed {
+            position: relative; z-index: 1; margin-top: 1rem; border: 1px solid rgba(255,255,255,.4);
+            background: rgba(255,255,255,.15); color: #fff; font-weight: 600; font-size: .88rem;
+            padding: .5rem 1rem; border-radius: 10px; cursor: pointer; backdrop-filter: blur(4px);
+        }
+        .btn-embed:hover { background: rgba(255,255,255,.25); }
+
+        /* ---- Embed modal ---- */
+        .embed-overlay { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); align-items: center; justify-content: center; padding: 1rem; }
+        .embed-overlay.open { display: flex; }
+        .embed-modal { background: #fff; border-radius: 16px; max-width: 620px; width: 100%; padding: 1.5rem 1.6rem; box-shadow: 0 20px 60px -12px rgba(16,24,40,.4); max-height: 90vh; overflow-y: auto; }
+        .embed-modal h3 { margin: 0 0 .3rem; font-size: 1.2rem; color: var(--ink); }
+        .embed-modal p { color: var(--muted); font-size: .9rem; margin: 0 0 1rem; }
+        .embed-url { display: flex; gap: .5rem; margin-bottom: 1rem; }
+        .embed-url input { flex: 1; margin: 0; font-size: .82rem; font-family: monospace; border-radius: 9px; border: 1px solid var(--line); padding: .55rem .7rem; background: #f8fafc; }
+        .embed-url button { border: 0; border-radius: 9px; background: #111827; color: #fff; font-weight: 600; padding: 0 1rem; cursor: pointer; white-space: nowrap; }
+        .embed-steps { font-size: .88rem; color: #334155; line-height: 1.6; padding-left: 1.2rem; margin: 0 0 1rem; }
+        .embed-steps li { margin-bottom: .35rem; }
+        .embed-note { font-size: .8rem; color: var(--muted); background: #f6f8fb; border: 1px solid var(--line); border-radius: 10px; padding: .6rem .8rem; }
+        .embed-actions { display: flex; gap: .6rem; justify-content: space-between; align-items: center; margin-top: 1rem; }
+        .embed-actions a { font-size: .85rem; font-weight: 600; color: var(--c-prospect); }
+        .embed-close { border: 0; background: #eef2f7; color: var(--ink); font-weight: 600; padding: .5rem 1rem; border-radius: 9px; cursor: pointer; }
+        .dark .embed-modal { background: #131c2e; }
+        .dark .embed-modal h3 { color: #e8edf5; }
+        .dark .embed-url input { background: #0f1728; color: #e8edf5; border-color: #2a3446; }
+        .dark .embed-steps { color: #cbd5e1; }
+        .dark .embed-note { background: #0f1728; border-color: #232c3d; }
+        .dark .embed-close { background: #1e293b; color: #e8edf5; }
 
         /* ---- KPI tiles ---- */
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
@@ -169,6 +197,7 @@
         <div class="b2b-hero">
             <h1>Prospección B2B</h1>
             <p>Explora los negocios encontrados en Google Maps, marca cuáles ya son clientes y asigna prospectos a tus asesores comerciales por zona.</p>
+            {{if .CanEmbed}}<button type="button" class="btn-embed" id="btn-embed">📊 Incrustar en PowerPoint</button>{{end}}
         </div>
 
         <div class="kpi-grid">
@@ -397,6 +426,36 @@
             </div>
         </details>
     </main>
+
+    {{if .CanEmbed}}
+    <div class="embed-overlay" id="embed-overlay">
+        <div class="embed-modal">
+            <h3>📊 Incrustar el mapa en PowerPoint</h3>
+            <p>Copia este enlace y pégalo en el complemento <strong>Web Viewer</strong> de PowerPoint. Muestra el mapa interactivo (con filtros, colores y datos del negocio), en modo solo lectura.</p>
+
+            <div class="embed-url">
+                <input type="text" id="embed-url-input" readonly value="">
+                <button type="button" id="embed-copy">Copiar</button>
+            </div>
+
+            <ol class="embed-steps">
+                <li>En PowerPoint: pestaña <strong>Insertar → Obtener complementos</strong> (o <em>Mis complementos</em>).</li>
+                <li>Busca e instala <strong>“Web Viewer”</strong> (de Microsoft) y añádelo a la diapositiva.</li>
+                <li>Pega el enlace copiado y presiona <strong>Preview / Vista previa</strong>.</li>
+                <li>Ajusta el tamaño del recuadro en la diapositiva. Al presentar, el mapa es interactivo.</li>
+            </ol>
+
+            <div class="embed-note">
+                🔒 El enlace es privado y de solo lectura: muestra el mapa pero no permite editar ni ver el CRM. El complemento Web Viewer requiere que tu plataforma esté publicada con <strong>HTTPS</strong>. Si compartes el enlace, cualquiera con él podrá ver este mapa.
+            </div>
+
+            <div class="embed-actions">
+                <a href="" id="embed-open" target="_blank" rel="noopener">Abrir en una pestaña nueva ↗</a>
+                <button type="button" class="embed-close" id="embed-close">Cerrar</button>
+            </div>
+        </div>
+    </div>
+    {{end}}
 
     <script src="/admin/static/leaflet.js"></script>
     <script>
@@ -667,6 +726,30 @@
                     }
                 })
                 .catch(() => { jobsTimer = setTimeout(pollJobs, 8000); });
+        }
+
+        // --- Embed / PowerPoint modal ---
+        const EMBED_TOKEN = "{{.EmbedToken}}";
+        const embedBtn = document.getElementById("btn-embed");
+        if (embedBtn) {
+            const embedURL = location.origin + "/embed/map?t=" + EMBED_TOKEN;
+            const overlay = document.getElementById("embed-overlay");
+            const input = document.getElementById("embed-url-input");
+            const openLink = document.getElementById("embed-open");
+            input.value = embedURL;
+            openLink.href = embedURL;
+
+            embedBtn.addEventListener("click", () => overlay.classList.add("open"));
+            document.getElementById("embed-close").addEventListener("click", () => overlay.classList.remove("open"));
+            overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+
+            const copyBtn = document.getElementById("embed-copy");
+            copyBtn.addEventListener("click", () => {
+                input.select();
+                const done = () => { copyBtn.textContent = "¡Copiado!"; setTimeout(() => { copyBtn.textContent = "Copiar"; }, 1800); };
+                if (navigator.clipboard) { navigator.clipboard.writeText(embedURL).then(done).catch(() => { document.execCommand("copy"); done(); }); }
+                else { document.execCommand("copy"); done(); }
+            });
         }
 
         loadBusinesses();

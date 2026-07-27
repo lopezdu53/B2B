@@ -53,12 +53,29 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"NextURL":        "",
 		"ExportURL":      "/admin/b2b/negocios/export",
 		"IsAdvisor":      false,
+		"EmbedToken":     "1.deadbeef",
+		"CanEmbed":       true,
 	}
 
 	for _, name := range []string{"b2b.html", "negocios.html", "papelera.html", "asesores.html"} {
 		if err := tmpl.ExecuteTemplate(io.Discard, name, data); err != nil {
 			t.Fatalf("execute %s: %v", name, err)
 		}
+	}
+
+	// embed_map.html is the standalone, framable presentation map.
+	embedData := map[string]any{
+		"Token":          "1.deadbeef",
+		"Cities":         []string{"Bogotá", "Medellín"},
+		"Advisors":       advisors,
+		"Zones":          zones,
+		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
+		"AdvisorsData":   advisors,
+		"ZonesData":      zones,
+		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "embed_map.html", embedData); err != nil {
+		t.Fatalf("execute embed_map.html: %v", err)
 	}
 
 	// zonas.html needs zoneRow values.

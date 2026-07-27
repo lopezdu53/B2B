@@ -62,8 +62,13 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"AdvisorsData":   advisors,
 			"ZonesData":      zones,
 			"CategoriesData": categories,
-			"Success":        r.URL.Query().Get("success"),
-			"Error":          r.URL.Query().Get("error"),
+			// Embed (PowerPoint / external presentations): a per-tenant token
+			// that unlocks the read-only /embed/map page. Only offered on the
+			// tenant-wide view (not to advisor-scoped users).
+			"EmbedToken": embedToken(tid, appState.EncryptionKey),
+			"CanEmbed":   advisorScope(r) == nil,
+			"Success":    r.URL.Query().Get("success"),
+			"Error":      r.URL.Query().Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "b2b.html", data)

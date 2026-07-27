@@ -105,6 +105,12 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 	})
 	log.Info("River UI available at /riverui/ (requires login)")
 
+	// Public, read-only embeddable map (for PowerPoint's Web Viewer add-in and
+	// similar). No session auth — access is gated by a per-tenant HMAC token.
+	// Kept outside the /admin group so no CSRF/frame-blocking headers apply.
+	r.Get("/embed/map", EmbedMapHandler(appState))
+	r.Get("/embed/businesses", EmbedBusinessesHandler(appState))
+
 	// Health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
