@@ -101,13 +101,21 @@
         .legend-body span { display: inline-flex; align-items: center; gap: .38rem; font-size: .78rem; font-weight: 500; color: var(--ink); }
         .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 80%, transparent); flex: none; }
 
-        /* ---- Popups ---- */
-        .leaflet-popup-content-wrapper { border-radius: 14px; box-shadow: var(--shadow); }
+        /* ---- Popups (theme-aware so text always contrasts the card) ---- */
+        .leaflet-popup-content-wrapper {
+            border-radius: 14px; box-shadow: var(--shadow);
+            background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+        }
+        .leaflet-popup-tip { background: var(--surface); box-shadow: var(--shadow); }
+        .leaflet-popup-content { margin: .85rem 1rem; }
+        .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+        .leaflet-container a.leaflet-popup-close-button:hover { color: var(--ink); }
         .pop { font-family: inherit; min-width: 200px; max-width: 270px; }
-        .pop h4 { margin: 0 0 .3rem; font-size: .96rem; color: var(--ink); letter-spacing: -.01em; }
-        .pop .meta { font-size: .82rem; line-height: 1.55; color: var(--ink); opacity: .92; }
-        .pop .meta a { color: var(--brand); word-break: break-all; }
-        .pop .badge { display: inline-block; margin-top: .5rem; font-size: .7rem; font-weight: 700; padding: .16rem .6rem; border-radius: 999px; color: #fff; }
+        .pop h4 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; line-height: 1.25; }
+        .pop .meta { font-size: .85rem; line-height: 1.6; color: var(--ink); }
+        .pop .meta > div { margin-bottom: .1rem; }
+        .pop .meta a { color: var(--brand); font-weight: 600; word-break: break-all; }
+        .pop .badge { display: inline-block; margin-top: .55rem; font-size: .72rem; font-weight: 700; padding: .18rem .65rem; border-radius: 999px; color: #fff; }
         .muted { color: var(--muted); }
 
         /* ---- Mobile ---- */
