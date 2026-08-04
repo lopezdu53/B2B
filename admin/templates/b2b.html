@@ -484,8 +484,8 @@
         ADVISORS_LIST.forEach((a, i) => { advisorMeta[a.ID] = { name: a.Name, color: CAT_PALETTE[i % CAT_PALETTE.length] }; });
         const zoneMeta = {}; // id -> {name, color}
         ZONES_LIST.forEach(z => { zoneMeta[z.ID] = { name: z.Name + " · " + z.City, color: z.Color || NEUTRAL }; });
-        const categoryMeta = {}; // id -> {name, color}
-        CATEGORIES_LIST.forEach((c, i) => { categoryMeta[c.ID] = { name: c.Name, color: CAT_PALETTE[i % CAT_PALETTE.length] }; });
+        const categoryMeta = {}; // id -> {name, color, icon}
+        CATEGORIES_LIST.forEach((c, i) => { categoryMeta[c.ID] = { name: c.Name, color: c.Color || CAT_PALETTE[i % CAT_PALETTE.length], icon: c.Icon || "" }; });
         let colorMode = "status";
 
         function colorFor(biz) {
@@ -539,7 +539,7 @@
                 items = ZONES_LIST.map(z => ({ color: zoneMeta[z.ID].color, label: z.Name }));
                 items.push({ color: NEUTRAL, label: "Sin zona" });
             } else if (colorMode === "category") {
-                items = CATEGORIES_LIST.map(c => ({ color: categoryMeta[c.ID].color, label: c.Name }));
+                items = CATEGORIES_LIST.map(c => ({ color: categoryMeta[c.ID].color, label: (categoryMeta[c.ID].icon ? categoryMeta[c.ID].icon + " " : "") + c.Name }));
                 items.push({ color: NEUTRAL, label: "Sin categoría" });
             } else {
                 items = [

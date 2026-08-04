@@ -55,6 +55,8 @@ type Zone struct {
 type Category struct {
 	ID        int64
 	Name      string
+	Color     string
+	Icon      string
 	Count     int
 	CreatedAt time.Time
 }
@@ -128,7 +130,8 @@ type IB2BStore interface {
 
 	// Categories
 	ListCategories(ctx context.Context, tenantID int64) ([]Category, error)
-	CreateCategory(ctx context.Context, tenantID int64, name string) (*Category, error)
+	CreateCategory(ctx context.Context, tenantID int64, name, color, icon string) (*Category, error)
+	UpdateCategory(ctx context.Context, tenantID, id int64, name, color, icon string) error
 	DeleteCategory(ctx context.Context, tenantID, id int64) error
 	SetBusinessCategory(ctx context.Context, tenantID int64, key string, categoryID *int64) error
 

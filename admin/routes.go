@@ -54,6 +54,7 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 			r.Get("/b2b/zonas", ZonasPageHandler(appState))
 			r.Get("/b2b/categorias", CategoriasPageHandler(appState))
 			r.Post("/b2b/categorias", CreateCategoryHandler(appState))
+			r.Post("/b2b/categorias/{id}/update", UpdateCategoryHandler(appState))
 			r.Post("/b2b/categorias/{id}/delete", DeleteCategoryHandler(appState))
 			r.Post("/b2b/search", B2BSearchHandler(appState))
 			r.Get("/b2b/jobs", B2BJobsHandler(appState))

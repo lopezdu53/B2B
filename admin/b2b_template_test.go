@@ -36,8 +36,8 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Rows": []businessRow{
 			{MapBusiness: MapBusiness{Title: "Rest", City: "Bogotá", Status: "client"}, StatusLabel: "Cliente", StatusClass: "client", AdvisorName: "Ana"},
 		},
-		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
-		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
+		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
+		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
 		"Count":          1,
 		"QVal":           "",
 		"CityVal":        "",
@@ -69,10 +69,10 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Cities":         []string{"Bogotá", "Medellín"},
 		"Advisors":       advisors,
 		"Zones":          zones,
-		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
+		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
 		"AdvisorsData":   advisors,
 		"ZonesData":      zones,
-		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Count: 3}},
+		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "embed_map.html", embedData); err != nil {
 		t.Fatalf("execute embed_map.html: %v", err)
@@ -100,7 +100,7 @@ func TestB2BTemplateRenders(t *testing.T) {
 
 	catData := map[string]any{
 		"CSRFToken": "t",
-		"Rows":      []Category{{ID: 1, Name: "Restaurantes", Count: 5}},
+		"Rows":      []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 5}},
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "categorias.html", catData); err != nil {
 		t.Fatalf("execute categorias.html: %v", err)

@@ -11,11 +11,11 @@ import (
 // filed under each.
 func (s *store) ListCategories(ctx context.Context, tenantID int64) ([]admin.Category, error) {
 	const q = `
-SELECT c.id, c.name, c.created_at, COUNT(crm.place_id)
+SELECT c.id, c.name, c.color, c.icon, c.created_at, COUNT(crm.place_id)
 FROM b2b_categories c
 LEFT JOIN b2b_business_crm crm ON crm.category_id = c.id AND crm.tenant_id = c.tenant_id
 WHERE c.tenant_id = $1
-GROUP BY c.id, c.name, c.created_at
+GROUP BY c.id, c.name, c.color, c.icon, c.created_at
 ORDER BY c.name`
 
 	rows, err := s.db.Query(ctx, q, tenantID)
@@ -28,7 +28,7 @@ ORDER BY c.name`
 
 	for rows.Next() {
 		var c admin.Category
-		if err := rows.Scan(&c.ID, &c.Name, &c.CreatedAt, &c.Count); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Color, &c.Icon, &c.CreatedAt, &c.Count); err != nil {
 			return nil, err
 		}
 
@@ -38,17 +38,53 @@ ORDER BY c.name`
 	return out, rows.Err()
 }
 
+// categoryColor normalizes a category color, falling back to the default blue.
+func categoryColor(color string) string {
+	if color == "" {
+		return "#2563eb"
+	}
+
+	return color
+}
+
+// categoryIcon normalizes a category icon, falling back to a generic building.
+func categoryIcon(icon string) string {
+	if icon == "" {
+		return "🏢"
+	}
+
+	return icon
+}
+
 // CreateCategory inserts a new category for the tenant.
-func (s *store) CreateCategory(ctx context.Context, tenantID int64, name string) (*admin.Category, error) {
-	const q = `INSERT INTO b2b_categories (tenant_id, name) VALUES ($1, $2)
-RETURNING id, name, created_at`
+func (s *store) CreateCategory(ctx context.Context, tenantID int64, name, color, icon string) (*admin.Category, error) {
+	const q = `INSERT INTO b2b_categories (tenant_id, name, color, icon) VALUES ($1, $2, $3, $4)
+RETURNING id, name, color, icon, created_at`
 
 	var c admin.Category
-	if err := s.db.QueryRow(ctx, q, tenantID, name).Scan(&c.ID, &c.Name, &c.CreatedAt); err != nil {
+	if err := s.db.QueryRow(ctx, q, tenantID, name, categoryColor(color), categoryIcon(icon)).Scan(
+		&c.ID, &c.Name, &c.Color, &c.Icon, &c.CreatedAt,
+	); err != nil {
 		return nil, err
 	}
 
 	return &c, nil
+}
+
+// UpdateCategory edits one of the tenant's categories (name, color, icon).
+func (s *store) UpdateCategory(ctx context.Context, tenantID, id int64, name, color, icon string) error {
+	ct, err := s.db.Exec(ctx,
+		`UPDATE b2b_categories SET name = $1, color = $2, icon = $3 WHERE id = $4 AND tenant_id = $5`,
+		name, categoryColor(color), categoryIcon(icon), id, tenantID)
+	if err != nil {
+		return err
+	}
+
+	if ct.RowsAffected() == 0 {
+		return admin.ErrResourceNotFound
+	}
+
+	return nil
 }
 
 // DeleteCategory removes one of the tenant's categories (businesses keep their

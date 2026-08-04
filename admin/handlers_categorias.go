@@ -49,9 +49,12 @@ func CreateCategoryHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		color := strings.TrimSpace(r.FormValue("color"))
+		icon := strings.TrimSpace(r.FormValue("icon"))
+
 		tid, _ := effectiveTenant(appState, r)
 
-		if _, err := appState.Store.CreateCategory(r.Context(), tid, name); err != nil {
+		if _, err := appState.Store.CreateCategory(r.Context(), tid, name, color, icon); err != nil {
 			log.Error("b2b: create category", "error", err)
 			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "No+se+pudo+crear+(¿ya+existe?)")
 
@@ -59,6 +62,42 @@ func CreateCategoryHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		b2bRedirectBack(w, r, "/admin/b2b/categorias", "success", "Categoría+creada")
+	}
+}
+
+// UpdateCategoryHandler edits a category's name, color and icon.
+func UpdateCategoryHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "ID+invalido")
+			return
+		}
+
+		name := strings.TrimSpace(r.FormValue("name"))
+		if name == "" {
+			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "El+nombre+es+obligatorio")
+			return
+		}
+
+		color := strings.TrimSpace(r.FormValue("color"))
+		icon := strings.TrimSpace(r.FormValue("icon"))
+
+		tid, _ := effectiveTenant(appState, r)
+
+		if err := appState.Store.UpdateCategory(r.Context(), tid, id, name, color, icon); err != nil {
+			log.Error("b2b: update category", "error", err, "id", id)
+			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "No+se+pudo+guardar")
+
+			return
+		}
+
+		b2bRedirectBack(w, r, "/admin/b2b/categorias", "success", "Categoría+actualizada")
 	}
 }
 
