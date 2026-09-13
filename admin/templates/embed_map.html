@@ -308,14 +308,14 @@
                     mapApi.setMarkers(list, colorFor, function (b, marker) {
                         mapApi.openInfo(marker, popupHtml(b));
                     });
+                    var city = document.getElementById("f-city").value;
+                    var key = String(city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    var pois = (!key || key === "all" || key === "todas")
+                        ? PRICE_SMART.slice()
+                        : PRICE_SMART.filter(function (p) {
+                            return String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === key;
+                        });
                     if (mapApi.setPOIs) {
-                        var city = document.getElementById("f-city").value;
-                        var key = String(city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                        var pois = (!key || key === "all" || key === "todas")
-                            ? PRICE_SMART.slice()
-                            : PRICE_SMART.filter(function (p) {
-                                return String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === key;
-                            });
                         mapApi.setPOIs(pois, function (poi, marker) {
                             mapApi.openInfo(marker, popupHtml({
                                 title: poi.name,
@@ -328,6 +328,7 @@
                             }));
                         });
                     }
+                    if (mapApi.fitOverview) mapApi.fitOverview(pois);
                     count.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
                 })

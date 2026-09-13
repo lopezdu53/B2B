@@ -3,7 +3,8 @@
 (function (global) {
     "use strict";
 
-    var URBAN = { lat: 4.653, lng: -74.083, zoom: 12 };
+    var URBAN = { lat: 4.72, lng: -74.07, zoom: 11 };
+    var OVERVIEW_MAX_ZOOM = 12;
     var GEO_LOC = "/admin/static/geo/bogota-localidades.json";
     var GEO_BAR = "/admin/static/geo/bogota-barrios.json";
     var GEO_IDX = "/admin/static/geo/bogota-index.json";
@@ -18,20 +19,49 @@
         if (document.getElementById("b2b-ps-style")) return;
         var st = document.createElement("style");
         st.id = "b2b-ps-style";
-        st.textContent = ".ps-pin{width:36px;height:44px;margin-left:-18px;margin-top:-44px;display:flex;align-items:center;justify-content:center;" +
-            "background:linear-gradient(135deg,#1d4ed8 0%,#dc2626 100%);color:#fff;font:700 12px/1 Arial,Helvetica,sans-serif;" +
-            "border:1.5px solid #0b1220;border-radius:18px 18px 18px 4px;box-shadow:0 3px 8px rgba(15,23,42,.35);transform:rotate(-45deg);}" +
-            ".ps-pin span{transform:rotate(45deg);letter-spacing:.02em;}";
+        st.textContent =
+            ".ps-marker.leaflet-marker-icon,.ps-marker.leaflet-div-icon{background:transparent!important;border:none!important;box-shadow:none!important;}" +
+            ".ps-pin{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;" +
+            "background:linear-gradient(135deg,#1d4ed8 0%,#dc2626 100%);color:#fff;font:700 13px/1 Arial,Helvetica,sans-serif;" +
+            "border:1.5px solid #0b1220;box-shadow:0 2px 8px rgba(15,23,42,.4);position:relative;}" +
+            ".ps-pin::after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-7px;border:7px solid transparent;border-top-color:#b91c1c;}";
         document.head.appendChild(st);
     }
 
-    function priceSmartIconURL() {
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="44" viewBox="0 0 40 44">' +
-            '<defs><linearGradient id="psg" x1="0" y1="0" x2="1" y2="1">' +
-            '<stop offset="0%" stop-color="#1d4ed8"/><stop offset="100%" stop-color="#dc2626"/></linearGradient></defs>' +
-            '<path d="M20 2.2c7.2 0 13 5.6 13 12.6 0 10.2-13 26.6-13 26.6S7 24.9 7 14.8C7 7.8 12.8 2.2 20 2.2z" fill="url(#psg)" stroke="#0b1220" stroke-width="1.4"/>' +
-            '<text x="20" y="20" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial,Helvetica,sans-serif">PS</text></svg>';
-        return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+    function createGooglePSOverlay(map, poi, onClick) {
+        ensurePSStyle();
+        function Overlay() { this.div = null; }
+        Overlay.prototype = new google.maps.OverlayView();
+        Overlay.prototype.onAdd = function () {
+            var div = document.createElement("div");
+            div.className = "ps-marker";
+            div.innerHTML = '<div class="ps-pin">PS</div>';
+            div.style.position = "absolute";
+            div.style.cursor = "pointer";
+            div.style.width = "36px";
+            div.style.height = "44px";
+            div.title = poi.name || "PriceSmart";
+            div.addEventListener("click", function (e) {
+                e.stopPropagation();
+                onClick(poi, overlay);
+            });
+            this.div = div;
+            this.getPanes().overlayMouseTarget.appendChild(div);
+        };
+        Overlay.prototype.draw = function () {
+            if (!this.div) return;
+            var pos = this.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(poi.lat, poi.lng));
+            if (!pos) return;
+            this.div.style.left = (pos.x - 18) + "px";
+            this.div.style.top = (pos.y - 44) + "px";
+        };
+        Overlay.prototype.onRemove = function () {
+            if (this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div);
+            this.div = null;
+        };
+        var overlay = new Overlay();
+        overlay.setMap(map);
+        return overlay;
     }
 
     function pointInRing(lat, lng, ring) {
@@ -512,7 +542,7 @@
             zoom: URBAN.zoom,
             mapTypeId: "roadmap",
             streetViewControl: false,
-            fullscreenControl: true,
+            fullscreenControl: false,
             mapTypeControl: true,
             clickableIcons: false,
             gestureHandling: "greedy"
@@ -597,20 +627,9 @@
                 poiMarkers = [];
             },
             addPOI: function (poi, onClick) {
-                var marker = new google.maps.Marker({
-                    position: { lat: poi.lat, lng: poi.lng },
-                    map: map,
-                    title: poi.name || poi.title || "PriceSmart",
-                    zIndex: 2500,
-                    icon: {
-                        url: priceSmartIconURL(),
-                        scaledSize: new google.maps.Size(40, 44),
-                        anchor: new google.maps.Point(20, 42)
-                    }
-                });
-                marker.addListener("click", function () { onClick(poi, marker); });
-                poiMarkers.push(marker);
-                return marker;
+                var overlay = createGooglePSOverlay(map, poi, onClick);
+                poiMarkers.push(overlay);
+                return overlay;
             },
             addMarker: function (biz, color, onClick) {
                 var marker = new google.maps.Marker({
@@ -650,12 +669,15 @@
                 }
                 var b = new google.maps.LatLngBounds();
                 pts.forEach(function (p) { b.extend(p); });
-                map.fitBounds(b, 40);
-                if (maxZoom) {
-                    google.maps.event.addListenerOnce(map, "idle", function () {
-                        if (map.getZoom() > maxZoom) map.setZoom(maxZoom);
-                    });
-                }
+                map.fitBounds(b, 48);
+                var cap = maxZoom || OVERVIEW_MAX_ZOOM;
+                google.maps.event.addListenerOnce(map, "idle", function () {
+                    if (map.getZoom() > cap) map.setZoom(cap);
+                    if (map.getZoom() < 10) map.setZoom(10);
+                });
+            },
+            resize: function () {
+                google.maps.event.trigger(map, "resize");
             },
             fitBox: function (box) {
                 map.fitBounds({
@@ -804,8 +826,8 @@
             addPOI: function (poi, onClick) {
                 ensurePSStyle();
                 var icon = L.divIcon({
-                    className: "",
-                    html: '<div class="ps-pin"><span>PS</span></div>',
+                    className: "ps-marker",
+                    html: '<div class="ps-pin">PS</div>',
                     iconSize: [36, 44],
                     iconAnchor: [18, 44]
                 });
@@ -845,7 +867,10 @@
                     map.setView([URBAN.lat, URBAN.lng], URBAN.zoom);
                     return;
                 }
-                map.fitBounds(pts, { padding: [30, 30], maxZoom: maxZoom || 14 });
+                map.fitBounds(pts, { padding: [40, 40], maxZoom: maxZoom || OVERVIEW_MAX_ZOOM });
+            },
+            resize: function () {
+                map.invalidateSize();
             },
             fitBox: function (box) {
                 map.fitBounds([[box.south, box.west], [box.north, box.east]], { padding: [28, 28] });
@@ -1240,19 +1265,12 @@
                     setMarkers: function (list, colorFor, onClick) {
                         engine.clearMarkers();
                         items = [];
-                        var pts = [];
                         (list || []).forEach(function (biz) {
                             if (!biz.lat || !biz.lng) return;
                             var marker = engine.addMarker(biz, colorFor(biz), onClick);
                             items.push({ biz: biz, marker: marker });
-                            pts.push(engine.kind === "google"
-                                ? { lat: biz.lat, lng: biz.lng }
-                                : [biz.lat, biz.lng]);
                         });
                         applyMarkerFilter();
-                        if (!featureForFilter()) {
-                            engine.fitBounds(pts, 14);
-                        }
                         return items;
                     },
                     setPOIs: function (list, onClick) {
@@ -1261,6 +1279,48 @@
                             if (!poi.lat || !poi.lng || !engine.addPOI) return;
                             engine.addPOI(poi, onClick || function () {});
                         });
+                    },
+                    fitOverview: function (extra) {
+                        if (featureForFilter()) {
+                            zoomToFilter();
+                            return;
+                        }
+                        var pts = [];
+                        items.forEach(function (it) {
+                            if (!inFilter(it.biz)) return;
+                            pts.push(engine.kind === "google"
+                                ? { lat: it.biz.lat, lng: it.biz.lng }
+                                : [it.biz.lat, it.biz.lng]);
+                        });
+                        (extra || []).forEach(function (p) {
+                            if (!p.lat || !p.lng) return;
+                            pts.push(engine.kind === "google" ? { lat: p.lat, lng: p.lng } : [p.lat, p.lng]);
+                        });
+                        engine.fitBounds(pts, OVERVIEW_MAX_ZOOM);
+                    },
+                    resize: function () {
+                        if (engine && engine.resize) engine.resize();
+                    },
+                    toggleFullscreen: function (stage) {
+                        var node = stage || el;
+                        var doc = document;
+                        var touchMac = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+                        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || touchMac;
+                        var req = node.requestFullscreen || node.webkitRequestFullscreen;
+                        var exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+                        var active = doc.fullscreenElement || doc.webkitFullscreenElement;
+                        if (isIOS || !req) {
+                            node.classList.toggle("is-full");
+                        } else if (active) {
+                            if (exit) exit.call(doc);
+                        } else {
+                            var p = req.call(node);
+                            if (p && p.catch) p.catch(function () { node.classList.add("is-full"); });
+                        }
+                        setTimeout(function () {
+                            if (engine && engine.resize) engine.resize();
+                        }, 200);
+                        return !!(doc.fullscreenElement || doc.webkitFullscreenElement || node.classList.contains("is-full"));
                     },
                     recolor: function (colorFor) {
                         items.forEach(function (it) {

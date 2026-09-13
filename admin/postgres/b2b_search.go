@@ -167,17 +167,38 @@ ON CONFLICT (place_id, tenant_id) DO UPDATE SET
 	return err
 }
 
-// HideBusinessesByStatus sends every tenant business with the given status to
-// the trash (hidden), so they leave the map and counters.
-func (s *store) HideBusinessesByStatus(ctx context.Context, tenantID int64, status string) (int64, error) {
-	if !admin.ValidBusinessStatus(status) {
-		return 0, fmt.Errorf("invalid status: %s", status)
+// HideAllVisibleBusinesses sends every lead currently shown on the map to the
+// trash. Most businesses have no CRM row yet, so we upsert hidden=true for
+// every qualifying scrape key — not only existing "client" rows.
+func (s *store) HideAllVisibleBusinesses(ctx context.Context, tenantID int64) (int64, error) {
+	if tenantID == 0 {
+		return 0, fmt.Errorf("missing tenant")
 	}
 
-	ct, err := s.db.Exec(ctx, `
-UPDATE b2b_business_crm
-SET hidden = TRUE, updated_at = NOW()
-WHERE tenant_id = $1 AND status = $2 AND NOT hidden`, tenantID, status)
+	const q = `
+INSERT INTO b2b_business_crm (place_id, tenant_id, hidden, title, updated_at)
+SELECT DISTINCT
+    COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')),
+    $1,
+    TRUE,
+    COALESCE(elem->>'title', ''),
+    NOW()
+FROM scrape_results sr
+CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+LEFT JOIN b2b_business_crm crm
+    ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
+   AND crm.tenant_id = $1
+WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
+  AND (elem->>'latitude') ~ '^-?[0-9]'
+  AND (elem->>'latitude')::float8 <> 0
+  AND COALESCE(crm.hidden, false) = false
+` + adminLeadQualitySQL + `
+ON CONFLICT (place_id, tenant_id) DO UPDATE SET
+    hidden = TRUE,
+    title = COALESCE(NULLIF(EXCLUDED.title, ''), b2b_business_crm.title),
+    updated_at = NOW()`
+
+	ct, err := s.db.Exec(ctx, q, tenantID)
 	if err != nil {
 		return 0, err
 	}
