@@ -34,24 +34,7 @@
 
         <div class="page-header">
             <h1>Categorías de negocios</h1>
-            <p>Agrupa tus negocios (Restaurantes, Hoteles, Supermercados…) y dale a cada categoría un color e ícono. Asígnalos desde la página de Negocios con acciones en lote.</p>
-        </div>
-
-        <div class="card">
-            <h2 class="sec-title"><span class="ico">➕</span> Nueva categoría</h2>
-            <form method="POST" action="/admin/b2b/categorias">
-                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <div class="cat-form-grid">
-                    <div><label>Nombre *</label><input type="text" name="name" placeholder="Ej. Cafeterías" required></div>
-                    <div><label>Color</label><input type="color" name="color" value="#2563eb"></div>
-                    <div class="full">
-                        <label>Ícono</label>
-                        <div class="icon-grid" id="create-icons"></div>
-                        <input type="hidden" name="icon" id="create-icon" value="🏢">
-                    </div>
-                    <div class="full"><button type="submit" class="btn-primary">Crear categoría</button></div>
-                </div>
-            </form>
+            <p>Hay tres categorías fijas: <strong>Restaurantes</strong>, <strong>SúperMercados</strong> y <strong>Hoteles</strong>. Solo puedes cambiar el color y el ícono. El filtro del mapa usa las mismas tres.</p>
         </div>
 
         <div class="card">
@@ -69,11 +52,7 @@
                             <td style="text-align:right; white-space:nowrap;">
                                 <button type="button" class="btn-edit"
                                     data-id="{{.ID}}" data-name="{{.Name}}" data-color="{{.Color}}" data-icon="{{.Icon}}"
-                                    onclick="editCat(this)">Editar</button>
-                                <form method="POST" action="/admin/b2b/categorias/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar categoría? Los negocios quedarán sin categoría.');">
-                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-                                    <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
-                                </form>
+                                    onclick="editCat(this)">Color e ícono</button>
                             </td>
                         </tr>
                     {{end}}
@@ -83,7 +62,7 @@
             {{else}}
             <div class="empty-state">
                 <div class="big">🏷️</div>
-                <p>Aún no hay categorías. Crea la primera arriba.</p>
+                <p>Las tres categorías se crean solas al abrir esta página.</p>
             </div>
             {{end}}
         </div>
@@ -92,8 +71,8 @@
     <div class="modal-overlay" id="edit-modal">
         <form class="modal" method="POST" id="edit-form">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <h3>Editar categoría</h3>
-            <div class="field"><label>Nombre</label><input type="text" name="name" id="e-name" required></div>
+            <h3>Color e ícono</h3>
+            <p class="empty-hint" id="e-name-label" style="margin:0 0 .8rem; font-weight:600;"></p>
             <div class="field"><label>Color</label><input type="color" name="color" id="e-color" value="#2563eb"></div>
             <div class="field">
                 <label>Ícono</label>
@@ -130,7 +109,7 @@
 
     function editCat(btn) {
         document.getElementById("edit-form").action = "/admin/b2b/categorias/" + btn.dataset.id + "/update";
-        document.getElementById("e-name").value = btn.dataset.name || "";
+        document.getElementById("e-name-label").textContent = btn.dataset.name || "";
         document.getElementById("e-color").value = btn.dataset.color || "#2563eb";
         var hi = document.getElementById("e-icon");
         hi.value = btn.dataset.icon || "🏢";
@@ -138,7 +117,6 @@
         document.getElementById("edit-modal").classList.add("open");
     }
 
-    buildIcons(document.getElementById("create-icons"), document.getElementById("create-icon"));
     document.getElementById("edit-modal").addEventListener("click", function (e) {
         if (e.target === this) closeModal("edit-modal");
     });

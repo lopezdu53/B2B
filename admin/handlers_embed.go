@@ -64,7 +64,7 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
-		categories, _ := appState.Store.ListCategories(ctx, tid)
+		categories, _ := EnsureFixedCategories(ctx, appState.Store, tid)
 		cities := CityList()
 
 		data := map[string]any{

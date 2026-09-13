@@ -321,6 +321,13 @@
                 </div>
                 {{end}}
                 <div>
+                    <label for="f-category">Categoría</label>
+                    <select id="f-category">
+                        <option value="">Todas</option>
+                        {{range .Categories}}<option value="{{.ID}}">{{.Icon}} {{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
                     <label for="f-colorby">Colorear negocios por</label>
                     <select id="f-colorby">
                         <option value="status">Estado</option>
@@ -624,7 +631,8 @@
             const params = new URLSearchParams({
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
-                advisor: (document.getElementById("f-advisor") || {value: ""}).value
+                advisor: (document.getElementById("f-advisor") || {value: ""}).value,
+                category: (document.getElementById("f-category") || {value: ""}).value
             });
             fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
                 .then(r => r.json())

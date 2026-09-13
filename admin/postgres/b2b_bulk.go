@@ -95,6 +95,20 @@ func (s *store) DeleteCategory(ctx context.Context, tenantID, id int64) error {
 	return err
 }
 
+// ReassignCategory moves every CRM row from one category to another.
+func (s *store) ReassignCategory(ctx context.Context, tenantID, fromID, toID int64) error {
+	if fromID == 0 || toID == 0 || fromID == toID {
+		return nil
+	}
+
+	_, err := s.db.Exec(ctx, `
+UPDATE b2b_business_crm
+SET category_id = $1, updated_at = NOW()
+WHERE tenant_id = $2 AND category_id = $3`, toID, tenantID, fromID)
+
+	return err
+}
+
 // SetBusinessCategory files a single business under a category (or clears it
 // when categoryID is nil).
 func (s *store) SetBusinessCategory(ctx context.Context, tenantID int64, key string, categoryID *int64) error {
