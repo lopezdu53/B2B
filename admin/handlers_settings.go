@@ -58,7 +58,7 @@ func ChangePasswordHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		// Validate new password
-		if len(newPassword) < 8 {
+		if len(newPassword) < MinPasswordLength {
 			http.Redirect(w, r, "/admin/settings?error=New+password+must+be+at+least+8+characters", http.StatusSeeOther)
 			return
 		}

@@ -1,0 +1,120 @@
+{{define "asesores.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <title>Asesores - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Asesores comerciales</h1>
+            <p>Gestiona tu equipo de ventas y repártelo por ciudades y zonas.</p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">➕</span> Agregar asesor</h2>
+            <form method="POST" action="/admin/b2b/advisors" class="filters-bar">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div><label>Nombre *</label><input type="text" name="name" placeholder="Nombre y apellido" required></div>
+                <div><label>Ciudad</label><input type="text" name="city" placeholder="Bogotá"></div>
+                <div><label>Email</label><input type="email" name="email" placeholder="correo@empresa.com"></div>
+                <div><label>Teléfono</label><input type="text" name="phone" placeholder="300 000 0000"></div>
+                <div><button type="submit" class="btn-primary">Agregar</button></div>
+            </form>
+            <details style="margin-top:1rem;">
+                <summary style="cursor:pointer; font-size:.88rem; color:var(--text-secondary);">Dar acceso al asesor (opcional)</summary>
+                <p class="empty-hint" style="margin:.5rem 0;">Si defines usuario y contraseña, el asesor podrá iniciar sesión y gestionar solo los negocios que le asignes.</p>
+                <form method="POST" action="/admin/b2b/advisors" class="filters-bar">
+                    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                    <div><label>Nombre *</label><input type="text" name="name" placeholder="Nombre y apellido" required></div>
+                    <div><label>Ciudad</label><input type="text" name="city" placeholder="Bogotá"></div>
+                    <div><label>Usuario *</label><input type="text" name="username" placeholder="usuario" autocomplete="off" required></div>
+                    <div><label>Contraseña *</label><input type="password" name="password" placeholder="mín. 8 caracteres" minlength="8" autocomplete="new-password" required></div>
+                    <div><button type="submit" class="btn-primary">Agregar con acceso</button></div>
+                </form>
+            </details>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">👤</span> Equipo <span class="count-badge">{{len .Advisors}}</span></h2>
+            {{if .Advisors}}
+            <div class="filters-bar" style="margin-bottom:1rem;">
+                <div><label for="search">Buscar asesor</label><input type="search" id="search" placeholder="Nombre o ciudad…" onkeyup="filterRows('search','adv-table')"></div>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table" id="adv-table">
+                    <thead><tr><th>Nombre</th><th>Ciudad</th><th>Email</th><th>Teléfono</th><th></th></tr></thead>
+                    <tbody>
+                    {{range .Advisors}}
+                        <tr>
+                            <td><strong>{{.Name}}</strong></td>
+                            <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td>{{if .Email}}{{.Email}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button type="button" class="btn-edit"
+                                    data-id="{{.ID}}" data-name="{{.Name}}" data-city="{{.City}}" data-email="{{.Email}}" data-phone="{{.Phone}}"
+                                    onclick="editAdvisor(this)">Editar</button>
+                                <form method="POST" action="/admin/b2b/advisors/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar asesor?');">
+                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                    <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">👤</div>
+                <p>Aún no hay asesores. Agrega tus comerciales para poder asignarles prospectos por zona.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="edit-modal">
+        <form class="modal" method="POST" id="edit-form">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <h3>Editar asesor</h3>
+            <div class="field"><label>Nombre *</label><input type="text" name="name" id="e-name" required></div>
+            <div class="field"><label>Ciudad</label><input type="text" name="city" id="e-city"></div>
+            <div class="field"><label>Email</label><input type="email" name="email" id="e-email"></div>
+            <div class="field"><label>Teléfono</label><input type="text" name="phone" id="e-phone"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('edit-modal')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+    function filterRows(inputId, tableId) {
+        var q = document.getElementById(inputId).value.toLowerCase();
+        document.querySelectorAll("#" + tableId + " tbody tr").forEach(function (tr) {
+            tr.style.display = tr.textContent.toLowerCase().indexOf(q) > -1 ? "" : "none";
+        });
+    }
+    function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+    function editAdvisor(btn) {
+        document.getElementById("edit-form").action = "/admin/b2b/advisors/" + btn.dataset.id + "/update";
+        document.getElementById("e-name").value = btn.dataset.name || "";
+        document.getElementById("e-city").value = btn.dataset.city || "";
+        document.getElementById("e-email").value = btn.dataset.email || "";
+        document.getElementById("e-phone").value = btn.dataset.phone || "";
+        document.getElementById("edit-modal").classList.add("open");
+    }
+    document.getElementById("edit-modal").addEventListener("click", function (e) {
+        if (e.target === this) closeModal("edit-modal");
+    });
+    </script>
+</body>
+</html>
+{{end}}

@@ -1,11 +1,24 @@
 package admin
 
 import (
+	"encoding/json"
+	"html/template"
 	"net/http"
 	"strings"
 
 	"github.com/gosom/google-maps-scraper/cryptoext"
 )
+
+// asJSON encodes v for safe embedding inside a <script> tag. encoding/json
+// already escapes <, > and & so the payload cannot break out of the script.
+func asJSON(v any) template.JS {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return template.JS("null")
+	}
+
+	return template.JS(b)
+}
 
 // renderTemplate renders a template with the given data.
 func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, name string, data map[string]any) {
@@ -14,6 +27,25 @@ func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, 
 	}
 
 	data["CSRFToken"] = CSRFTokenFromContext(r.Context())
+	data["AssetVersion"] = assetVersion
+
+	// Inject identity + active-tenant context for the sidebar.
+	if user := UserFromContext(r.Context()); user != nil {
+		data["CurrentUser"] = user
+		data["IsSuperadmin"] = user.IsSuperadmin()
+		data["IsAdvisor"] = user.IsAdvisor()
+		data["CanManage"] = user.IsAdmin()
+
+		tid, tenant := effectiveTenant(appState, r)
+		data["ActiveTenantID"] = tid
+		data["ActiveTenant"] = tenant
+
+		if user.IsSuperadmin() {
+			if tenants, err := appState.Store.ListTenants(r.Context()); err == nil {
+				data["NavTenants"] = tenants
+			}
+		}
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 

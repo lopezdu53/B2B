@@ -1,21 +1,97 @@
 {{define "navbar"}}
-<nav class="navbar">
-    <div>
-        <a href="/admin" class="brand">Maps Scraper</a>
+<aside class="app-sidebar" id="app-sidebar">
+    <div class="side-head">
+        <a href="/admin/b2b" class="side-brand"><span class="side-logo">🗺️</span><span>Maps Scraper</span></a>
+        <button type="button" class="side-toggle" id="side-toggle" aria-label="Menú">☰</button>
     </div>
-    <ul>
-        <li><a href="/riverui/">Queue</a></li>
-        <li><a href="/swagger/index.html">API Docs</a></li>
-        <li><a href="/admin/jobs">Jobs</a></li>
-        <li><a href="/admin/workers">Workers</a></li>
-        <li><a href="/admin/api-keys">API Keys</a></li>
-        <li><a href="/admin/settings">Settings</a></li>
-        <li>
-            <form method="POST" action="/admin/logout" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <button type="submit" class="btn-link">Logout</button>
-            </form>
-        </li>
-    </ul>
-</nav>
+
+    {{if .CurrentUser}}
+    <div class="side-context">
+        {{if .IsSuperadmin}}
+        <label class="side-ctx-label">Cliente activo</label>
+        <form method="POST" action="/admin/switch-tenant" id="tenant-switch">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <select name="tenant_id" onchange="document.getElementById('tenant-switch').submit()">
+                {{$aid := .ActiveTenantID}}
+                {{range .NavTenants}}<option value="{{.ID}}" {{if eq .ID $aid}}selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+        </form>
+        {{else}}
+        <div class="side-ctx-label">Cliente</div>
+        <div class="side-tenant">{{if .ActiveTenant}}{{.ActiveTenant.Name}}{{else}}—{{end}}</div>
+        <div class="side-role">👤 {{.CurrentUser.Username}}</div>
+        {{end}}
+    </div>
+    {{end}}
+
+    <nav class="side-nav">
+        {{if .IsSuperadmin}}
+        <div class="side-group">Administración</div>
+        <a href="/admin/clientes" data-path="/admin/clientes"><span class="ico">🏙️</span> Clientes</a>
+        {{end}}
+
+        <div class="side-group">B2B</div>
+        <a href="/admin/b2b" data-path="/admin/b2b"><span class="ico">🗺️</span> Mapa</a>
+        <a href="/admin/b2b/negocios" data-path="/admin/b2b/negocios"><span class="ico">🏢</span> Negocios</a>
+        {{if .CanManage}}
+        <a href="/admin/b2b/categorias" data-path="/admin/b2b/categorias"><span class="ico">🏷️</span> Categorías</a>
+        <a href="/admin/b2b/asesores" data-path="/admin/b2b/asesores"><span class="ico">👤</span> Asesores</a>
+        <a href="/admin/b2b/zonas" data-path="/admin/b2b/zonas"><span class="ico">📍</span> Zonas</a>
+        {{end}}
+        <a href="/admin/b2b/papelera" data-path="/admin/b2b/papelera"><span class="ico">🗑️</span> Papelera</a>
+
+        {{if .IsSuperadmin}}
+        <div class="side-group">Operación</div>
+        <a href="/admin" data-path="/admin"><span class="ico">📊</span> Dashboard</a>
+        <a href="/admin/jobs" data-path="/admin/jobs"><span class="ico">🧾</span> Jobs</a>
+        <a href="/admin/workers" data-path="/admin/workers"><span class="ico">⚙️</span> Workers</a>
+        <a href="/riverui/"><span class="ico">📥</span> Queue</a>
+        <a href="/swagger/index.html"><span class="ico">📚</span> API Docs</a>
+        <a href="/admin/api-keys" data-path="/admin/api-keys"><span class="ico">🔑</span> API Keys</a>
+        {{end}}
+        <a href="/admin/settings" data-path="/admin/settings"><span class="ico">🛠️</span> Ajustes</a>
+    </nav>
+
+    <div class="side-foot">
+        <button type="button" class="side-theme" id="theme-toggle">
+            <span class="ico" id="theme-ico">🌙</span> <span id="theme-label">Tema oscuro</span>
+        </button>
+        <form class="side-logout" method="POST" action="/admin/logout">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <button type="submit">⏻&nbsp; Cerrar sesión</button>
+        </form>
+    </div>
+</aside>
+<script>
+(function () {
+    var path = (location.pathname.replace(/\/+$/, "") || "/");
+    var links = Array.prototype.slice.call(document.querySelectorAll(".side-nav a[data-path]"));
+    var best = null;
+    links.forEach(function (a) {
+        var p = a.getAttribute("data-path");
+        var match = (path === p) || (p !== "/admin" && (path === p || path.indexOf(p + "/") === 0));
+        if (match && (!best || p.length > best.getAttribute("data-path").length)) best = a;
+    });
+    if (best) best.classList.add("active");
+
+    var toggle = document.getElementById("side-toggle");
+    if (toggle) toggle.addEventListener("click", function () {
+        document.getElementById("app-sidebar").classList.toggle("open");
+    });
+
+    var btn = document.getElementById("theme-toggle");
+    function paint() {
+        var dark = document.documentElement.classList.contains("dark");
+        document.getElementById("theme-ico").textContent = dark ? "☀️" : "🌙";
+        document.getElementById("theme-label").textContent = dark ? "Tema claro" : "Tema oscuro";
+    }
+    paint();
+    if (btn) btn.addEventListener("click", function () {
+        var dark = document.documentElement.classList.toggle("dark");
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        try { localStorage.setItem("admin-theme", dark ? "dark" : "light"); } catch (e) {}
+        paint();
+    });
+})();
+</script>
 {{end}}

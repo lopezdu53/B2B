@@ -22,6 +22,12 @@ func DashboardHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		// The platform dashboard is superadmin-only; tenant users land on B2B.
+		if !user.IsSuperadmin() {
+			http.Redirect(w, r, "/admin/b2b", http.StatusSeeOther)
+			return
+		}
+
 		stats, err := appState.RQueueClient.GetDashboardStats(r.Context())
 		if err != nil {
 			log.Error("failed to get dashboard stats", "error", err)

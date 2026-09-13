@@ -1,0 +1,775 @@
+{{define "b2b.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <link rel="stylesheet" href="/admin/static/leaflet.css">
+    <title>B2B Mapa - Maps Scraper</title>
+    <style>
+        /* ---- B2B page palette & surfaces (scoped) ---- */
+        .b2b-page {
+            --ink: #0f172a; --muted: #64748b; --line: #eceef2; --surface: #ffffff;
+            --c-prospect: #2563eb; --c-progress: #f59e0b; --c-client: #16a34a; --c-discard: #94a3b8;
+            --c-advisor: #7c3aed; --c-zone: #0891b2;
+            --shadow-sm: 0 1px 2px rgba(16,24,40,.05);
+            --shadow-md: 0 4px 16px -4px rgba(16,24,40,.10), 0 2px 6px -2px rgba(16,24,40,.06);
+        }
+        .b2b-page.container { max-width: none; }
+        .b2b-page .card {
+            border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-sm);
+        }
+        .b2b-page .card-header h2 { font-size: 1.02rem; letter-spacing: -0.01em; }
+
+        /* ---- Hero header ---- */
+        .b2b-hero {
+            position: relative; overflow: hidden; border-radius: 18px; padding: 1.6rem 1.8rem;
+            margin-bottom: 1.5rem; color: #fff;
+            background: linear-gradient(120deg, #4f46e5 0%, #2563eb 55%, #0ea5e9 100%);
+            box-shadow: 0 12px 30px -12px rgba(37,99,235,.55);
+        }
+        .b2b-hero::after {
+            content: ""; position: absolute; right: -60px; top: -60px; width: 240px; height: 240px;
+            background: radial-gradient(circle, rgba(255,255,255,.18), transparent 70%); pointer-events: none;
+        }
+        .b2b-hero h1 { margin: 0 0 .3rem; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color:#fff; }
+        .b2b-hero p { margin: 0; max-width: 640px; color: rgba(255,255,255,.9); font-size: .95rem; line-height: 1.5; }
+        .btn-embed {
+            position: relative; z-index: 1; margin-top: 1rem; border: 1px solid rgba(255,255,255,.4);
+            background: rgba(255,255,255,.15); color: #fff; font-weight: 600; font-size: .88rem;
+            padding: .5rem 1rem; border-radius: 10px; cursor: pointer; backdrop-filter: blur(4px);
+        }
+        .btn-embed:hover { background: rgba(255,255,255,.25); }
+
+        /* ---- Embed modal ---- */
+        .embed-overlay { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); align-items: center; justify-content: center; padding: 1rem; }
+        .embed-overlay.open { display: flex; }
+        .embed-modal { background: #fff; border-radius: 16px; max-width: 620px; width: 100%; padding: 1.5rem 1.6rem; box-shadow: 0 20px 60px -12px rgba(16,24,40,.4); max-height: 90vh; overflow-y: auto; }
+        .embed-modal h3 { margin: 0 0 .3rem; font-size: 1.2rem; color: var(--ink); }
+        .embed-modal p { color: var(--muted); font-size: .9rem; margin: 0 0 1rem; }
+        .embed-url { display: flex; gap: .5rem; margin-bottom: 1rem; }
+        .embed-url input { flex: 1; margin: 0; font-size: .82rem; font-family: monospace; border-radius: 9px; border: 1px solid var(--line); padding: .55rem .7rem; background: #f8fafc; }
+        .embed-url button { border: 0; border-radius: 9px; background: #111827; color: #fff; font-weight: 600; padding: 0 1rem; cursor: pointer; white-space: nowrap; }
+        .embed-steps { font-size: .88rem; color: #334155; line-height: 1.6; padding-left: 1.2rem; margin: 0 0 1rem; }
+        .embed-steps li { margin-bottom: .35rem; }
+        .embed-note { font-size: .8rem; color: var(--muted); background: #f6f8fb; border: 1px solid var(--line); border-radius: 10px; padding: .6rem .8rem; }
+        .embed-actions { display: flex; gap: .6rem; justify-content: space-between; align-items: center; margin-top: 1rem; }
+        .embed-actions a { font-size: .85rem; font-weight: 600; color: var(--c-prospect); }
+        .embed-close { border: 0; background: #eef2f7; color: var(--ink); font-weight: 600; padding: .5rem 1rem; border-radius: 9px; cursor: pointer; }
+        .dark .embed-modal { background: #131c2e; }
+        .dark .embed-modal h3 { color: #e8edf5; }
+        .dark .embed-url input { background: #0f1728; color: #e8edf5; border-color: #2a3446; }
+        .dark .embed-steps { color: #cbd5e1; }
+        .dark .embed-note { background: #0f1728; border-color: #232c3d; }
+        .dark .embed-close { background: #1e293b; color: #e8edf5; }
+
+        /* ---- KPI tiles ---- */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .kpi {
+            position: relative; background: var(--surface); border: 1px solid var(--line);
+            border-radius: 14px; padding: 1.1rem 1.2rem; box-shadow: var(--shadow-sm);
+            transition: transform .16s ease, box-shadow .16s ease; overflow: hidden;
+        }
+        .kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--kpi, #cbd5e1); }
+        .kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .kpi-top { display: flex; align-items: center; gap: .55rem; margin-bottom: .7rem; }
+        .kpi-ico {
+            width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center;
+            justify-content: center; font-size: 1.05rem; background: var(--kpi-bg, #f1f5f9); color: var(--kpi, #475569);
+        }
+        .kpi-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+        .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1; color: var(--ink); letter-spacing: -0.02em; }
+        .kpi-value.tinted { color: var(--kpi); }
+        .kpi.total     { --kpi:#334155; --kpi-bg:#f1f5f9; }
+        .kpi.clients   { --kpi:var(--c-client);   --kpi-bg:#dcfce7; }
+        .kpi.prospects { --kpi:var(--c-prospect); --kpi-bg:#dbeafe; }
+        .kpi.progress  { --kpi:var(--c-progress); --kpi-bg:#fef3c7; }
+        .kpi.advisors  { --kpi:var(--c-advisor);  --kpi-bg:#ede9fe; }
+        .kpi.zones     { --kpi:var(--c-zone);     --kpi-bg:#cffafe; }
+
+        /* ---- Section title with accent ---- */
+        .sec-title { display: flex; align-items: center; gap: .55rem; margin: 0 0 .3rem; font-size: 1.05rem; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
+        .sec-title .ico { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #eff6ff; color: var(--c-prospect); font-size: .95rem; }
+
+        /* ---- Map + layout ---- */
+        .b2b-wrap { display: grid; grid-template-columns: 1fr 360px; gap: 1.1rem; align-items: start; }
+        @media (max-width: 960px) { .b2b-wrap { grid-template-columns: 1fr; } }
+        #map { height: 72vh; min-height: 500px; border-radius: 14px; border: 1px solid var(--line); box-shadow: var(--shadow-sm); z-index: 0; }
+
+        /* ---- Search + filter controls ---- */
+        .search-form { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; }
+        .search-form > div { display: flex; flex-direction: column; }
+        .search-form label, .b2b-filters label { font-size: .78rem; font-weight: 600; color: var(--muted); margin-bottom: .3rem; }
+        .search-form input, .search-form select, .b2b-filters select { margin: 0; border-radius: 9px; }
+        .search-form input[type=text] { min-width: 220px; }
+        .b2b-filters { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; margin-bottom: 1.1rem; }
+        .b2b-filters select { min-width: 150px; }
+        .b2b-page .btn-primary { border-radius: 9px; padding: .62rem 1.15rem; font-weight: 600; }
+
+        /* ---- Jobs progress ---- */
+        .job-row { padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 11px; margin-bottom: .55rem; background: #fbfcfe; }
+        .job-top { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .88rem; }
+        .job-kw { font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .job-badge { font-size: .7rem; font-weight: 600; padding: .16rem .55rem; border-radius: 999px; white-space: nowrap; }
+        .job-badge.pending { background:#eef2ff; color:#3730a3; }
+        .job-badge.running { background:#fef3c7; color:#92400e; }
+        .job-badge.completed { background:#dcfce7; color:#166534; }
+        .job-badge.failed { background:#fee2e2; color:#991b1b; }
+        .job-bar { height: 6px; border-radius: 4px; background:#e9edf3; overflow:hidden; margin-top:.5rem; }
+        .job-bar > span { display:block; height:100%; border-radius:4px; }
+        .job-bar.done > span { width:100%; background:var(--c-client); }
+        .job-bar.err > span { width:100%; background:#dc2626; }
+        .job-bar.active > span { width:40%; background:var(--c-progress); animation: job-indet 1.1s ease-in-out infinite; }
+        @keyframes job-indet { 0%{margin-left:-40%;} 100%{margin-left:100%;} }
+        .job-count { font-size:.8rem; color: var(--muted); margin-top:.35rem; }
+
+        /* ---- Legend chips ---- */
+        .legend { display: flex; flex-wrap: wrap; gap: .5rem; font-size: .8rem; margin: .8rem 0 0; }
+        .legend span { display: inline-flex; align-items: center; gap: .4rem; background: #f6f8fb; border: 1px solid var(--line); padding: .28rem .6rem; border-radius: 999px; color: #334155; font-weight: 500; }
+        .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
+        .dot.prospect { background: var(--c-prospect); }
+        .dot.in_progress { background: var(--c-progress); }
+        .dot.client { background: var(--c-client); }
+        .dot.discarded { background: var(--c-discard); }
+
+        /* ---- Side panel ---- */
+        .side-panel { position: sticky; top: 1rem; }
+        .side-panel .muted { color: var(--muted); }
+        .side-panel h3 { margin: 0 0 .3rem; color: var(--ink); letter-spacing: -0.01em; }
+        .side-panel .field { margin-bottom: .7rem; }
+        .side-panel label { font-size: .78rem; font-weight: 600; color: var(--muted); display: block; margin-bottom: .25rem; }
+        .side-panel select, .side-panel textarea { margin: 0; width: 100%; border-radius: 9px; }
+        .biz-meta { font-size: .86rem; line-height: 1.55; color: #334155; }
+        .biz-meta a { word-break: break-all; }
+        .empty-hint { color: var(--muted); font-size: .9rem; }
+
+        /* ---- Management ---- */
+        details.mgmt { margin-top: 1.25rem; border: 1px solid var(--line); border-radius: 14px; }
+        details.mgmt summary { cursor: pointer; font-weight: 600; padding: .5rem 0; color: var(--ink); }
+        .mgmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+        @media (max-width: 900px) { .mgmt-grid { grid-template-columns: 1fr; } }
+        .mini-form { display: grid; gap: .5rem; grid-template-columns: 1fr 1fr; }
+        .mini-form input, .mini-form select { margin: 0; border-radius: 9px; }
+        .mini-form .full { grid-column: 1 / -1; }
+        .list-table { width: 100%; font-size: .85rem; border-collapse: collapse; margin-top: .7rem; }
+        .list-table th { text-align: left; padding: .4rem .45rem; border-bottom: 2px solid var(--line); color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+        .list-table td { text-align: left; padding: .5rem .45rem; border-bottom: 1px solid var(--line); }
+        .inline-del { display: inline; }
+        .count-badge { font-size: .75rem; background: #eef2ff; color: #3730a3; padding: .12rem .55rem; border-radius: 999px; font-weight: 600; }
+
+        /* ---- Dark mode (B2B-specific overrides; global dark lives in styles.css) ---- */
+        .dark .b2b-page {
+            --ink: #e8edf5; --muted: #94a3b8; --line: #232c3d; --surface: #131c2e;
+        }
+        .dark .b2b-page .card { background: #131c2e; border-color: #232c3d; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+        .dark .b2b-page .kpi { background: #131c2e; border-color: #232c3d; }
+        .dark .b2b-page .kpi-value { color: #e8edf5; }
+        .dark .b2b-page .kpi-value.tinted { color: var(--kpi); }
+        .dark .b2b-page .sec-title { color: #e8edf5; }
+        .dark .b2b-page .sec-title .ico { background: #1e293b; }
+        .dark .b2b-page input:not([type=checkbox]),
+        .dark .b2b-page select,
+        .dark .b2b-page textarea {
+            background: #0f1728; color: #e8edf5; border-color: #2a3446;
+        }
+        .dark .b2b-page input::placeholder { color: #64748b; }
+        .dark .b2b-page .btn-primary { background: #2563eb; }
+        .dark .b2b-page .btn-primary:hover { background: #1d4ed8; }
+        .dark .b2b-page #map { border-color: #232c3d; }
+        .dark .b2b-page .legend span { background: #1a2334; border-color: #2a3446; color: #cbd5e1; }
+        .dark .b2b-page .job-row { background: #0f1728; border-color: #232c3d; }
+        .dark .b2b-page .job-kw { color: #e8edf5; }
+        .dark .b2b-page .job-bar { background: #232c3d; }
+        .dark .b2b-page .list-table td { border-color: #232c3d; }
+        .dark .b2b-page .list-table th { border-color: #2a3446; }
+        .dark .b2b-page details.mgmt { border-color: #232c3d; }
+        .dark .b2b-page .biz-meta { color: #cbd5e1; }
+        .dark .b2b-page .alert-success { background:#0e2a1a; border-color:#14532d; color:#86efac; }
+        .dark .b2b-page .alert-error { background:#2a1416; border-color:#7f1d1d; color:#fca5a5; }
+    </style>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container b2b-page">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="b2b-hero">
+            <h1>Prospección B2B</h1>
+            {{if .IsAdvisor}}
+            <p>Gestiona los negocios que te asignaron: actualiza el estado, deja notas y da seguimiento a cada prospecto.</p>
+            {{else}}
+            <p>Explora los negocios encontrados en Google Maps, marca cuáles ya son clientes y asigna prospectos a tus asesores comerciales por zona.</p>
+            {{end}}
+            {{if .CanEmbed}}<button type="button" class="btn-embed" id="btn-embed">📊 Incrustar en PowerPoint</button>{{end}}
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi total">
+                <div class="kpi-top"><span class="kpi-ico">🏢</span><span class="kpi-label">Negocios</span></div>
+                <div class="kpi-value" data-kpi="total">{{.Summary.Total}}</div>
+            </div>
+            <div class="kpi clients">
+                <div class="kpi-top"><span class="kpi-ico">🤝</span><span class="kpi-label">Clientes</span></div>
+                <div class="kpi-value tinted" data-kpi="clients">{{.Summary.Clients}}</div>
+            </div>
+            <div class="kpi prospects">
+                <div class="kpi-top"><span class="kpi-ico">🎯</span><span class="kpi-label">Prospectos</span></div>
+                <div class="kpi-value tinted" data-kpi="prospects">{{.Summary.Prospects}}</div>
+            </div>
+            <div class="kpi progress">
+                <div class="kpi-top"><span class="kpi-ico">⏳</span><span class="kpi-label">En gestión</span></div>
+                <div class="kpi-value tinted" data-kpi="in_progress">{{.Summary.InProgress}}</div>
+            </div>
+            <div class="kpi advisors">
+                <div class="kpi-top"><span class="kpi-ico">👤</span><span class="kpi-label">Asesores</span></div>
+                <div class="kpi-value" data-kpi="advisors">{{.Summary.Advisors}}</div>
+            </div>
+            <div class="kpi zones">
+                <div class="kpi-top"><span class="kpi-ico">📍</span><span class="kpi-label">Zonas</span></div>
+                <div class="kpi-value" data-kpi="zones">{{.Summary.Zones}}</div>
+            </div>
+        </div>
+
+        {{if .CanManage}}
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
+            <form method="POST" action="/admin/b2b/search" class="search-form">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div>
+                    <label for="s-what">Qué buscar</label>
+                    <input type="text" id="s-what" name="what" placeholder="restaurantes, hoteles, supermercados…" required>
+                </div>
+                <div>
+                    <label for="s-where">Zona o ciudad</label>
+                    <input type="text" id="s-where" name="where" placeholder="Usaquén, Bogotá" list="zone-list">
+                    <datalist id="zone-list">
+                        {{range .Zones}}<option value="{{.Name}}, {{.City}}"></option>{{end}}
+                        {{range .Cities}}<option value="{{.}}"></option>{{end}}
+                    </datalist>
+                </div>
+                <div>
+                    <label for="s-depth">Cantidad</label>
+                    <select id="s-depth" name="max_depth">
+                        <option value="5">Rápida (~pocos)</option>
+                        <option value="10" selected>Normal</option>
+                        <option value="20">Amplia (~muchos)</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn-primary">Buscar</button>
+                </div>
+            </form>
+
+            <div id="jobs-panel" style="display:none; margin-top:1rem;">
+                <h3 style="margin:0 0 .5rem; font-size:1rem;">Búsquedas recientes</h3>
+                <div id="jobs-list"></div>
+            </div>
+        </div>
+        {{end}}
+
+        <div class="card">
+            <div class="b2b-filters">
+                <div>
+                    <label for="f-city">Ciudad</label>
+                    <select id="f-city">
+                        <option value="">Todas</option>
+                        {{range .Cities}}<option value="{{.}}">{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="f-status">Estado</label>
+                    <select id="f-status">
+                        <option value="">Todos</option>
+                        <option value="prospect">Prospecto</option>
+                        <option value="in_progress">En gestión</option>
+                        <option value="client">Cliente</option>
+                        <option value="discarded">Descartado</option>
+                    </select>
+                </div>
+                {{if not .IsAdvisor}}
+                <div>
+                    <label for="f-advisor">Asesor</label>
+                    <select id="f-advisor">
+                        <option value="">Todos</option>
+                        {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                {{end}}
+                <div>
+                    <label for="f-colorby">Colorear por</label>
+                    <select id="f-colorby">
+                        <option value="status">Estado</option>
+                        <option value="advisor">Asesor</option>
+                        <option value="zone">Zona</option>
+                        <option value="category">Categoría</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="button" class="btn-primary" id="btn-apply">Aplicar filtros</button>
+                </div>
+                <div id="loading-hint" class="empty-hint" style="align-self:center;"></div>
+            </div>
+
+            <div class="b2b-wrap">
+                <div>
+                    <div id="map"></div>
+                    <div class="legend" id="legend"></div>
+                </div>
+
+                <div class="card side-panel" id="side-panel">
+                    <p class="empty-hint" id="side-empty">Haz clic en un negocio del mapa para ver sus datos y marcarlo como cliente o asignarlo a un asesor.</p>
+
+                    <div id="side-content" style="display:none;">
+                        <h3 id="biz-title"></h3>
+                        <div class="biz-meta" id="biz-meta"></div>
+                        <hr>
+                        <div class="field">
+                            <label for="biz-status">Estado</label>
+                            <select id="biz-status">
+                                <option value="prospect">Prospecto</option>
+                                <option value="in_progress">En gestión</option>
+                                <option value="client">Cliente</option>
+                                <option value="discarded">Descartado</option>
+                            </select>
+                        </div>
+                        {{if .CanManage}}
+                        <div class="field">
+                            <label for="biz-advisor">Asesor asignado</label>
+                            <select id="biz-advisor">
+                                <option value="">— Sin asignar —</option>
+                                {{range .Advisors}}<option value="{{.ID}}">{{.Name}}{{if .City}} ({{.City}}){{end}}</option>{{end}}
+                            </select>
+                        </div>
+                        {{end}}
+                        <div class="field">
+                            <label for="biz-zone">Zona</label>
+                            <select id="biz-zone">
+                                <option value="">— Sin zona —</option>
+                                {{range .Zones}}<option value="{{.ID}}">{{.Name}} · {{.City}}</option>{{end}}
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="biz-notes">Notas</label>
+                            <textarea id="biz-notes" rows="3" placeholder="Contacto, siguiente paso, etc."></textarea>
+                        </div>
+                        <button type="button" class="btn-primary" id="biz-save">Guardar</button>
+                        <span id="biz-save-hint" class="empty-hint"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{if .CanManage}}
+        <details class="mgmt" {{if not .Advisors}}open{{end}}>
+            <summary>Asesores y zonas <span class="count-badge">{{len .Advisors}} asesores · {{len .Zones}} zonas</span></summary>
+            <div class="mgmt-grid">
+                <div class="card">
+                    <div class="card-header"><h2>Asesores comerciales</h2></div>
+                    <form method="POST" action="/admin/b2b/advisors" class="mini-form">
+                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                        <input type="text" name="name" placeholder="Nombre *" required>
+                        <input type="text" name="city" placeholder="Ciudad">
+                        <input type="email" name="email" placeholder="Email">
+                        <input type="text" name="phone" placeholder="Teléfono">
+                        <button type="submit" class="btn-primary full">Agregar asesor</button>
+                    </form>
+                    {{if .Advisors}}
+                    <table class="list-table">
+                        <thead><tr><th>Nombre</th><th>Ciudad</th><th>Contacto</th><th></th></tr></thead>
+                        <tbody>
+                        {{range .Advisors}}
+                            <tr>
+                                <td>{{.Name}}</td>
+                                <td>{{.City}}</td>
+                                <td>{{.Email}}{{if .Phone}}<br>{{.Phone}}{{end}}</td>
+                                <td>
+                                    <form method="POST" action="/admin/b2b/advisors/{{.ID}}/delete" class="inline-del" onsubmit="return confirm('¿Eliminar asesor?');">
+                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                        <button type="submit" class="btn-link">Eliminar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                    {{else}}
+                    <p class="empty-hint">Aún no hay asesores. Agrega tus comerciales para poder asignarles prospectos.</p>
+                    {{end}}
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Zonas por ciudad</h2></div>
+                    <form method="POST" action="/admin/b2b/zones" class="mini-form">
+                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                        <input type="text" name="name" placeholder="Nombre de la zona *" required>
+                        <input type="text" name="city" placeholder="Ciudad *" required>
+                        <select name="advisor_id">
+                            <option value="">Asesor (opcional)</option>
+                            {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                        </select>
+                        <input type="color" name="color" value="#2563eb" title="Color de la zona">
+                        <button type="submit" class="btn-primary full">Agregar zona</button>
+                    </form>
+                    {{if .Zones}}
+                    <table class="list-table">
+                        <thead><tr><th>Zona</th><th>Ciudad</th><th></th></tr></thead>
+                        <tbody>
+                        {{range .Zones}}
+                            <tr>
+                                <td><span class="dot" style="background: {{.Color}};"></span> {{.Name}}</td>
+                                <td>{{.City}}</td>
+                                <td>
+                                    <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" class="inline-del" onsubmit="return confirm('¿Eliminar zona?');">
+                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                        <button type="submit" class="btn-link">Eliminar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                    {{else}}
+                    <p class="empty-hint">Crea zonas (ciudad + área) para repartir a tus asesores por el país.</p>
+                    {{end}}
+                </div>
+            </div>
+        </details>
+        {{end}}
+    </main>
+
+    {{if .CanEmbed}}
+    <div class="embed-overlay" id="embed-overlay">
+        <div class="embed-modal">
+            <h3>📊 Incrustar el mapa en PowerPoint</h3>
+            <p>Copia este enlace y pégalo en el complemento <strong>Web Viewer</strong> de PowerPoint. Muestra el mapa interactivo (con filtros, colores y datos del negocio), en modo solo lectura.</p>
+
+            <div class="embed-url">
+                <input type="text" id="embed-url-input" readonly value="">
+                <button type="button" id="embed-copy">Copiar</button>
+            </div>
+
+            <ol class="embed-steps">
+                <li>En PowerPoint: pestaña <strong>Insertar → Obtener complementos</strong> (o <em>Mis complementos</em>).</li>
+                <li>Busca e instala <strong>“Web Viewer”</strong> (de Microsoft) y añádelo a la diapositiva.</li>
+                <li>Pega el enlace copiado y presiona <strong>Preview / Vista previa</strong>.</li>
+                <li>Ajusta el tamaño del recuadro en la diapositiva. Al presentar, el mapa es interactivo.</li>
+            </ol>
+
+            <div class="embed-note">
+                🔒 El enlace es privado y de solo lectura: muestra el mapa pero no permite editar ni ver el CRM. El complemento Web Viewer requiere que tu plataforma esté publicada con <strong>HTTPS</strong>. Si compartes el enlace, cualquiera con él podrá ver este mapa.
+            </div>
+
+            <div class="embed-actions">
+                <a href="" id="embed-open" target="_blank" rel="noopener">Abrir en una pestaña nueva ↗</a>
+                <button type="button" class="embed-close" id="embed-close">Cerrar</button>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    <script src="/admin/static/leaflet.js"></script>
+    <script>
+    (function () {
+        const CSRF = "{{.CSRFToken}}";
+        const STATUS_COLORS = {
+            prospect: "#2563eb",
+            in_progress: "#f59e0b",
+            client: "#16a34a",
+            discarded: "#9ca3af"
+        };
+        const STATUS_LABELS = {
+            prospect: "Prospecto",
+            in_progress: "En gestión",
+            client: "Cliente",
+            discarded: "Descartado"
+        };
+
+        // Data for colouring markers by advisor / zone / category.
+        const ADVISORS_LIST = {{.AdvisorsData}} || [];
+        const ZONES_LIST = {{.ZonesData}} || [];
+        const CATEGORIES_LIST = {{.CategoriesData}} || [];
+        const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
+        const NEUTRAL = "#94a3b8";
+        const advisorMeta = {}; // id -> {name, color}
+        ADVISORS_LIST.forEach((a, i) => { advisorMeta[a.ID] = { name: a.Name, color: CAT_PALETTE[i % CAT_PALETTE.length] }; });
+        const zoneMeta = {}; // id -> {name, color}
+        ZONES_LIST.forEach(z => { zoneMeta[z.ID] = { name: z.Name + " · " + z.City, color: z.Color || NEUTRAL }; });
+        const categoryMeta = {}; // id -> {name, color, icon}
+        CATEGORIES_LIST.forEach((c, i) => { categoryMeta[c.ID] = { name: c.Name, color: c.Color || CAT_PALETTE[i % CAT_PALETTE.length], icon: c.Icon || "" }; });
+        let colorMode = "status";
+
+        function colorFor(biz) {
+            if (colorMode === "advisor") {
+                return biz.advisor_id && advisorMeta[biz.advisor_id] ? advisorMeta[biz.advisor_id].color : NEUTRAL;
+            }
+            if (colorMode === "zone") {
+                return biz.zone_id && zoneMeta[biz.zone_id] ? zoneMeta[biz.zone_id].color : NEUTRAL;
+            }
+            if (colorMode === "category") {
+                return biz.category_id && categoryMeta[biz.category_id] ? categoryMeta[biz.category_id].color : NEUTRAL;
+            }
+            return STATUS_COLORS[biz.status] || STATUS_COLORS.prospect;
+        }
+
+        // Colombia default view.
+        const map = L.map("map").setView([4.5709, -74.2973], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap"
+        }).addTo(map);
+
+        const markersLayer = L.layerGroup().addTo(map);
+        const allMarkers = []; // [{ biz, marker }]
+        let selected = null; // { biz, marker }
+
+        function escapeHtml(s) {
+            return (s || "").replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
+        function markerStyle(biz) {
+            return {
+                radius: 7,
+                fillColor: colorFor(biz),
+                color: "#111827",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.85
+            };
+        }
+
+        function renderLegend() {
+            const el = document.getElementById("legend");
+            let items = [];
+            if (colorMode === "advisor") {
+                items = ADVISORS_LIST.map(a => ({ color: advisorMeta[a.ID].color, label: a.Name }));
+                items.push({ color: NEUTRAL, label: "Sin asignar" });
+            } else if (colorMode === "zone") {
+                items = ZONES_LIST.map(z => ({ color: zoneMeta[z.ID].color, label: z.Name }));
+                items.push({ color: NEUTRAL, label: "Sin zona" });
+            } else if (colorMode === "category") {
+                items = CATEGORIES_LIST.map(c => ({ color: categoryMeta[c.ID].color, label: (categoryMeta[c.ID].icon ? categoryMeta[c.ID].icon + " " : "") + c.Name }));
+                items.push({ color: NEUTRAL, label: "Sin categoría" });
+            } else {
+                items = [
+                    { color: STATUS_COLORS.prospect, label: "Prospecto" },
+                    { color: STATUS_COLORS.in_progress, label: "En gestión" },
+                    { color: STATUS_COLORS.client, label: "Cliente" },
+                    { color: STATUS_COLORS.discarded, label: "Descartado" }
+                ];
+            }
+            el.innerHTML = items.map(it =>
+                '<span><i class="dot" style="background:' + it.color + '"></i> ' + escapeHtml(it.label) + '</span>'
+            ).join("");
+        }
+
+        function recolorMarkers() {
+            allMarkers.forEach(m => m.marker.setStyle(markerStyle(m.biz)));
+            renderLegend();
+        }
+
+        function renderSidePanel(biz, marker) {
+            selected = { biz: biz, marker: marker };
+            document.getElementById("side-empty").style.display = "none";
+            document.getElementById("side-content").style.display = "block";
+            document.getElementById("biz-title").textContent = biz.title || "(sin nombre)";
+
+            const meta = [];
+            if (biz.category) meta.push("<div>" + escapeHtml(biz.category) + "</div>");
+            if (biz.review_count > 0) meta.push("<div>⭐ " + Number(biz.rating).toFixed(1) + " <span class='muted'>(" + biz.review_count + " reseñas)</span></div>");
+            if (biz.address) meta.push("<div>" + escapeHtml(biz.address) + "</div>");
+            if (biz.phone) meta.push("<div>📞 " + escapeHtml(biz.phone) + "</div>");
+            if (biz.website) meta.push('<div>🌐 <a href="' + escapeHtml(biz.website) + '" target="_blank" rel="noopener">' + escapeHtml(biz.website) + "</a></div>");
+            document.getElementById("biz-meta").innerHTML = meta.join("");
+
+            document.getElementById("biz-status").value = biz.status || "prospect";
+            const advisorField = document.getElementById("biz-advisor");
+            if (advisorField) advisorField.value = biz.advisor_id ? String(biz.advisor_id) : "";
+            document.getElementById("biz-zone").value = biz.zone_id ? String(biz.zone_id) : "";
+            document.getElementById("biz-notes").value = biz.notes || "";
+            document.getElementById("biz-save-hint").textContent = "";
+        }
+
+        function addBusiness(biz) {
+            const marker = L.circleMarker([biz.lat, biz.lng], markerStyle(biz));
+            marker.bindTooltip(escapeHtml(biz.title || "(sin nombre)"));
+            marker.on("click", () => renderSidePanel(biz, marker));
+            marker.addTo(markersLayer);
+            allMarkers.push({ biz: biz, marker: marker });
+            return marker;
+        }
+
+        function loadBusinesses() {
+            const hint = document.getElementById("loading-hint");
+            hint.textContent = "Cargando…";
+            const params = new URLSearchParams({
+                city: document.getElementById("f-city").value,
+                status: document.getElementById("f-status").value,
+                advisor: (document.getElementById("f-advisor") || {value: ""}).value
+            });
+            fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
+                .then(r => r.json())
+                .then(list => {
+                    markersLayer.clearLayers();
+                    allMarkers.length = 0;
+                    const bounds = [];
+                    list.forEach(biz => {
+                        addBusiness(biz);
+                        bounds.push([biz.lat, biz.lng]);
+                    });
+                    hint.textContent = list.length + " negocios";
+                    renderLegend();
+                    if (bounds.length > 0) {
+                        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+                    }
+                })
+                .catch(() => { hint.textContent = "Error cargando negocios"; });
+        }
+
+        function refreshSummary() {
+            fetch("/admin/b2b/summary", { credentials: "same-origin" })
+                .then(r => r.json())
+                .then(s => {
+                    document.querySelectorAll("[data-kpi]").forEach(el => {
+                        const k = el.getAttribute("data-kpi");
+                        if (s[k] !== undefined) el.textContent = s[k];
+                    });
+                })
+                .catch(() => {});
+        }
+
+        function saveSelected() {
+            if (!selected) return;
+            const hint = document.getElementById("biz-save-hint");
+            hint.textContent = "Guardando…";
+            const advisorEl = document.getElementById("biz-advisor");
+            const advisorVal = advisorEl ? advisorEl.value : "";
+            const zoneVal = document.getElementById("biz-zone").value;
+            const payload = {
+                key: selected.biz.key,
+                status: document.getElementById("biz-status").value,
+                advisor_id: advisorVal ? parseInt(advisorVal, 10) : null,
+                zone_id: zoneVal ? parseInt(zoneVal, 10) : null,
+                notes: document.getElementById("biz-notes").value,
+                title: selected.biz.title
+            };
+            fetch("/admin/b2b/business", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF },
+                body: JSON.stringify(payload)
+            })
+                .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                .then(() => {
+                    // Reflect changes locally without a full reload.
+                    selected.biz.status = payload.status;
+                    selected.biz.advisor_id = payload.advisor_id;
+                    selected.biz.zone_id = payload.zone_id;
+                    selected.biz.notes = payload.notes;
+                    selected.marker.setStyle(markerStyle(selected.biz));
+                    hint.textContent = "✓ Guardado como " + (STATUS_LABELS[payload.status] || payload.status);
+                    refreshSummary();
+                })
+                .catch(() => { hint.textContent = "Error al guardar"; });
+        }
+
+        document.getElementById("btn-apply").addEventListener("click", loadBusinesses);
+        document.getElementById("biz-save").addEventListener("click", saveSelected);
+        document.getElementById("f-colorby").addEventListener("change", function () {
+            colorMode = this.value;
+            recolorMarkers();
+        });
+
+        // --- Live progress of scrape searches ---
+        const JOB_LABELS = { pending: "En cola", running: "Procesando", completed: "Completado", failed: "Error" };
+        let jobsTimer = null;
+        let lastActiveCount = 0;
+
+        function renderJobs(jobs) {
+            const panel = document.getElementById("jobs-panel");
+            const list = document.getElementById("jobs-list");
+
+            if (!jobs || jobs.length === 0) { panel.style.display = "none"; return; }
+            panel.style.display = "block";
+
+            list.innerHTML = jobs.map(j => {
+                const st = j.status || "pending";
+                const label = JOB_LABELS[st] || st;
+                let barClass = "active", countHtml = "";
+                if (st === "completed") {
+                    barClass = "done";
+                    countHtml = '<div class="job-count">✓ ' + j.result_count + ' negocios encontrados</div>';
+                } else if (st === "failed") {
+                    barClass = "err";
+                    countHtml = '<div class="job-count">' + escapeHtml(j.error || "Falló la búsqueda") + '</div>';
+                } else if (st === "running") {
+                    countHtml = '<div class="job-count">Extrayendo de Google Maps…' +
+                        (j.result_count ? ' ' + j.result_count + ' hasta ahora' : '') + '</div>';
+                } else {
+                    countHtml = '<div class="job-count">Esperando un worker disponible…</div>';
+                }
+                return '<div class="job-row">' +
+                    '<div class="job-top"><span class="job-kw">' + escapeHtml(j.keyword || "(búsqueda)") + '</span>' +
+                    '<span class="job-badge ' + st + '">' + label + '</span></div>' +
+                    '<div class="job-bar ' + barClass + '"><span></span></div>' +
+                    countHtml + '</div>';
+            }).join("");
+        }
+
+        function pollJobs() {
+            fetch("/admin/b2b/jobs", { credentials: "same-origin" })
+                .then(r => r.json())
+                .then(jobs => {
+                    renderJobs(jobs);
+                    const active = jobs.filter(j => j.status === "pending" || j.status === "running").length;
+                    // A job just finished → refresh the map markers and counters.
+                    if (active < lastActiveCount) {
+                        loadBusinesses();
+                        refreshSummary();
+                    }
+                    lastActiveCount = active;
+                    // Poll faster while work is in progress, slower when idle.
+                    clearTimeout(jobsTimer);
+                    if (active > 0) {
+                        jobsTimer = setTimeout(pollJobs, 3000);
+                    } else if (jobs.length > 0) {
+                        jobsTimer = setTimeout(pollJobs, 15000);
+                    }
+                })
+                .catch(() => { jobsTimer = setTimeout(pollJobs, 8000); });
+        }
+
+        // --- Embed / PowerPoint modal ---
+        const EMBED_TOKEN = "{{.EmbedToken}}";
+        const embedBtn = document.getElementById("btn-embed");
+        if (embedBtn) {
+            const embedURL = location.origin + "/embed/map?t=" + EMBED_TOKEN;
+            const overlay = document.getElementById("embed-overlay");
+            const input = document.getElementById("embed-url-input");
+            const openLink = document.getElementById("embed-open");
+            input.value = embedURL;
+            openLink.href = embedURL;
+
+            embedBtn.addEventListener("click", () => overlay.classList.add("open"));
+            document.getElementById("embed-close").addEventListener("click", () => overlay.classList.remove("open"));
+            overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+
+            const copyBtn = document.getElementById("embed-copy");
+            copyBtn.addEventListener("click", () => {
+                input.select();
+                const done = () => { copyBtn.textContent = "¡Copiado!"; setTimeout(() => { copyBtn.textContent = "Copiar"; }, 1800); };
+                if (navigator.clipboard) { navigator.clipboard.writeText(embedURL).then(done).catch(() => { document.execCommand("copy"); done(); }); }
+                else { document.execCommand("copy"); done(); }
+            });
+        }
+
+        loadBusinesses();
+        if (document.getElementById("jobs-panel")) pollJobs();
+    })();
+    </script>
+</body>
+</html>
+{{end}}

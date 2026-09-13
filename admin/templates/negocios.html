@@ -1,0 +1,275 @@
+{{define "negocios.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <title>Negocios - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        {{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+        {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+        <div class="page-header">
+            <h1>Negocios</h1>
+            <p>Listado de todos los negocios encontrados en Google Maps, con su estado comercial y asignación.</p>
+        </div>
+
+        <div class="card">
+            <form method="GET" action="/admin/b2b/negocios" class="filters-bar">
+                <div>
+                    <label for="q">Buscar</label>
+                    <input type="search" id="q" name="q" value="{{.QVal}}" placeholder="Nombre, categoría o dirección…">
+                </div>
+                <div>
+                    <label for="city">Ciudad</label>
+                    <select id="city" name="city">
+                        <option value="">Todas</option>
+                        {{$c := .CityVal}}{{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="status">Estado</label>
+                    <select id="status" name="status">
+                        {{$s := .StatVal}}
+                        <option value="">Todos</option>
+                        <option value="prospect" {{if eq $s "prospect"}}selected{{end}}>Prospecto</option>
+                        <option value="in_progress" {{if eq $s "in_progress"}}selected{{end}}>En gestión</option>
+                        <option value="client" {{if eq $s "client"}}selected{{end}}>Cliente</option>
+                        <option value="discarded" {{if eq $s "discarded"}}selected{{end}}>Descartado</option>
+                    </select>
+                </div>
+                {{if not .IsAdvisor}}
+                <div>
+                    <label for="advisor">Asesor</label>
+                    <select id="advisor" name="advisor">
+                        {{$a := .AdvVal}}
+                        <option value="">Todos</option>
+                        {{range .Advisors}}<option value="{{.ID}}" {{if eq (printf "%d" .ID) $a}}selected{{end}}>{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                {{end}}
+                <div>
+                    <label for="category">Categoría</label>
+                    <select id="category" name="category">
+                        {{$cat := .CatVal}}
+                        <option value="">Todas</option>
+                        {{range .Categories}}<option value="{{.ID}}" {{if eq (printf "%d" .ID) $cat}}selected{{end}}>{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="sort">Ordenar por</label>
+                    <select id="sort" name="sort" onchange="this.form.submit()">
+                        {{$s := .SortVal}}
+                        <option value="name" {{if eq $s "name"}}selected{{end}}>Nombre (A-Z)</option>
+                        <option value="category" {{if eq $s "category"}}selected{{end}}>Categoría</option>
+                        <option value="added" {{if eq $s "added"}}selected{{end}}>Últimos agregados</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn-primary">Filtrar</button>
+                </div>
+                <div style="align-self:center;"><small>{{.Count}} negocios</small></div>
+                <div style="align-self:center; margin-left:auto;">
+                    <a href="{{.ExportURL}}" class="btn-edit">⬇ Exportar CSV</a>
+                </div>
+            </form>
+            {{if .IsAdvisor}}<p class="empty-hint" style="margin:.6rem 0 0;">👤 Estás viendo solo los negocios asignados a ti.</p>{{end}}
+        </div>
+
+        <div class="card">
+            {{if .Rows}}
+            <form method="POST" action="/admin/b2b/negocios/bulk" id="bulk-form">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div class="bulk-bar" id="bulk-bar">
+                    <span class="bulk-count" id="bulk-count">0 seleccionados</span>
+                    <select name="action" id="bulk-action">
+                        <option value="status">Cambiar estado</option>
+                        {{if .CanManage}}
+                        <option value="advisor">Asignar asesor</option>
+                        <option value="zone">Asignar zona</option>
+                        <option value="category">Asignar categoría</option>
+                        {{end}}
+                        <option value="delete">🗑 Eliminar de la lista</option>
+                    </select>
+                    <select name="value" id="bulk-value"></select>
+                    <button type="submit" class="btn-primary" id="bulk-apply">Aplicar a la selección</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:34px;"><input type="checkbox" id="check-all" title="Seleccionar todo"></th>
+                                <th>Negocio</th><th>Ciudad</th><th>Teléfono</th><th>Calificación</th>
+                                <th>Estado</th><th>Categoría</th><th>Asesor</th><th>Zona</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {{range .Rows}}
+                            <tr>
+                                <td><input type="checkbox" class="row-check" name="keys" value="{{.Key}}"></td>
+                                <td>
+                                    <strong>{{if .Title}}{{.Title}}{{else}}(sin nombre){{end}}</strong>
+                                    {{if .Category}}<br><span class="muted">{{.Category}}</span>{{end}}
+                                    {{if .Address}}<br><span class="muted" style="font-size:.8rem;">{{.Address}}</span>{{end}}
+                                </td>
+                                <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if gt .ReviewCount 0}}<span class="rating">⭐ {{printf "%.1f" .Rating}}</span> <span class="muted">({{.ReviewCount}})</span>{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td><span class="badge {{.StatusClass}}">{{.StatusLabel}}</span></td>
+                                <td>{{if .CategoryName}}{{.CategoryName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
+                                <td>{{if .ZoneName}}{{.ZoneName}}{{else}}<span class="muted">—</span>{{end}}</td>
+                                <td style="text-align:right;">
+                                    <button type="button" class="btn-edit"
+                                        data-key="{{.Key}}" data-title="{{.Title}}" data-status="{{.Status}}"
+                                        data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}" data-zone="{{if .ZoneID}}{{.ZoneID}}{{end}}"
+                                        data-category="{{if .CategoryID}}{{.CategoryID}}{{end}}" data-notes="{{.Notes}}"
+                                        onclick="editBiz(this)">Editar</button>
+                                </td>
+                            </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+            {{if gt .TotalPages 1}}
+            <div class="pager">
+                {{if .HasPrev}}<a href="{{.PrevURL}}" class="btn-edit">← Anterior</a>{{else}}<span class="btn-edit disabled">← Anterior</span>{{end}}
+                <span class="pager-info">Página {{.Page}} de {{.TotalPages}}</span>
+                {{if .HasNext}}<a href="{{.NextURL}}" class="btn-edit">Siguiente →</a>{{else}}<span class="btn-edit disabled">Siguiente →</span>{{end}}
+            </div>
+            {{end}}
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🔍</div>
+                <p>No hay negocios que coincidan. Lanza una búsqueda desde el <a href="/admin/b2b">Mapa B2B</a> o ajusta los filtros.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="edit-modal">
+        <form class="modal" method="POST" action="/admin/b2b/business/update" id="edit-form">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <input type="hidden" name="key" id="e-key">
+            <input type="hidden" name="title" id="e-title">
+            <h3 id="e-heading">Editar negocio</h3>
+            <div class="field">
+                <label>Estado</label>
+                <select name="status" id="e-status">
+                    <option value="prospect">Prospecto</option>
+                    <option value="in_progress">En gestión</option>
+                    <option value="client">Cliente</option>
+                    <option value="discarded">Descartado</option>
+                </select>
+            </div>
+            {{if .CanManage}}
+            <div class="field">
+                <label>Asesor</label>
+                <select name="advisor_id" id="e-advisor">
+                    <option value="">Sin asignar</option>
+                    {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
+            {{end}}
+            <div class="field">
+                <label>Zona</label>
+                <select name="zone_id" id="e-zone">
+                    <option value="">Sin zona</option>
+                    {{range .Zones}}<option value="{{.ID}}">{{.Name}} · {{.City}}</option>{{end}}
+                </select>
+            </div>
+            <div class="field">
+                <label>Categoría</label>
+                <select name="category_id" id="e-category">
+                    <option value="">Sin categoría</option>
+                    {{range .Categories}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
+            <div class="field"><label>Notas</label><textarea name="notes" id="e-notes" rows="3"></textarea></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('edit-modal')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+    function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+    function editBiz(btn) {
+        document.getElementById("e-key").value = btn.dataset.key || "";
+        document.getElementById("e-title").value = btn.dataset.title || "";
+        document.getElementById("e-heading").textContent = btn.dataset.title || "Editar negocio";
+        document.getElementById("e-status").value = btn.dataset.status || "prospect";
+        var adv = document.getElementById("e-advisor");
+        if (adv) adv.value = btn.dataset.advisor || "";
+        document.getElementById("e-zone").value = btn.dataset.zone || "";
+        document.getElementById("e-category").value = btn.dataset.category || "";
+        document.getElementById("e-notes").value = btn.dataset.notes || "";
+        document.getElementById("edit-modal").classList.add("open");
+    }
+    document.getElementById("edit-modal").addEventListener("click", function (e) {
+        if (e.target === this) closeModal("edit-modal");
+    });
+
+    // --- Bulk selection + actions ---
+    (function () {
+        var form = document.getElementById("bulk-form");
+        if (!form) return;
+
+        var BULK = {
+            status: [["prospect","Prospecto"],["in_progress","En gestión"],["client","Cliente"],["discarded","Descartado"]],
+            advisor: [{{range .Advisors}}["{{.ID}}","{{.Name}}"],{{end}}],
+            zone: [{{range .Zones}}["{{.ID}}","{{.Name}}"],{{end}}],
+            category: [{{range .Categories}}["{{.ID}}","{{.Name}}"],{{end}}]
+        };
+
+        var actionSel = document.getElementById("bulk-action");
+        var valueSel = document.getElementById("bulk-value");
+        var countEl = document.getElementById("bulk-count");
+        var bar = document.getElementById("bulk-bar");
+        var checks = function () { return Array.prototype.slice.call(document.querySelectorAll(".row-check")); };
+
+        var applyBtn = document.getElementById("bulk-apply");
+        function fillValues() {
+            var isDelete = actionSel.value === "delete";
+            valueSel.style.display = isDelete ? "none" : "";
+            applyBtn.textContent = isDelete ? "🗑 Eliminar" : "Aplicar a la selección";
+            applyBtn.classList.toggle("btn-danger", isDelete);
+            var opts = BULK[actionSel.value] || [];
+            valueSel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join("");
+        }
+        function updateCount() {
+            var n = checks().filter(function (c) { return c.checked; }).length;
+            countEl.textContent = n + " seleccionados";
+            bar.classList.toggle("active", n > 0);
+        }
+
+        actionSel.addEventListener("change", fillValues);
+        document.getElementById("check-all").addEventListener("change", function () {
+            checks().forEach(function (c) { c.checked = this.checked; }, this);
+            updateCount();
+        });
+        checks().forEach(function (c) { c.addEventListener("change", updateCount); });
+        form.addEventListener("submit", function (e) {
+            var n = checks().filter(function (c) { return c.checked; }).length;
+            if (n === 0) {
+                e.preventDefault();
+                alert("Selecciona al menos un negocio.");
+                return;
+            }
+            if (actionSel.value === "delete" && !confirm("¿Eliminar " + n + " negocio(s) de tu lista? (No afecta a otros clientes)")) {
+                e.preventDefault();
+            }
+        });
+
+        fillValues();
+        updateCount();
+    })();
+    </script>
+</body>
+</html>
+{{end}}

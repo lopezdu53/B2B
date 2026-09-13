@@ -111,10 +111,10 @@ func (s *store) CreateUser(ctx context.Context, username, password string) (*adm
 	var user admin.User
 
 	err = s.db.QueryRow(ctx,
-		`INSERT INTO users (username, password_hash) VALUES ($1, $2)
-		 RETURNING id, username, password_hash, created_at, updated_at`,
+		`INSERT INTO users (username, password_hash, role) VALUES ($1, $2, 'superadmin')
+		 RETURNING id, username, password_hash, role, created_at, updated_at`,
 		username, string(hash),
-	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if err.Error() == `ERROR: duplicate key value violates unique constraint "users_username_key" (SQLSTATE 23505)` {
 			return nil, admin.ErrUserExists
@@ -130,9 +130,9 @@ func (s *store) GetUser(ctx context.Context, username string) (*admin.User, erro
 	var user admin.User
 
 	err := s.db.QueryRow(ctx,
-		`SELECT id, username, password_hash, totp_secret, totp_enabled, backup_codes_hash, created_at, updated_at FROM users WHERE username = $1`,
+		`SELECT id, username, password_hash, role, tenant_id, advisor_id, totp_secret, totp_enabled, backup_codes_hash, created_at, updated_at FROM users WHERE username = $1`,
 		username,
-	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.TOTPSecret, &user.TOTPEnabled, &user.BackupCodesHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.TenantID, &user.AdvisorID, &user.TOTPSecret, &user.TOTPEnabled, &user.BackupCodesHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, admin.ErrUserNotFound
@@ -149,9 +149,9 @@ func (s *store) GetUserByID(ctx context.Context, id int) (*admin.User, error) {
 	var user admin.User
 
 	err := s.db.QueryRow(ctx,
-		`SELECT id, username, password_hash, totp_secret, totp_enabled, backup_codes_hash, created_at, updated_at FROM users WHERE id = $1`,
+		`SELECT id, username, password_hash, role, tenant_id, advisor_id, totp_secret, totp_enabled, backup_codes_hash, created_at, updated_at FROM users WHERE id = $1`,
 		id,
-	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.TOTPSecret, &user.TOTPEnabled, &user.BackupCodesHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.TenantID, &user.AdvisorID, &user.TOTPSecret, &user.TOTPEnabled, &user.BackupCodesHash, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, admin.ErrUserNotFound
