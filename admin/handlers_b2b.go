@@ -397,6 +397,7 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 		localidad := r.FormValue("localidad")
 		barrio := r.FormValue("barrio")
 		where := r.FormValue("where")
+		ratingMin, ratingMaxExcl, ratingBand, _ := RatingBandBounds(r.FormValue("rating"))
 
 		queued := make([]string, 0, len(terms))
 		keywords := make([]string, 0, len(terms))
@@ -405,10 +406,13 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 		for _, term := range terms {
 			keyword := SearchKeyword(term, city, localidad, barrio, where)
 			jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
-				Keyword:  keyword,
-				Lang:     "es",
-				MaxDepth: maxDepth,
-				Email:    true,
+				Keyword:       keyword,
+				Lang:          "es",
+				MaxDepth:      maxDepth,
+				Email:         true,
+				RatingMin:     ratingMin,
+				RatingMaxExcl: ratingMaxExcl,
+				RatingBand:    ratingBand,
 			})
 			if err != nil {
 				log.Error("b2b: enqueue search", "error", err, "keyword", keyword)
@@ -430,7 +434,7 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 					spec = term
 				}
 
-				if rerr := appState.Store.RecordSearchJob(r.Context(), riverID, tid, rubroID, spec); rerr != nil {
+				if rerr := appState.Store.RecordSearchJob(r.Context(), riverID, tid, rubroID, spec, ratingBand); rerr != nil {
 					log.Error("b2b: record search job", "error", rerr, "job_id", jobID)
 				}
 			}

@@ -20,12 +20,14 @@ type FlushResult struct {
 }
 
 type trackedJob struct {
-	jobID      string
-	entries    []*gmaps.Entry
-	completion chan FlushResult
-	riverJobID int64
-	keyword    string
-	startedAt  time.Time
+	jobID         string
+	entries       []*gmaps.Entry
+	completion    chan FlushResult
+	riverJobID    int64
+	keyword       string
+	startedAt     time.Time
+	ratingMin     float64
+	ratingMaxExcl float64
 }
 
 // SaveFunc persists results. The default writes to PostgreSQL;
@@ -57,16 +59,24 @@ func NewCentralWriter(db *pgxpool.Pool, saveFn SaveFunc) *CentralWriter {
 // RegisterJob registers the active River job and returns a completion channel
 // that receives the flush result.
 func (cw *CentralWriter) RegisterJob(jobID string, riverJobID int64, keyword string) <-chan FlushResult {
+	return cw.RegisterJobFilter(jobID, riverJobID, keyword, 0, 0)
+}
+
+// RegisterJobFilter is RegisterJob plus an optional star-band filter applied
+// before results are persisted. Zero min and maxExcl keeps every listing.
+func (cw *CentralWriter) RegisterJobFilter(jobID string, riverJobID int64, keyword string, ratingMin, ratingMaxExcl float64) <-chan FlushResult {
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
 
 	ch := make(chan FlushResult, 1)
 	cw.current = &trackedJob{
-		jobID:      jobID,
-		completion: ch,
-		riverJobID: riverJobID,
-		keyword:    keyword,
-		startedAt:  time.Now(),
+		jobID:         jobID,
+		completion:    ch,
+		riverJobID:    riverJobID,
+		keyword:       keyword,
+		startedAt:     time.Now(),
+		ratingMin:     ratingMin,
+		ratingMaxExcl: ratingMaxExcl,
 	}
 
 	log.Debug("registered scrape job", "job_id", jobID, "river_job_id", riverJobID)
@@ -140,6 +150,8 @@ func (cw *CentralWriter) Flush(jobID string) {
 	for _, entry := range j.entries {
 		jsonbsanitize.StripNULFromEntry(entry)
 	}
+
+	j.entries = gmaps.FilterEntriesByRating(j.entries, j.ratingMin, j.ratingMaxExcl)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	err := cw.save(ctx, j.riverJobID, j.keyword, j.entries)

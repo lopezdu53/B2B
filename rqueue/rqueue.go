@@ -100,6 +100,9 @@ type ScrapeJobArgs struct {
 	FastMode       bool    `json:"fast_mode"`
 	ExtraReviews   bool    `json:"extra_reviews"`
 	TimeoutSecs    int     `json:"timeout"` // timeout in seconds
+	RatingMin      float64 `json:"rating_min,omitempty"`
+	RatingMaxExcl  float64 `json:"rating_max_excl,omitempty"`
+	RatingBand     string  `json:"rating_band,omitempty"`
 }
 
 func (ScrapeJobArgs) Kind() string {
@@ -118,6 +121,7 @@ type ScrapeManager interface {
 	JobDone()
 	SubmitJob(ctx context.Context, job scrapemate.IJob) error
 	RegisterJob(jobID string, riverJobID int64, keyword string) <-chan scraper.FlushResult
+	RegisterJobFilter(jobID string, riverJobID int64, keyword string, ratingMin, ratingMaxExcl float64) <-chan scraper.FlushResult
 	MarkDone(jobID string)
 	ForceFlush(jobID string)
 }
@@ -168,7 +172,7 @@ func (w *ScrapeWorker) Work(ctx context.Context, job *river.Job[ScrapeJobArgs]) 
 	timeout := effectiveScrapeTimeout(args.TimeoutSecs)
 
 	// Register job — CentralWriter accumulates results and flushes to DB
-	completionCh := w.Manager.RegisterJob(jobID, job.ID, args.Keyword)
+	completionCh := w.Manager.RegisterJobFilter(jobID, job.ID, args.Keyword, args.RatingMin, args.RatingMaxExcl)
 	flushWaitStart := time.Now()
 
 	// Create exit monitor to track job completion

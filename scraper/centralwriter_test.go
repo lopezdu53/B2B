@@ -242,3 +242,24 @@ func TestMarshalScrapeResultsNeverWritesJSONNull(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "[]", string(raw))
 }
+
+func TestCentralWriter_FlushFiltersRatingBand(t *testing.T) {
+	var saved []*gmaps.Entry
+	cw := NewCentralWriter(nil, noopSave(&saved))
+
+	ch := cw.RegisterJobFilter("job1", 100, "restaurants", 4, 5.01)
+	cw.AddResult("job1", &gmaps.Entry{Title: "Low", ReviewRating: 2.8})
+	cw.AddResult("job1", &gmaps.Entry{Title: "High", ReviewRating: 4.6})
+	cw.Flush("job1")
+
+	select {
+	case result := <-ch:
+		assert.NoError(t, result.Err)
+		assert.Equal(t, 1, result.ResultCount)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for flush")
+	}
+
+	require.Len(t, saved, 1)
+	assert.Equal(t, "High", saved[0].Title)
+}

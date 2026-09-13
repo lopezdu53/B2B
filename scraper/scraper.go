@@ -133,6 +133,11 @@ func (m *ScraperManager) RegisterJob(jobID string, riverJobID int64, keyword str
 	return m.centralWriter.RegisterJob(jobID, riverJobID, keyword)
 }
 
+// RegisterJobFilter delegates to CentralWriter with a star-band persist filter.
+func (m *ScraperManager) RegisterJobFilter(jobID string, riverJobID int64, keyword string, ratingMin, ratingMaxExcl float64) <-chan FlushResult {
+	return m.centralWriter.RegisterJobFilter(jobID, riverJobID, keyword, ratingMin, ratingMaxExcl)
+}
+
 // MarkDone delegates to CentralWriter.
 func (m *ScraperManager) MarkDone(jobID string) {
 	m.centralWriter.MarkDone(jobID)
