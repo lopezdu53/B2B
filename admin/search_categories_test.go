@@ -18,8 +18,19 @@ func TestSearchRubrosHasThreeParents(t *testing.T) {
 		t.Fatalf("supermercados label = %q", list[1].Label)
 	}
 
-	if len(list[0].Specialties) < 10 {
-		t.Fatalf("restaurantes should fan out many specialties, got %d", len(list[0].Specialties))
+	if len(list[0].Specialties) < 40 {
+		t.Fatalf("restaurantes should list many specialties, got %d", len(list[0].Specialties))
+	}
+
+	seen := map[string]struct{}{}
+	for _, s := range list[0].Specialties {
+		if s.Keyword == "" || s.Label == "" || s.Group == "" {
+			t.Fatalf("incomplete specialty %#v", s)
+		}
+		if _, ok := seen[s.Keyword]; ok {
+			t.Fatalf("duplicate keyword %q", s.Keyword)
+		}
+		seen[s.Keyword] = struct{}{}
 	}
 }
 
@@ -43,7 +54,11 @@ func TestResolveSearchTermsFanOut(t *testing.T) {
 		seen[k] = true
 	}
 
-	for _, want := range []string{"restaurantes", "taquerías", "cafeterías", "comida mexicana", "restaurantes colombianos"} {
+	for _, want := range []string{
+		"restaurantes", "taquerías", "cafeterías", "comida mexicana",
+		"restaurantes colombianos", "areperías", "cevicherías",
+		"comida peruana", "comida vegetariana", "heladerías", "ramen",
+	} {
 		if !seen[want] {
 			t.Errorf("missing %q", want)
 		}
