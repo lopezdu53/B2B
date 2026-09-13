@@ -551,6 +551,7 @@ func DrawZoneHandler(appState *AppState) http.HandlerFunc {
 
 		name := strings.TrimSpace(req.Name)
 		city := strings.TrimSpace(req.City)
+
 		if city == "" {
 			city = DefaultCity
 		}
@@ -577,6 +578,7 @@ func DrawZoneHandler(appState *AppState) http.HandlerFunc {
 		if err != nil {
 			log.Error("b2b: draw zone", "error", err)
 			http.Error(w, "No se pudo guardar la zona", http.StatusInternalServerError)
+
 			return
 		}
 

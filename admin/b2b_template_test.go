@@ -230,10 +230,11 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		t.Fatalf("parse templates: %v", err)
 	}
 
+	drawn := []Zone{{ID: 2, Name: "Norte", City: "Bogotá", Color: "#0891b2", Geometry: []byte(`{"type":"Polygon"}`)}}
 	data := map[string]any{
 		"CSRFToken":         "t",
 		"Advisors":          []Advisor{},
-		"Zones":             []Zone{{ID: 2, Name: "Norte", City: "Bogotá", Color: "#0891b2", Geometry: []byte(`{"type":"Polygon"}`)}},
+		"Zones":             drawn,
 		"AdvisorsData":      asJSON([]Advisor{}),
 		"ZonesData":         asJSON([]Zone{}),
 		"Cities":            []string{"Bogotá", "Medellín"},
@@ -269,10 +270,13 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 
 	data["CanManage"] = false
 	data["IsAdvisor"] = true
+
 	buf.Reset()
+
 	if err := tmpl.ExecuteTemplate(&buf, "b2b.html", data); err != nil {
 		t.Fatalf("execute advisor: %v", err)
 	}
+
 	if strings.Contains(buf.String(), `id="btn-draw-zone"`) {
 		t.Error("advisor view should not offer zone drawing")
 	}
@@ -280,13 +284,17 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 	zdata := map[string]any{
 		"CSRFToken": "t",
 		"Advisors":  []Advisor{},
-		"Rows":      []zoneRow{{Zone: data["Zones"].([]Zone)[0]}},
+		"Rows":      []zoneRow{{Zone: drawn[0]}},
 	}
+
 	buf.Reset()
+
 	if err := tmpl.ExecuteTemplate(&buf, "zonas.html", zdata); err != nil {
 		t.Fatalf("execute zonas.html: %v", err)
 	}
+
 	zonas := buf.String()
+
 	if !strings.Contains(zonas, "/admin/b2b#dibujar") || !strings.Contains(zonas, "Dibujada") {
 		t.Error("zonas.html should link to map drawing and show drawn badge")
 	}

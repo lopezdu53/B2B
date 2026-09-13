@@ -54,8 +54,8 @@ type Zone struct {
 }
 
 // HasGeometry reports whether the zone has a drawn polygon on the map.
-func (z Zone) HasGeometry() bool {
-	return len(z.Geometry) > 0
+func (z *Zone) HasGeometry() bool {
+	return z != nil && len(z.Geometry) > 0
 }
 
 // Category is a per-tenant business category (Restaurantes, Hoteles, …).

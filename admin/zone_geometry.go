@@ -15,26 +15,27 @@ func NormalizeZoneGeometry(raw string) (json.RawMessage, error) {
 		return nil, nil
 	}
 
-	var any map[string]any
-	if err := json.Unmarshal([]byte(raw), &any); err != nil {
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
 		return nil, fmt.Errorf("geometría inválida")
 	}
 
-	typ, _ := any["type"].(string)
+	typ, _ := doc["type"].(string)
 	if typ == "Feature" {
-		geom, _ := any["geometry"].(map[string]any)
+		geom, _ := doc["geometry"].(map[string]any)
 		if geom == nil {
 			return nil, fmt.Errorf("el dibujo no tiene geometría")
 		}
-		any = geom
-		typ, _ = any["type"].(string)
+
+		doc = geom
+		typ, _ = doc["type"].(string)
 	}
 
 	if typ != "Polygon" && typ != "MultiPolygon" {
 		return nil, fmt.Errorf("dibuja un polígono cerrado")
 	}
 
-	coords, ok := any["coordinates"]
+	coords, ok := doc["coordinates"]
 	if !ok {
 		return nil, fmt.Errorf("el polígono no tiene coordenadas")
 	}

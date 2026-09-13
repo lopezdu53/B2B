@@ -1,3 +1,4 @@
+//nolint:testpackage // exercises unexported geometry helpers in this package
 package admin
 
 import (
@@ -14,6 +15,7 @@ func TestNormalizeZoneGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valid polygon: %v", err)
 	}
+
 	if !json.Valid(got) {
 		t.Fatalf("expected compact JSON, got %s", got)
 	}
@@ -50,6 +52,7 @@ func TestZoneHasGeometry(t *testing.T) {
 	t.Parallel()
 
 	var empty Zone
+
 	if empty.HasGeometry() {
 		t.Fatal("empty zone should not report geometry")
 	}
