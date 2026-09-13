@@ -59,6 +59,16 @@ func init() {
 	} {
 		cityByKey[cityKey(alias)] = DefaultCity
 	}
+
+	// Google often stores the locality (Usaquén, Chapinero…) as "city".
+	// Those still belong to Bogotá for the map/list filter.
+	for _, loc := range BogotaUrbanLocalidades() {
+		if k := cityKey(loc.Nombre); k != "" {
+			if _, exists := cityByKey[k]; !exists {
+				cityByKey[k] = DefaultCity
+			}
+		}
+	}
 }
 
 // CityList returns a copy of the predefined city dropdown (Bogotá first).
@@ -203,4 +213,98 @@ func firstToken(key string) string {
 	}
 
 	return key
+}
+
+// BogotaCityAliasKeys are folded names that count as Bogotá (the city itself
+// plus urban localidades Google may emit in complete_address.city).
+func BogotaCityAliasKeys() []string {
+	out := []string{"bogota", "bogota dc", "bogota d c", "santa fe de bogota"}
+	seen := map[string]struct{}{
+		"bogota": {}, "bogota dc": {}, "bogota d c": {}, "santa fe de bogota": {},
+	}
+
+	for _, loc := range BogotaUrbanLocalidades() {
+		k := cityKey(loc.Nombre)
+		if k == "" {
+			continue
+		}
+
+		if _, ok := seen[k]; ok {
+			continue
+		}
+
+		seen[k] = struct{}{}
+		out = append(out, k)
+	}
+
+	return out
+}
+
+// BogotaSatelliteTownKeys are nearby municipalities that must not match a
+// Bogotá city filter even if the address mentions the capital.
+func BogotaSatelliteTownKeys() []string {
+	return []string{
+		"chia", "soacha", "zipaquira", "facatativa", "cajica",
+		"cota", "mosquera", "funza", "madrid", "girardot",
+	}
+}
+
+func isSatelliteTown(s string) bool {
+	tok := firstToken(cityKey(s))
+	if tok == "" {
+		return false
+	}
+
+	for _, sat := range BogotaSatelliteTownKeys() {
+		if tok == sat {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsBogotaPlace reports whether a scraped address belongs to Bogotá.
+// Google frequently puts the localidad in the city field ("Usaquén").
+func IsBogotaPlace(city, state, borough, address string) bool {
+	if isSatelliteTown(city) {
+		return false
+	}
+
+	if CanonicalCity(city) == DefaultCity {
+		return true
+	}
+
+	if CanonicalCity(state) == DefaultCity {
+		return true
+	}
+
+	if CanonicalCity(borough) == DefaultCity {
+		return true
+	}
+
+	if cityKey(city) == "" && strings.Contains(cityKey(address), "bogota") {
+		return true
+	}
+
+	return false
+}
+
+// MatchesCityFilter is the Go equivalent of the map/list city SQL.
+// An empty filter matches everything. "Bogotá" also matches urban localidades.
+func MatchesCityFilter(filter, city, state, borough, address string) bool {
+	filter = strings.TrimSpace(filter)
+	if filter == "" {
+		return true
+	}
+
+	if tok := firstToken(cityKey(city)); tok != "" && tok == firstToken(cityKey(filter)) {
+		return true
+	}
+
+	if firstToken(cityKey(filter)) != "bogota" && CanonicalCity(filter) != DefaultCity {
+		return false
+	}
+
+	return IsBogotaPlace(city, state, borough, address)
 }

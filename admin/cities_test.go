@@ -38,6 +38,10 @@ func TestCanonicalCityOtherCities(t *testing.T) {
 	if got := CanonicalCity("Boston"); got != "" {
 		t.Fatalf("unknown city should be empty, got %q", got)
 	}
+
+	if got := CanonicalCity("Chía"); got != "Chía" {
+		t.Fatalf("Chía must not collapse into Bogotá, got %q", got)
+	}
 }
 
 func TestResolveCityFilter(t *testing.T) {
@@ -102,6 +106,76 @@ func TestSearchKeyword(t *testing.T) {
 	got = SearchKeyword("farmacias", "Bogotá", "Suba", "Lisboa", "ignored")
 	if got != "farmacias en Lisboa, Suba, Bogotá" {
 		t.Fatalf("barrio wins over where: %q", got)
+	}
+}
+
+func TestCanonicalCityLocalidadIsBogota(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{"Usaquén", "Chapinero", "Barrios Unidos", "Kennedy", "La Candelaria"} {
+		if got := CanonicalCity(in); got != DefaultCity {
+			t.Errorf("CanonicalCity(%q) = %q, want %q", in, got, DefaultCity)
+		}
+	}
+
+	if got := CanonicalCity("Chía"); got != "Chía" {
+		t.Fatalf("Chía must stay its own city, got %q", got)
+	}
+
+	if got := CanonicalCity("Soacha"); got != "Soacha" {
+		t.Fatalf("Soacha must stay its own city, got %q", got)
+	}
+}
+
+func TestMatchesCityFilterBogotaLocalidad(t *testing.T) {
+	t.Parallel()
+
+	if !MatchesCityFilter("Bogotá", "Usaquén", "", "", "Cra 7 #127, Bogotá") {
+		t.Fatal("Usaquén should match Bogotá")
+	}
+
+	if !MatchesCityFilter("Bogotá", "Barrios Unidos", "Bogotá", "", "") {
+		t.Fatal("Barrios Unidos should match Bogotá")
+	}
+
+	if !MatchesCityFilter("Bogotá", "Bogotá, BOGOTÁ D.C.", "", "", "") {
+		t.Fatal("canonical Bogotá should match")
+	}
+
+	if !MatchesCityFilter("Bogotá", "", "Bogotá D.C.", "", "Calle 72") {
+		t.Fatal("empty city + Bogotá state should match")
+	}
+
+	if MatchesCityFilter("Bogotá", "Chía", "Cundinamarca", "", "cerca de Bogotá") {
+		t.Fatal("Chía must not match Bogotá")
+	}
+
+	if MatchesCityFilter("Medellín", "Usaquén", "", "", "") {
+		t.Fatal("Usaquén must not match Medellín")
+	}
+
+	if !MatchesCityFilter("Cali", "Cali, Valle", "", "", "") {
+		t.Fatal("Cali, Valle should match Cali")
+	}
+
+	if !MatchesCityFilter("", "Boston", "", "", "") {
+		t.Fatal("empty filter matches everything")
+	}
+}
+
+func TestIsBogotaPlace(t *testing.T) {
+	t.Parallel()
+
+	if !IsBogotaPlace("Usaquén", "", "", "") {
+		t.Fatal("Usaquén is Bogotá")
+	}
+
+	if IsBogotaPlace("Chía", "", "", "Autopista Norte") {
+		t.Fatal("Chía is not Bogotá")
+	}
+
+	if !IsBogotaPlace("", "Bogotá", "", "Calle 100") {
+		t.Fatal("state Bogotá should count")
 	}
 }
 

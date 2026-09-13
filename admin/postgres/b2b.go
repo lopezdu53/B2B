@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gosom/google-maps-scraper/admin"
 )
@@ -20,14 +21,68 @@ func jsonbOrNil(raw json.RawMessage) any {
 // browser stays responsive even with very large scrape datasets.
 const defaultBusinessLimit = 5000
 
-// cityMatchSQL compares the first letter-token of a scraped city to $1 so
-// "Bogotá, BOGOTÁ D.C." and "BOGOTÁ" both match the filter "Bogotá".
-const cityMatchSQL = `split_part(translate(lower(regexp_replace(COALESCE(city, ''), '[^A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), ' ', 1) = split_part(translate(lower(regexp_replace($1, '[^A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), ' ', 1)`
+// sqlFoldCity normalizes a SQL text expression the same way admin.cityKey does.
+func sqlFoldCity(expr string) string {
+	return `trim(both ' ' from regexp_replace(translate(lower(regexp_replace(COALESCE(` + expr + `, ''), '[^A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), '\s+', ' ', 'g'))`
+}
+
+func sqlFirstCityToken(expr string) string {
+	return `split_part(` + sqlFoldCity(expr) + `, ' ', 1)`
+}
+
+func sqlQuotedList(keys []string) string {
+	parts := make([]string, 0, len(keys))
+	seen := map[string]struct{}{}
+
+	for _, k := range keys {
+		k = strings.TrimSpace(k)
+		if k == "" {
+			continue
+		}
+
+		if _, ok := seen[k]; ok {
+			continue
+		}
+
+		seen[k] = struct{}{}
+		parts = append(parts, "'"+strings.ReplaceAll(k, "'", "''")+"'")
+	}
+
+	if len(parts) == 0 {
+		return "NULL"
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+// cityMatchSQL compares a scraped place to the city filter $1.
+// First-token match keeps "Bogotá, BOGOTÁ D.C." ≈ "Bogotá" and "Cali, Valle" ≈ "Cali".
+// For Bogotá it also accepts urban localidades (Usaquén, Chapinero…) and a
+// Bogotá state/borough, because Google often stores the localidad as city.
+func cityMatchSQL() string {
+	aliases := sqlQuotedList(admin.BogotaCityAliasKeys())
+	satellites := sqlQuotedList(admin.BogotaSatelliteTownKeys())
+
+	return `(` +
+		sqlFirstCityToken("city") + ` = ` + sqlFirstCityToken("$1") +
+		` OR (` +
+		sqlFirstCityToken("$1") + ` = 'bogota'` +
+		` AND ` + sqlFirstCityToken("city") + ` NOT IN (` + satellites + `)` +
+		` AND (` +
+		sqlFoldCity("city") + ` IN (` + aliases + `)` +
+		` OR ` + sqlFoldCity("city") + ` LIKE 'bogota %'` +
+		` OR ` + sqlFoldCity("state") + ` LIKE 'bogota%'` +
+		` OR ` + sqlFoldCity("borough") + ` IN (` + aliases + `)` +
+		` OR (` + sqlFoldCity("city") + ` = '' AND (` +
+		sqlFoldCity("state") + ` LIKE 'bogota%' OR lower(COALESCE(address, '')) LIKE '%bogot%'` +
+		`))` +
+		`))` +
+		`)`
+}
 
 // listBusinessesQuery returns scraped businesses (shared lead pool) joined with
-// the requesting tenant's CRM overlay. All filters are parameterized so the
-// query stays a compile-time constant. $6 is the tenant id.
-const listBusinessesQuery = `
+// the requesting tenant's CRM overlay. $6 is the tenant id.
+var listBusinessesQuery = `
 SELECT bkey, title, category, address, city, phone, website, maps_url, email, specialty, lat, lng, rating, review_count, status, advisor_id, zone_id, category_id, notes
 FROM (
     SELECT DISTINCT ON (bkey)
@@ -40,6 +95,8 @@ FROM (
             COALESCE(elem->>'category', '') AS category,
             COALESCE(elem->>'address', '')  AS address,
             COALESCE(elem->'complete_address'->>'city', '') AS city,
+            COALESCE(elem->'complete_address'->>'state', '') AS state,
+            COALESCE(elem->'complete_address'->>'borough', '') AS borough,
             COALESCE(elem->>'phone', '')    AS phone,
             COALESCE(elem->>'web_site', '') AS website,
             COALESCE(elem->>'link', '') AS maps_url,
@@ -68,7 +125,7 @@ FROM (
           AND COALESCE(crm.hidden, false) = $10
 ` + adminLeadQualitySQL + `
     ) raw
-    WHERE ($1 = '' OR ` + cityMatchSQL + `)
+    WHERE ($1 = '' OR ` + cityMatchSQL() + `)
       AND ($2 = '' OR status = $2)
       AND ($3 = 0 OR advisor_id = $3)
       AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%' OR specialty ILIKE '%' || $4 || '%')
@@ -140,7 +197,7 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 
 // countBusinessesQuery counts the distinct businesses matching the filters
 // (same shape as listBusinessesQuery, without paging). $6 is the tenant id.
-const countBusinessesQuery = `
+var countBusinessesQuery = `
 SELECT COUNT(*) FROM (
     SELECT DISTINCT ON (bkey) bkey FROM (
         SELECT
@@ -149,6 +206,8 @@ SELECT COUNT(*) FROM (
             COALESCE(elem->>'category', '') AS category,
             COALESCE(elem->>'address', '')  AS address,
             COALESCE(elem->'complete_address'->>'city', '') AS city,
+            COALESCE(elem->'complete_address'->>'state', '') AS state,
+            COALESCE(elem->'complete_address'->>'borough', '') AS borough,
             COALESCE(NULLIF(crm.specialty, ''), elem->>'category', '') AS specialty,
             COALESCE(crm.status, 'prospect') AS status,
             crm.advisor_id,
@@ -164,7 +223,7 @@ SELECT COUNT(*) FROM (
           AND COALESCE(crm.hidden, false) = $7
 ` + adminLeadQualitySQL + `
     ) t
-    WHERE ($1 = '' OR ` + cityMatchSQL + `)
+    WHERE ($1 = '' OR ` + cityMatchSQL() + `)
       AND ($2 = '' OR status = $2)
       AND ($3 = 0 OR advisor_id = $3)
       AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%' OR COALESCE(specialty, '') ILIKE '%' || $4 || '%')

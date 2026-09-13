@@ -270,7 +270,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad (están agrupadas: colombiana, latina, internacional, etc.), o <strong>Todas las especialidades</strong> para lanzar una búsqueda por cada una. Conviene acotar por localidad o barrio.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad (están agrupadas: colombiana, latina, internacional, etc.), o <strong>Todas las especialidades</strong> para lanzar una búsqueda por cada una. Amplia (1000) pide más scroll, pero Google Maps en una sola localidad o barrio suele devolver 60–120 fichas. El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -319,7 +319,7 @@
             </form>
 
             <div id="jobs-panel" style="display:none; margin-top:1rem;">
-                <h3 style="margin:0 0 .5rem; font-size:1rem;">Búsquedas recientes</h3>
+                <h3 id="jobs-title" style="margin:0 0 .5rem; font-size:1rem;">Búsquedas recientes</h3>
                 <div id="jobs-list"></div>
             </div>
         </div>
@@ -954,9 +954,15 @@
         function renderJobs(jobs) {
             const panel = document.getElementById("jobs-panel");
             const list = document.getElementById("jobs-list");
+            const title = document.getElementById("jobs-title");
 
             if (!jobs || jobs.length === 0) { panel.style.display = "none"; return; }
             panel.style.display = "block";
+            if (title) {
+                title.textContent = jobs.length === 1
+                    ? "Búsquedas recientes"
+                    : "Búsquedas recientes (" + jobs.length + ")";
+            }
 
             list.innerHTML = jobs.map(j => {
                 const st = j.status || "pending";
@@ -964,7 +970,11 @@
                 let barClass = "active", countHtml = "";
                 if (st === "completed") {
                     barClass = "done";
-                    countHtml = '<div class="job-count">✓ ' + j.result_count + ' negocios encontrados</div>';
+                    const n = j.result_count || 0;
+                    countHtml = '<div class="job-count">✓ ' + n + ' extraídos de Google Maps</div>';
+                    if (j.note) {
+                        countHtml += '<div class="job-count">' + escapeHtml(j.note) + '</div>';
+                    }
                 } else if (st === "failed") {
                     barClass = "err";
                     countHtml = '<div class="job-count">' + escapeHtml(j.error || "Falló la búsqueda") + '</div>';
