@@ -269,6 +269,10 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		}
 	}
 
+	if strings.Contains(html, `id="tog-bar" checked`) {
+		t.Error("barrio lines should be off by default")
+	}
+
 	data["CanManage"] = false
 	data["IsAdvisor"] = true
 
