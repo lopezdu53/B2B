@@ -339,14 +339,12 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		maxDepth := DefaultSearchDepth
-		if d, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_depth"))); err == nil && d > 0 {
-			maxDepth = d
+		size := SearchSizeNormal
+		if n, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_results"))); err == nil && n > 0 {
+			size = n
 		}
 
-		if maxDepth > MaxSearchDepth {
-			maxDepth = MaxSearchDepth
-		}
+		maxDepth := SearchDepthForSize(size)
 
 		city := r.FormValue("city")
 		localidad := r.FormValue("localidad")

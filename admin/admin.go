@@ -100,10 +100,32 @@ const (
 
 // Password and scrape-search limits used by the B2B admin UI.
 const (
-	MinPasswordLength  = 8
-	DefaultSearchDepth = 10
-	MaxSearchDepth     = 20
+	MinPasswordLength      = 8
+	DefaultSearchDepth     = 25
+	MaxSearchDepth         = 50
+	SearchSizeFast         = 100
+	SearchSizeNormal       = 500
+	SearchSizeWide         = 1000
+	searchResultsPerScroll = 20
 )
+
+// SearchDepthForSize maps a target business count to Google Maps scroll depth.
+func SearchDepthForSize(n int) int {
+	if n <= 0 {
+		n = SearchSizeNormal
+	}
+
+	d := (n + searchResultsPerScroll - 1) / searchResultsPerScroll
+	if d < 1 {
+		d = 1
+	}
+
+	if d > MaxSearchDepth {
+		d = MaxSearchDepth
+	}
+
+	return d
+}
 
 // Tenant is a client company on the platform.
 type Tenant struct {
