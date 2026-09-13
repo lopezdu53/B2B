@@ -372,9 +372,10 @@
                     {{if .CanManage}}
                     <div class="map-toolbar">
                         <button type="button" class="btn-primary" id="btn-draw-zone">✏️ Dibujar zona</button>
+                        <button type="button" class="btn-secondary" id="btn-draw-undo" style="display:none" disabled>Borrar último</button>
                         <button type="button" class="btn-secondary" id="btn-draw-finish" style="display:none" disabled>Cerrar polígono</button>
                         <button type="button" class="btn-secondary" id="btn-draw-cancel" style="display:none">Cancelar dibujo</button>
-                        <p class="empty-hint" id="draw-hint" style="display:none;">Haz clic en el mapa para marcar los vértices. Con 3 o más puntos, pulsa «Cerrar polígono» y ponle un nombre.</p>
+                        <p class="empty-hint" id="draw-hint" style="display:none;">El trazo se pega a la calle o carrera más cercana. Las zonas actuales siguen visibles para que no se crucen.</p>
                     </div>
                     {{end}}
                     <div id="map"></div>
@@ -760,25 +761,31 @@
 
         let pendingGeom = null;
 
-        function setDrawChrome(mode, verts) {
+        function setDrawChrome(mode, verts, meta) {
             const btnDraw = document.getElementById("btn-draw-zone");
             const btnFinish = document.getElementById("btn-draw-finish");
+            const btnUndo = document.getElementById("btn-draw-undo");
             const btnCancel = document.getElementById("btn-draw-cancel");
             const hint = document.getElementById("draw-hint");
             if (!btnDraw) return;
             const drawing = mode === "click" || mode === "google";
+            const routing = !!(meta && meta.routing);
             btnDraw.style.display = drawing ? "none" : "";
+            if (btnUndo) {
+                btnUndo.style.display = drawing ? "" : "none";
+                btnUndo.disabled = routing || !verts;
+            }
             if (btnFinish) {
-                btnFinish.style.display = mode === "click" ? "" : "none";
-                btnFinish.disabled = !verts || verts < 3;
+                btnFinish.style.display = drawing ? "" : "none";
+                btnFinish.disabled = routing || !verts || verts < 3;
             }
             if (btnCancel) btnCancel.style.display = drawing ? "" : "none";
             if (hint) {
                 hint.style.display = drawing ? "" : "none";
-                if (mode === "google") {
-                    hint.textContent = "Traza el polígono en el mapa. Haz clic en el primer punto para cerrarlo.";
-                } else if (mode === "click") {
-                    hint.textContent = "Haz clic para marcar cada vértice. Con 3 o más puntos, pulsa «Cerrar polígono».";
+                if (routing) {
+                    hint.textContent = "Siguiendo la calle o carrera…";
+                } else {
+                    hint.textContent = "Haz clic cerca de una calle o carrera. El borde sigue su curva. Las zonas actuales quedan visibles para no cruzarlas. Con 3 o más puntos, cierra el polígono.";
                 }
             }
         }
@@ -863,19 +870,23 @@
         function beginDraw() {
             if (!mapApi) return;
             document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
-            const mode = mapApi.startDraw({
+            mapApi.startDraw({
                 color: "#0891b2",
-                onVertex: function (n) { setDrawChrome("click", n); },
+                onVertex: function (n, meta) { setDrawChrome("click", n, meta); },
                 onComplete: function (geom) {
                     setDrawChrome("idle");
                     openDrawModal(geom);
                 }
             });
-            setDrawChrome(mode === "google" ? "google" : "click", 0);
+            setDrawChrome("click", 0);
         }
 
         const btnDraw = document.getElementById("btn-draw-zone");
         if (btnDraw) btnDraw.addEventListener("click", beginDraw);
+        const btnUndo = document.getElementById("btn-draw-undo");
+        if (btnUndo) btnUndo.addEventListener("click", function () {
+            if (mapApi) mapApi.undoDraw();
+        });
         const btnFinish = document.getElementById("btn-draw-finish");
         if (btnFinish) btnFinish.addEventListener("click", function () {
             if (mapApi) mapApi.finishDraw();
@@ -1089,7 +1100,7 @@
             if (togZones) api.setZonesVisible(togZones.checked);
             var hint = document.getElementById("map-engine-hint");
             if (api.usesGoogle()) {
-                hint.textContent = "Google Maps · localidades en color · barrios en líneas. Clic en una localidad o barrio para filtrar. Usa «Dibujar zona» para guardar un polígono con nombre.";
+                hint.textContent = "Google Maps · localidades en color · barrios en líneas. Las zonas usan rayas y puntos (grises con localidades, a color si las apagas) y el nombre al centro. Al dibujar, el borde sigue la calle.";
             } else {
                 hint.textContent = "Mapa de respaldo (OpenStreetMap). Para Google Maps, configura GOOGLE_MAPS_API_KEY en EasyPanel (servicio web) o en Ajustes. También puedes dibujar zonas haciendo clic en el mapa.";
             }

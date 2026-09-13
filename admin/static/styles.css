@@ -387,6 +387,32 @@ a.btn-edit { text-decoration: none; display: inline-block; }
 .modal-actions .btn-secondary { padding: 0.55rem 1rem; border-radius: 9px; font-weight: 500; cursor: pointer; }
 html.dark .modal { background: #131c2e; border-color: #232c3d; }
 
+/* Zone territory labels + hatch fills on the B2B map */
+.b2b-zone-label,
+.leaflet-div-icon.b2b-zone-label {
+    background: rgba(255, 255, 255, 0.92);
+    color: #334155;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 999px;
+    padding: 3px 9px;
+    font: 700 12px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    width: auto !important;
+    height: auto !important;
+}
+.b2b-zone-label.is-muted { color: #4b5563; }
+.b2b-zone-label.is-color { color: #0f172a; }
+.b2b-zone-overlay { pointer-events: none; }
+html.dark .b2b-zone-label {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
 .card-header {
     display: flex;
     align-items: center;
