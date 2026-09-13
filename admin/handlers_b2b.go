@@ -60,6 +60,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"BogotaIndexData":   asJSON(bogotaIdx),
 			"SearchRubros":      SearchRubros(),
 			"SearchRubrosData":  asJSON(SearchRubros()),
+			"PriceSmartData":    asJSON(PriceSmartLocations()),
 			"Summary":           summary,
 			// JSON for the map colouring logic (template.JS, not Go dump).
 			"AdvisorsData":   asJSON(advisors),
@@ -113,6 +114,10 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
+		if err := appState.Store.IngestPendingSearchJobs(r.Context()); err != nil {
+			log.Error("b2b: ingest pending jobs", "error", err)
+		}
+
 		businesses, err := appState.Store.ListBusinesses(r.Context(), tid, f)
 		if err != nil {
 			log.Error("b2b: list businesses", "error", err)
@@ -153,6 +158,8 @@ func B2BSummaryHandler(appState *AppState) http.HandlerFunc {
 			"clients":     sum.Clients,
 			"prospects":   sum.Prospects,
 			"in_progress": sum.InProgress,
+			"discarded":   sum.Discarded,
+			"featured":    sum.Featured,
 			"advisors":    sum.Advisors,
 			"zones":       sum.Zones,
 		})
@@ -184,6 +191,10 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 		if advisorScope(r) != nil {
 			writeJSON(w, http.StatusOK, out)
 			return
+		}
+
+		if err := appState.Store.IngestPendingSearchJobs(r.Context()); err != nil {
+			log.Error("b2b: ingest pending jobs", "error", err)
 		}
 
 		if appState.RQueueClient != nil {
@@ -274,6 +285,30 @@ func B2BSetStatusHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
+// HideAllClientsHandler sends every tenant business marked as client to the
+// trash after the user confirms in the UI.
+func HideAllClientsHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		tid, _ := effectiveTenant(appState, r)
+
+		n, err := appState.Store.HideBusinessesByStatus(r.Context(), tid, StatusClient)
+		if err != nil {
+			log.Error("b2b: hide all clients", "error", err)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudieron+eliminar+los+clientes")
+
+			return
+		}
+
+		msg := url.QueryEscape("Se enviaron " + strconv.FormatInt(n, 10) + " clientes a la papelera")
+		b2bRedirectBack(w, r, "/admin/b2b", "success", msg)
+	}
+}
+
 // B2BSearchHandler enqueues a Google Maps scrape job from the dashboard, so a
 // non-technical user can launch a search ("restaurantes en Usaquén, Bogotá")
 // with one click instead of calling the REST API. A running worker is required
@@ -290,7 +325,8 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		terms, rubroLabel, ok := ResolveSearchTerms(r.FormValue("category"), r.FormValue("specialty"))
+		rubroID := strings.TrimSpace(r.FormValue("category"))
+		terms, rubroLabel, ok := ResolveSearchTerms(rubroID, r.FormValue("specialty"))
 		if !ok || len(terms) == 0 {
 			if what := strings.TrimSpace(r.FormValue("what")); what != "" {
 				terms = []string{what}
@@ -319,6 +355,7 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 
 		queued := make([]string, 0, len(terms))
 		keywords := make([]string, 0, len(terms))
+		tid, _ := effectiveTenant(appState, r)
 
 		for _, term := range terms {
 			keyword := SearchKeyword(term, city, localidad, barrio, where)
@@ -326,6 +363,7 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 				Keyword:  keyword,
 				Lang:     "es",
 				MaxDepth: maxDepth,
+				Email:    true,
 			})
 			if err != nil {
 				log.Error("b2b: enqueue search", "error", err, "keyword", keyword)
@@ -340,6 +378,17 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 
 			queued = append(queued, jobID)
 			keywords = append(keywords, keyword)
+
+			if riverID, derr := rqueue.DecodeJobID(jobID); derr == nil {
+				spec := SpecialtyLabelForKeyword(rubroID, term)
+				if spec == "" {
+					spec = term
+				}
+
+				if rerr := appState.Store.RecordSearchJob(r.Context(), riverID, tid, rubroID, spec); rerr != nil {
+					log.Error("b2b: record search job", "error", rerr, "job_id", jobID)
+				}
+			}
 		}
 
 		whereLabel := BuildSearchWhere(city, localidad, barrio)

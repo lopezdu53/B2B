@@ -90,6 +90,22 @@ func TestResolveSearchTermsRejectsUnknown(t *testing.T) {
 	}
 }
 
+func TestSpecialtyLabelForKeyword(t *testing.T) {
+	t.Parallel()
+
+	if got := SpecialtyLabelForKeyword(RubroRestaurantes, "taquerías"); got != "Taquerías" {
+		t.Fatalf("got %q", got)
+	}
+
+	if got := SpecialtyLabelForKeyword(RubroHoteles, "hostales"); got != "Hostales" {
+		t.Fatalf("got %q", got)
+	}
+
+	if got := SpecialtyLabelForKeyword("", "no-existe"); got != "no-existe" {
+		t.Fatalf("fallback got %q", got)
+	}
+}
+
 func TestResolveSearchTermsHotelesAndSupermercados(t *testing.T) {
 	t.Parallel()
 

@@ -14,6 +14,26 @@
         });
     }
 
+    function ensurePSStyle() {
+        if (document.getElementById("b2b-ps-style")) return;
+        var st = document.createElement("style");
+        st.id = "b2b-ps-style";
+        st.textContent = ".ps-pin{width:36px;height:44px;margin-left:-18px;margin-top:-44px;display:flex;align-items:center;justify-content:center;" +
+            "background:linear-gradient(135deg,#1d4ed8 0%,#dc2626 100%);color:#fff;font:700 12px/1 Arial,Helvetica,sans-serif;" +
+            "border:1.5px solid #0b1220;border-radius:18px 18px 18px 4px;box-shadow:0 3px 8px rgba(15,23,42,.35);transform:rotate(-45deg);}" +
+            ".ps-pin span{transform:rotate(45deg);letter-spacing:.02em;}";
+        document.head.appendChild(st);
+    }
+
+    function priceSmartIconURL() {
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="44" viewBox="0 0 40 44">' +
+            '<defs><linearGradient id="psg" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0%" stop-color="#1d4ed8"/><stop offset="100%" stop-color="#dc2626"/></linearGradient></defs>' +
+            '<path d="M20 2.2c7.2 0 13 5.6 13 12.6 0 10.2-13 26.6-13 26.6S7 24.9 7 14.8C7 7.8 12.8 2.2 20 2.2z" fill="url(#psg)" stroke="#0b1220" stroke-width="1.4"/>' +
+            '<text x="20" y="20" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="Arial,Helvetica,sans-serif">PS</text></svg>';
+        return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+    }
+
     function pointInRing(lat, lng, ring) {
         var inside = false;
         for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -503,6 +523,7 @@
         var zoneChrome = createGoogleZoneChrome(map);
         var zoneLocVisible = true;
         var markers = [];
+        var poiMarkers = [];
         var info = new google.maps.InfoWindow();
 
         function applyZoneHitStyle() {
@@ -570,6 +591,26 @@
             clearMarkers: function () {
                 markers.forEach(function (m) { m.setMap(null); });
                 markers = [];
+            },
+            clearPOIs: function () {
+                poiMarkers.forEach(function (m) { m.setMap(null); });
+                poiMarkers = [];
+            },
+            addPOI: function (poi, onClick) {
+                var marker = new google.maps.Marker({
+                    position: { lat: poi.lat, lng: poi.lng },
+                    map: map,
+                    title: poi.name || poi.title || "PriceSmart",
+                    zIndex: 2500,
+                    icon: {
+                        url: priceSmartIconURL(),
+                        scaledSize: new google.maps.Size(40, 44),
+                        anchor: new google.maps.Point(20, 42)
+                    }
+                });
+                marker.addListener("click", function () { onClick(poi, marker); });
+                poiMarkers.push(marker);
+                return marker;
             },
             addMarker: function (biz, color, onClick) {
                 var marker = new google.maps.Marker({
@@ -648,6 +689,8 @@
         map.getPane("zoneLabelPane").style.pointerEvents = "none";
         map.createPane("bizPane");
         map.getPane("bizPane").style.zIndex = 650;
+        map.createPane("poiPane");
+        map.getPane("poiPane").style.zIndex = 680;
 
         var locLayer = L.geoJSON(null, { interactive: false, pane: "locPane" }).addTo(map);
         var barLayer = L.geoJSON(null, { interactive: false, pane: "barPane" }).addTo(map);
@@ -662,7 +705,9 @@
             }
         }).addTo(map);
         var markersLayer = L.layerGroup({ pane: "bizPane" }).addTo(map);
+        var poiLayer = L.layerGroup({ pane: "poiPane" }).addTo(map);
         var markers = [];
+        var poiMarkers = [];
 
         function paintLeafletZones() {
             zoneLayer.eachLayer(function (layer) {
@@ -751,6 +796,25 @@
             clearMarkers: function () {
                 markersLayer.clearLayers();
                 markers = [];
+            },
+            clearPOIs: function () {
+                poiLayer.clearLayers();
+                poiMarkers = [];
+            },
+            addPOI: function (poi, onClick) {
+                ensurePSStyle();
+                var icon = L.divIcon({
+                    className: "",
+                    html: '<div class="ps-pin"><span>PS</span></div>',
+                    iconSize: [36, 44],
+                    iconAnchor: [18, 44]
+                });
+                var marker = L.marker([poi.lat, poi.lng], { icon: icon, pane: "poiPane", zIndexOffset: 800 });
+                marker.bindTooltip(escapeHtml(poi.name || poi.title || "PriceSmart"));
+                marker.on("click", function () { onClick(poi, marker); });
+                marker.addTo(poiLayer);
+                poiMarkers.push(marker);
+                return marker;
             },
             addMarker: function (biz, color, onClick) {
                 var marker = L.circleMarker([biz.lat, biz.lng], {
@@ -1036,6 +1100,8 @@
 
     global.B2BMap = {
         escapeHtml: escapeHtml,
+        pointInGeom: pointInGeom,
+        parseZoneGeom: parseZoneGeom,
         bindLocationSelects: bindLocationSelects,
         create: function (opts) {
             opts = opts || {};
@@ -1188,6 +1254,13 @@
                             engine.fitBounds(pts, 14);
                         }
                         return items;
+                    },
+                    setPOIs: function (list, onClick) {
+                        if (engine.clearPOIs) engine.clearPOIs();
+                        (list || []).forEach(function (poi) {
+                            if (!poi.lat || !poi.lng || !engine.addPOI) return;
+                            engine.addPOI(poi, onClick || function () {});
+                        });
                     },
                     recolor: function (colorFor) {
                         items.forEach(function (it) {

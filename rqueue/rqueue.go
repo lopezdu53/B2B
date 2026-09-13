@@ -43,6 +43,11 @@ func encodeJobID(id int64) string {
 	return encoded
 }
 
+// DecodeJobID converts the public hashed job id back to the River numeric id.
+func DecodeJobID(hash string) (int64, error) {
+	return decodeJobID(hash)
+}
+
 func decodeJobID(hash string) (int64, error) {
 	decoded, err := hashIDCodec.DecodeInt64WithError(hash)
 	if err != nil {

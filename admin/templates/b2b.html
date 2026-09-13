@@ -9,7 +9,7 @@
         /* ---- B2B page palette & surfaces (scoped) ---- */
         .b2b-page {
             --ink: #0f172a; --muted: #64748b; --line: #eceef2; --surface: #ffffff;
-            --c-prospect: #2563eb; --c-progress: #f59e0b; --c-client: #16a34a; --c-discard: #94a3b8;
+            --c-prospect: #2563eb; --c-progress: #f59e0b; --c-client: #16a34a; --c-discard: #94a3b8; --c-featured: #eab308;
             --c-advisor: #7c3aed; --c-zone: #0891b2;
             --shadow-sm: 0 1px 2px rgba(16,24,40,.05);
             --shadow-md: 0 4px 16px -4px rgba(16,24,40,.10), 0 2px 6px -2px rgba(16,24,40,.06);
@@ -85,6 +85,7 @@
         .kpi.progress  { --kpi:var(--c-progress); --kpi-bg:#fef3c7; }
         .kpi.advisors  { --kpi:var(--c-advisor);  --kpi-bg:#ede9fe; }
         .kpi.zones     { --kpi:var(--c-zone);     --kpi-bg:#cffafe; }
+        .kpi.featured  { --kpi:var(--c-featured); --kpi-bg:#fef9c3; }
 
         /* ---- Section title with accent ---- */
         .sec-title { display: flex; align-items: center; gap: .55rem; margin: 0 0 .3rem; font-size: 1.05rem; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
@@ -137,6 +138,15 @@
         .dot.in_progress { background: var(--c-progress); }
         .dot.client { background: var(--c-client); }
         .dot.discarded { background: var(--c-discard); }
+        .dot.featured { background: var(--c-featured); }
+
+        .zone-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .7rem; margin: .9rem 0 0; }
+        .zone-stat { border: 1px solid var(--line); border-radius: 12px; padding: .75rem .9rem; background: #fbfcfe; }
+        .zone-stat-name { font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: .45rem; margin-bottom: .35rem; }
+        .zone-stat-counts { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+        .zone-stat-counts strong { color: var(--ink); }
+        .map-toolbar .btn-danger { border-radius: 9px; padding: .55rem 1rem; font-weight: 600; }
+        .dark .zone-stat { background: #0f1728; border-color: #232c3d; }
 
         /* ---- Side panel ---- */
         .side-panel { position: sticky; top: 1rem; }
@@ -232,6 +242,10 @@
                 <div class="kpi-top"><span class="kpi-ico">👤</span><span class="kpi-label">Asesores</span></div>
                 <div class="kpi-value" data-kpi="advisors">{{.Summary.Advisors}}</div>
             </div>
+            <div class="kpi featured">
+                <div class="kpi-top"><span class="kpi-ico">⭐</span><span class="kpi-label">Destacados</span></div>
+                <div class="kpi-value tinted" data-kpi="featured">{{.Summary.Featured}}</div>
+            </div>
             <div class="kpi zones">
                 <div class="kpi-top"><span class="kpi-ico">📍</span><span class="kpi-label">Zonas</span></div>
                 <div class="kpi-value" data-kpi="zones">{{.Summary.Zones}}</div>
@@ -313,6 +327,7 @@
                         <option value="prospect">Prospecto</option>
                         <option value="in_progress">En gestión</option>
                         <option value="client">Cliente</option>
+                        <option value="featured">Destacado</option>
                         <option value="discarded">Descartado</option>
                     </select>
                 </div>
@@ -376,11 +391,16 @@
                         <button type="button" class="btn-secondary" id="btn-draw-finish" style="display:none" disabled>Cerrar polígono</button>
                         <button type="button" class="btn-secondary" id="btn-draw-cancel" style="display:none">Cancelar dibujo</button>
                         <p class="empty-hint" id="draw-hint" style="display:none;">El trazo se pega a la calle o carrera más cercana. Las zonas actuales siguen visibles para que no se crucen.</p>
+                        <form method="POST" action="/admin/b2b/clients/delete-all" style="margin:0;" onsubmit="return confirm('¿Eliminar TODOS los clientes? Irán a la papelera y desaparecerán del mapa. Puedes restaurarlos desde Papelera.');">
+                            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                            <button type="submit" class="btn-danger" id="btn-delete-clients">Eliminar todos los clientes</button>
+                        </form>
                     </div>
                     {{end}}
                     <div id="map"></div>
                     <p class="empty-hint" id="map-engine-hint" style="margin:.55rem 0 0;"></p>
                     <div class="legend" id="legend"></div>
+                    <div id="zone-stats" class="zone-stats"></div>
                 </div>
 
                 <div class="card side-panel" id="side-panel">
@@ -396,6 +416,7 @@
                                 <option value="prospect">Prospecto</option>
                                 <option value="in_progress">En gestión</option>
                                 <option value="client">Cliente</option>
+                                <option value="featured">Destacado</option>
                                 <option value="discarded">Descartado</option>
                             </select>
                         </div>
@@ -576,12 +597,14 @@
             prospect: "#2563eb",
             in_progress: "#f59e0b",
             client: "#16a34a",
+            featured: "#eab308",
             discarded: "#9ca3af"
         };
         const STATUS_LABELS = {
             prospect: "Prospecto",
             in_progress: "En gestión",
             client: "Cliente",
+            featured: "Destacado",
             discarded: "Descartado"
         };
 
@@ -591,6 +614,7 @@
         const CATEGORIES_LIST = {{.CategoriesData}} || [];
         const BOGOTA_INDEX = {{if .BogotaIndexData}}{{.BogotaIndexData}}{{else}}null{{end}};
         const SEARCH_RUBROS = {{if .SearchRubrosData}}{{.SearchRubrosData}}{{else}}[]{{end}};
+        const PRICE_SMART = {{if .PriceSmartData}}{{.PriceSmartData}}{{else}}[]{{end}};
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
         const advisorMeta = {}; // id -> {name, color}
@@ -635,6 +659,7 @@
                     { color: STATUS_COLORS.prospect, label: "Prospecto" },
                     { color: STATUS_COLORS.in_progress, label: "En gestión" },
                     { color: STATUS_COLORS.client, label: "Cliente" },
+                    { color: STATUS_COLORS.featured, label: "Destacado" },
                     { color: STATUS_COLORS.discarded, label: "Descartado" }
                 ];
             }
@@ -648,19 +673,33 @@
             renderLegend();
         }
 
+        function absURL(u) {
+            if (!u) return "";
+            if (/^(https?:|mailto:)/i.test(u)) return u;
+            return "https://" + u;
+        }
+
         function renderSidePanel(biz, marker) {
             selected = { biz: biz, marker: marker };
             document.getElementById("side-empty").style.display = "none";
             document.getElementById("side-content").style.display = "block";
-            document.getElementById("biz-title").textContent = biz.title || "(sin nombre)";
+            document.getElementById("biz-title").textContent = biz.title || biz.name || "(sin nombre)";
 
             const meta = [];
+            if (biz.specialty) meta.push("<div><strong>" + escapeHtml(biz.specialty) + "</strong></div>");
             if (biz.category) meta.push("<div>" + escapeHtml(biz.category) + "</div>");
             if (biz.review_count > 0) meta.push("<div>⭐ " + Number(biz.rating).toFixed(1) + " <span class='muted'>(" + biz.review_count + " reseñas)</span></div>");
             if (biz.address) meta.push("<div>" + escapeHtml(biz.address) + "</div>");
             if (biz.phone) meta.push("<div>📞 " + escapeHtml(biz.phone) + "</div>");
-            if (biz.website) meta.push('<div>🌐 <a href="' + escapeHtml(biz.website) + '" target="_blank" rel="noopener">' + escapeHtml(biz.website) + "</a></div>");
+            if (biz.website) meta.push('<div>🌐 <a href="' + escapeHtml(absURL(biz.website)) + '" target="_blank" rel="noopener">Página web</a></div>');
+            if (biz.maps_url) meta.push('<div>📍 <a href="' + escapeHtml(biz.maps_url) + '" target="_blank" rel="noopener">Ver en Google Maps</a></div>');
+            if (biz.email) meta.push('<div>✉️ <a href="mailto:' + escapeHtml(biz.email) + '" target="_blank" rel="noopener">' + escapeHtml(biz.email) + "</a></div>");
             document.getElementById("biz-meta").innerHTML = meta.join("");
+
+            const isPOI = !!(biz.poi || (biz.id && String(biz.id).indexOf("ps-") === 0));
+            const crmFields = document.getElementById("side-content").querySelectorAll(".field, #biz-save, #biz-save-hint");
+            crmFields.forEach(function (el) { el.style.display = isPOI ? "none" : ""; });
+            if (isPOI) return;
 
             document.getElementById("biz-status").value = biz.status || "prospect";
             const advisorField = document.getElementById("biz-advisor");
@@ -668,6 +707,43 @@
             document.getElementById("biz-zone").value = biz.zone_id ? String(biz.zone_id) : "";
             document.getElementById("biz-notes").value = biz.notes || "";
             document.getElementById("biz-save-hint").textContent = "";
+        }
+
+        function cityKeyJS(name) {
+            return String(name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function priceSmartForCity(city) {
+            var key = cityKeyJS(city);
+            if (!key || key === "all" || key === "todas") return PRICE_SMART.slice();
+            return PRICE_SMART.filter(function (p) { return cityKeyJS(p.city) === key; });
+        }
+
+        function renderZoneStats(list) {
+            var el = document.getElementById("zone-stats");
+            if (!el) return;
+            var zones = ZONES_LIST || [];
+            if (!zones.length) {
+                el.innerHTML = '<p class="empty-hint" style="margin:0;">Aún no hay zonas. Dibújalas en el mapa para ver cuántos negocios tiene cada una.</p>';
+                return;
+            }
+            el.innerHTML = zones.map(function (z) {
+                var counts = { prospect: 0, in_progress: 0, client: 0, featured: 0, total: 0 };
+                var geom = window.B2BMap.parseZoneGeom ? window.B2BMap.parseZoneGeom(z) : null;
+                (list || []).forEach(function (b) {
+                    var inZone = false;
+                    if (b.zone_id && Number(b.zone_id) === Number(z.ID)) inZone = true;
+                    else if (geom && window.B2BMap.pointInGeom) inZone = window.B2BMap.pointInGeom(b.lat, b.lng, geom);
+                    if (!inZone) return;
+                    counts.total++;
+                    if (counts[b.status] !== undefined) counts[b.status]++;
+                });
+                return '<div class="zone-stat">' +
+                    '<div class="zone-stat-name"><i class="dot" style="background:' + escapeHtml(z.Color || "#2563eb") + '"></i> ' + escapeHtml(z.Name) + "</div>" +
+                    '<div class="zone-stat-counts"><strong>' + counts.total + "</strong> negocios · " +
+                    counts.prospect + " prospecto · " + counts.in_progress + " en gestión · " +
+                    counts.client + " cliente · " + counts.featured + " destacado</div></div>";
+            }).join("");
         }
 
         function loadBusinesses() {
@@ -684,8 +760,28 @@
                 .then(r => r.json())
                 .then(list => {
                     mapApi.setMarkers(list, colorFor, renderSidePanel);
+                    if (mapApi.setPOIs) {
+                        mapApi.setPOIs(priceSmartForCity(document.getElementById("f-city").value), function (poi, marker) {
+                            renderSidePanel({
+                                poi: true,
+                                id: poi.id,
+                                title: poi.name,
+                                name: poi.name,
+                                address: poi.address,
+                                city: poi.city,
+                                phone: poi.phone,
+                                website: poi.website,
+                                maps_url: poi.maps_url,
+                                specialty: "PriceSmart",
+                                status: "featured",
+                                lat: poi.lat,
+                                lng: poi.lng
+                            }, marker);
+                        });
+                    }
                     hint.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
+                    renderZoneStats(list);
                 })
                 .catch(() => { hint.textContent = "Error cargando negocios"; });
         }

@@ -28,10 +28,10 @@ const cityMatchSQL = `split_part(translate(lower(regexp_replace(COALESCE(city, '
 // the requesting tenant's CRM overlay. All filters are parameterized so the
 // query stays a compile-time constant. $6 is the tenant id.
 const listBusinessesQuery = `
-SELECT bkey, title, category, address, city, phone, website, lat, lng, rating, review_count, status, advisor_id, zone_id, category_id, notes
+SELECT bkey, title, category, address, city, phone, website, maps_url, email, specialty, lat, lng, rating, review_count, status, advisor_id, zone_id, category_id, notes
 FROM (
     SELECT DISTINCT ON (bkey)
-        bkey, title, category, address, city, phone, website, lat, lng, rating, review_count,
+        bkey, title, category, address, city, phone, website, maps_url, email, specialty, lat, lng, rating, review_count,
         status, advisor_id, zone_id, category_id, category_name, notes, added_at
     FROM (
         SELECT
@@ -42,6 +42,9 @@ FROM (
             COALESCE(elem->'complete_address'->>'city', '') AS city,
             COALESCE(elem->>'phone', '')    AS phone,
             COALESCE(elem->>'web_site', '') AS website,
+            COALESCE(elem->>'link', '') AS maps_url,
+            COALESCE(elem->'emails'->>0, '') AS email,
+            COALESCE(NULLIF(crm.specialty, ''), elem->>'category', '') AS specialty,
             (elem->>'latitude')::float8 AS lat,
             COALESCE(NULLIF(elem->>'longitude', '')::float8, NULLIF(elem->>'longtitude', '')::float8) AS lng,
             COALESCE(NULLIF(elem->>'review_rating', '')::float8, 0) AS rating,
@@ -63,11 +66,12 @@ FROM (
           AND (elem->>'latitude') ~ '^-?[0-9]'
           AND (elem->>'latitude')::float8 <> 0
           AND COALESCE(crm.hidden, false) = $10
+` + adminLeadQualitySQL + `
     ) raw
     WHERE ($1 = '' OR ` + cityMatchSQL + `)
       AND ($2 = '' OR status = $2)
       AND ($3 = 0 OR advisor_id = $3)
-      AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
+      AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%' OR specialty ILIKE '%' || $4 || '%')
       AND ($7 = 0 OR category_id = $7)
     ORDER BY bkey, added_at DESC
 ) t
@@ -76,6 +80,11 @@ ORDER BY
     (CASE WHEN $9 = 'category' THEN lower(coalesce(category_name, '~')) END) ASC NULLS LAST,
     lower(title) ASC
 LIMIT $5 OFFSET $8`
+
+// adminLeadQualitySQL is the shared review/chain filter (kept next to the queries).
+const adminLeadQualitySQL = `
+          AND COALESCE(NULLIF(elem->>'review_count', '')::int, 0) > 50
+          AND NOT ((' ' || translate(lower(regexp_replace(COALESCE(elem->>'title', ''), '[^A-Za-z0-9ÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN') || ' ') ~ ' (exito|olimpica|d1|ara|carulla|oxxo|falabella|isimo|homecenter|easy|justo y bueno|justo bueno) ')`
 
 // ListBusinesses returns scraped businesses with the tenant's CRM overlay.
 func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.BusinessFilter) ([]admin.MapBusiness, error) {
@@ -116,7 +125,8 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		var mb admin.MapBusiness
 		if err := rows.Scan(
 			&mb.Key, &mb.Title, &mb.Category, &mb.Address, &mb.City,
-			&mb.Phone, &mb.Website, &mb.Lat, &mb.Lng, &mb.Rating, &mb.ReviewCount,
+			&mb.Phone, &mb.Website, &mb.MapsURL, &mb.Email, &mb.Specialty,
+			&mb.Lat, &mb.Lng, &mb.Rating, &mb.ReviewCount,
 			&mb.Status, &mb.AdvisorID, &mb.ZoneID, &mb.CategoryID, &mb.Notes,
 		); err != nil {
 			return nil, err
@@ -139,6 +149,7 @@ SELECT COUNT(*) FROM (
             COALESCE(elem->>'category', '') AS category,
             COALESCE(elem->>'address', '')  AS address,
             COALESCE(elem->'complete_address'->>'city', '') AS city,
+            COALESCE(NULLIF(crm.specialty, ''), elem->>'category', '') AS specialty,
             COALESCE(crm.status, 'prospect') AS status,
             crm.advisor_id,
             crm.category_id
@@ -151,11 +162,12 @@ SELECT COUNT(*) FROM (
           AND (elem->>'latitude') ~ '^-?[0-9]'
           AND (elem->>'latitude')::float8 <> 0
           AND COALESCE(crm.hidden, false) = $7
+` + adminLeadQualitySQL + `
     ) t
     WHERE ($1 = '' OR ` + cityMatchSQL + `)
       AND ($2 = '' OR status = $2)
       AND ($3 = 0 OR advisor_id = $3)
-      AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
+      AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%' OR COALESCE(specialty, '') ILIKE '%' || $4 || '%')
       AND ($5 = 0 OR category_id = $5)
 ) c`
 
@@ -225,6 +237,7 @@ SELECT COUNT(*) FROM (
       AND (elem->>'latitude') ~ '^-?[0-9]'
       AND (elem->>'latitude')::float8 <> 0
       AND NOT COALESCE(crm.hidden, false)
+` + adminLeadQualitySQL + `
 ) t`
 
 // B2BSummary returns aggregate counters for the tenant's dashboard header.
@@ -275,6 +288,8 @@ func (s *store) B2BSummary(ctx context.Context, tenantID int64, advisorID *int64
 			sum.Discarded = n
 		case admin.StatusProspect:
 			sum.Prospects = n
+		case admin.StatusFeatured:
+			sum.Featured = n
 		}
 	}
 
@@ -284,10 +299,10 @@ func (s *store) B2BSummary(ctx context.Context, tenantID int64, advisorID *int64
 
 	if advisorID != nil {
 		// The advisor only sees their assigned businesses; total is their sum.
-		sum.Total = sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects
-	} else if tracked := sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects; sum.Total > tracked {
+		sum.Total = sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects + sum.Featured
+	} else if tracked := sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects + sum.Featured; sum.Total > tracked {
 		// Every business without a CRM row yet counts as a prospect.
-		sum.Prospects = sum.Total - sum.Clients - sum.InProgress - sum.Discarded
+		sum.Prospects = sum.Total - sum.Clients - sum.InProgress - sum.Discarded - sum.Featured
 	}
 
 	if err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM b2b_advisors WHERE active AND tenant_id = $1`, tenantID).Scan(&sum.Advisors); err != nil {

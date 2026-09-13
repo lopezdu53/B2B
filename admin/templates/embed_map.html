@@ -159,6 +159,7 @@
                     <option value="prospect">Prospecto</option>
                     <option value="in_progress">En gestión</option>
                     <option value="client">Cliente</option>
+                    <option value="featured">Destacado</option>
                     <option value="discarded">Descartado</option>
                 </select>
             </div>
@@ -222,8 +223,9 @@
     (function () {
         const TOKEN = "{{.Token}}";
         const GOOGLE_KEY = "{{.GoogleMapsAPIKey}}";
-        const STATUS_COLORS = { prospect:"#2563eb", in_progress:"#f59e0b", client:"#16a34a", discarded:"#9ca3af" };
-        const STATUS_LABELS = { prospect:"Prospecto", in_progress:"En gestión", client:"Cliente", discarded:"Descartado" };
+        const STATUS_COLORS = { prospect:"#2563eb", in_progress:"#f59e0b", client:"#16a34a", featured:"#eab308", discarded:"#9ca3af" };
+        const STATUS_LABELS = { prospect:"Prospecto", in_progress:"En gestión", client:"Cliente", featured:"Destacado", discarded:"Descartado" };
+        const PRICE_SMART = {{if .PriceSmartData}}{{.PriceSmartData}}{{else}}[]{{end}};
 
         const ADVISORS_LIST = {{.AdvisorsData}} || [];
         const ZONES_LIST = {{.ZonesData}} || [];
@@ -248,11 +250,19 @@
 
         function popupHtml(b) {
             const parts = ['<div class="pop"><h4>' + escapeHtml(b.title || "(sin nombre)") + "</h4>", '<div class="meta">'];
+            function absURL(u) {
+                if (!u) return "";
+                if (/^(https?:|mailto:)/i.test(u)) return u;
+                return "https://" + u;
+            }
+            if (b.specialty) parts.push("<div><strong>" + escapeHtml(b.specialty) + "</strong></div>");
             if (b.category) parts.push("<div>" + escapeHtml(b.category) + "</div>");
             if (b.review_count > 0) parts.push("<div>⭐ " + Number(b.rating).toFixed(1) + " <span class='muted'>(" + b.review_count + " reseñas)</span></div>");
             if (b.address) parts.push("<div>" + escapeHtml(b.address) + "</div>");
             if (b.phone) parts.push("<div>📞 " + escapeHtml(b.phone) + "</div>");
-            if (b.website) parts.push('<div>🌐 <a href="' + escapeHtml(b.website) + '" target="_blank" rel="noopener">' + escapeHtml(b.website) + "</a></div>");
+            if (b.website) parts.push('<div>🌐 <a href="' + escapeHtml(absURL(b.website)) + '" target="_blank" rel="noopener">Página web</a></div>');
+            if (b.maps_url) parts.push('<div>📍 <a href="' + escapeHtml(b.maps_url) + '" target="_blank" rel="noopener">Ver en Google Maps</a></div>');
+            if (b.email) parts.push('<div>✉️ <a href="mailto:' + escapeHtml(b.email) + '" target="_blank" rel="noopener">' + escapeHtml(b.email) + "</a></div>");
             parts.push("</div>");
             const st = b.status || "prospect";
             parts.push('<span class="badge" style="background:' + (STATUS_COLORS[st] || NEUTRAL) + '">' + (STATUS_LABELS[st] || st) + "</span>");
@@ -270,6 +280,7 @@
                 { color: STATUS_COLORS.prospect, label: "Prospecto" },
                 { color: STATUS_COLORS.in_progress, label: "En gestión" },
                 { color: STATUS_COLORS.client, label: "Cliente" },
+                { color: STATUS_COLORS.featured, label: "Destacado" },
                 { color: STATUS_COLORS.discarded, label: "Descartado" }
             ];
             el.innerHTML = items.map(it => '<span><i class="dot" style="background:' + it.color + '"></i> ' + escapeHtml(it.label) + "</span>").join("");
@@ -297,6 +308,26 @@
                     mapApi.setMarkers(list, colorFor, function (b, marker) {
                         mapApi.openInfo(marker, popupHtml(b));
                     });
+                    if (mapApi.setPOIs) {
+                        var city = document.getElementById("f-city").value;
+                        var key = String(city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                        var pois = (!key || key === "all" || key === "todas")
+                            ? PRICE_SMART.slice()
+                            : PRICE_SMART.filter(function (p) {
+                                return String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === key;
+                            });
+                        mapApi.setPOIs(pois, function (poi, marker) {
+                            mapApi.openInfo(marker, popupHtml({
+                                title: poi.name,
+                                specialty: "PriceSmart",
+                                address: poi.address,
+                                phone: poi.phone,
+                                website: poi.website,
+                                maps_url: poi.maps_url,
+                                status: "featured"
+                            }));
+                        });
+                    }
                     count.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
                 })
