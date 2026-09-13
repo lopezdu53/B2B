@@ -33,8 +33,8 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 
 			r.Get("/", DashboardHandler(appState))
 
-			// Tenant (client) switching — available to superadmin only in practice.
-			r.Post("/switch-tenant", SwitchTenantHandler(appState))
+			// Tenant switching is superadmin-only (handler also enforces this).
+			r.With(RequireSuperadmin).Post("/switch-tenant", SwitchTenantHandler(appState))
 
 			// Superadmin-only: manage client companies.
 			r.Group(func(r chi.Router) {
@@ -43,31 +43,36 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 				r.Post("/clientes", CreateTenantHandler(appState))
 			})
 
-			// B2B map dashboard (prospecting / CRM)
+			// B2B map dashboard (prospecting / CRM) — reads + advisor-safe writes.
 			r.Get("/b2b", B2BPageHandler(appState))
 			r.Get("/b2b/negocios", NegociosPageHandler(appState))
 			r.Get("/b2b/negocios/export", NegociosExportHandler(appState))
 			r.Post("/b2b/negocios/bulk", BulkBusinessHandler(appState))
 			r.Get("/b2b/papelera", PapeleraPageHandler(appState))
 			r.Post("/b2b/papelera/bulk", PapeleraBulkHandler(appState))
-			r.Get("/b2b/asesores", AsesoresPageHandler(appState))
-			r.Get("/b2b/zonas", ZonasPageHandler(appState))
-			r.Get("/b2b/categorias", CategoriasPageHandler(appState))
-			r.Post("/b2b/categorias", CreateCategoryHandler(appState))
-			r.Post("/b2b/categorias/{id}/update", UpdateCategoryHandler(appState))
-			r.Post("/b2b/categorias/{id}/delete", DeleteCategoryHandler(appState))
-			r.Post("/b2b/search", B2BSearchHandler(appState))
 			r.Get("/b2b/jobs", B2BJobsHandler(appState))
 			r.Get("/b2b/summary", B2BSummaryHandler(appState))
 			r.Get("/b2b/businesses", B2BBusinessesHandler(appState))
 			r.Post("/b2b/business", B2BSetStatusHandler(appState))
 			r.Post("/b2b/business/update", UpdateBusinessFormHandler(appState))
-			r.Post("/b2b/advisors", CreateAdvisorHandler(appState))
-			r.Post("/b2b/advisors/{id}/update", UpdateAdvisorHandler(appState))
-			r.Post("/b2b/advisors/{id}/delete", DeleteAdvisorHandler(appState))
-			r.Post("/b2b/zones", CreateZoneHandler(appState))
-			r.Post("/b2b/zones/{id}/update", UpdateZoneHandler(appState))
-			r.Post("/b2b/zones/{id}/delete", DeleteZoneHandler(appState))
+
+			// Tenant-admin only: team/zone/category management and scrape launches.
+			r.Group(func(r chi.Router) {
+				r.Use(RequireTenantAdmin)
+				r.Get("/b2b/asesores", AsesoresPageHandler(appState))
+				r.Get("/b2b/zonas", ZonasPageHandler(appState))
+				r.Get("/b2b/categorias", CategoriasPageHandler(appState))
+				r.Post("/b2b/categorias", CreateCategoryHandler(appState))
+				r.Post("/b2b/categorias/{id}/update", UpdateCategoryHandler(appState))
+				r.Post("/b2b/categorias/{id}/delete", DeleteCategoryHandler(appState))
+				r.Post("/b2b/search", B2BSearchHandler(appState))
+				r.Post("/b2b/advisors", CreateAdvisorHandler(appState))
+				r.Post("/b2b/advisors/{id}/update", UpdateAdvisorHandler(appState))
+				r.Post("/b2b/advisors/{id}/delete", DeleteAdvisorHandler(appState))
+				r.Post("/b2b/zones", CreateZoneHandler(appState))
+				r.Post("/b2b/zones/{id}/update", UpdateZoneHandler(appState))
+				r.Post("/b2b/zones/{id}/delete", DeleteZoneHandler(appState))
+			})
 
 			r.Get("/settings", SettingsPageHandler(appState))
 			r.Post("/settings/password", ChangePasswordHandler(appState))

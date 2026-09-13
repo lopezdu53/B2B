@@ -196,7 +196,11 @@
 
         <div class="b2b-hero">
             <h1>Prospección B2B</h1>
+            {{if .IsAdvisor}}
+            <p>Gestiona los negocios que te asignaron: actualiza el estado, deja notas y da seguimiento a cada prospecto.</p>
+            {{else}}
             <p>Explora los negocios encontrados en Google Maps, marca cuáles ya son clientes y asigna prospectos a tus asesores comerciales por zona.</p>
+            {{end}}
             {{if .CanEmbed}}<button type="button" class="btn-embed" id="btn-embed">📊 Incrustar en PowerPoint</button>{{end}}
         </div>
 
@@ -227,6 +231,7 @@
             </div>
         </div>
 
+        {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
             <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
@@ -262,6 +267,7 @@
                 <div id="jobs-list"></div>
             </div>
         </div>
+        {{end}}
 
         <div class="card">
             <div class="b2b-filters">
@@ -282,6 +288,7 @@
                         <option value="discarded">Descartado</option>
                     </select>
                 </div>
+                {{if not .IsAdvisor}}
                 <div>
                     <label for="f-advisor">Asesor</label>
                     <select id="f-advisor">
@@ -289,6 +296,7 @@
                         {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
                     </select>
                 </div>
+                {{end}}
                 <div>
                     <label for="f-colorby">Colorear por</label>
                     <select id="f-colorby">
@@ -326,6 +334,7 @@
                                 <option value="discarded">Descartado</option>
                             </select>
                         </div>
+                        {{if .CanManage}}
                         <div class="field">
                             <label for="biz-advisor">Asesor asignado</label>
                             <select id="biz-advisor">
@@ -333,6 +342,7 @@
                                 {{range .Advisors}}<option value="{{.ID}}">{{.Name}}{{if .City}} ({{.City}}){{end}}</option>{{end}}
                             </select>
                         </div>
+                        {{end}}
                         <div class="field">
                             <label for="biz-zone">Zona</label>
                             <select id="biz-zone">
@@ -351,6 +361,7 @@
             </div>
         </div>
 
+        {{if .CanManage}}
         <details class="mgmt" {{if not .Advisors}}open{{end}}>
             <summary>Asesores y zonas <span class="count-badge">{{len .Advisors}} asesores · {{len .Zones}} zonas</span></summary>
             <div class="mgmt-grid">
@@ -420,11 +431,12 @@
                         </tbody>
                     </table>
                     {{else}}
-                    <p class="empty-hint">Crea zonas (ciudad + área) para repartir a tus 50 asesores por el país.</p>
+                    <p class="empty-hint">Crea zonas (ciudad + área) para repartir a tus asesores por el país.</p>
                     {{end}}
                 </div>
             </div>
         </details>
+        {{end}}
     </main>
 
     {{if .CanEmbed}}
@@ -574,7 +586,8 @@
             document.getElementById("biz-meta").innerHTML = meta.join("");
 
             document.getElementById("biz-status").value = biz.status || "prospect";
-            document.getElementById("biz-advisor").value = biz.advisor_id ? String(biz.advisor_id) : "";
+            const advisorField = document.getElementById("biz-advisor");
+            if (advisorField) advisorField.value = biz.advisor_id ? String(biz.advisor_id) : "";
             document.getElementById("biz-zone").value = biz.zone_id ? String(biz.zone_id) : "";
             document.getElementById("biz-notes").value = biz.notes || "";
             document.getElementById("biz-save-hint").textContent = "";
@@ -595,7 +608,7 @@
             const params = new URLSearchParams({
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
-                advisor: document.getElementById("f-advisor").value
+                advisor: (document.getElementById("f-advisor") || {value: ""}).value
             });
             fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
                 .then(r => r.json())
@@ -632,7 +645,8 @@
             if (!selected) return;
             const hint = document.getElementById("biz-save-hint");
             hint.textContent = "Guardando…";
-            const advisorVal = document.getElementById("biz-advisor").value;
+            const advisorEl = document.getElementById("biz-advisor");
+            const advisorVal = advisorEl ? advisorEl.value : "";
             const zoneVal = document.getElementById("biz-zone").value;
             const payload = {
                 key: selected.biz.key,
@@ -753,7 +767,7 @@
         }
 
         loadBusinesses();
-        pollJobs();
+        if (document.getElementById("jobs-panel")) pollJobs();
     })();
     </script>
 </body>

@@ -1,11 +1,24 @@
 package admin
 
 import (
+	"encoding/json"
+	"html/template"
 	"net/http"
 	"strings"
 
 	"github.com/gosom/google-maps-scraper/cryptoext"
 )
+
+// asJSON encodes v for safe embedding inside a <script> tag. encoding/json
+// already escapes <, > and & so the payload cannot break out of the script.
+func asJSON(v any) template.JS {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return template.JS("null")
+	}
+
+	return template.JS(b)
+}
 
 // renderTemplate renders a template with the given data.
 func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, name string, data map[string]any) {
@@ -20,6 +33,8 @@ func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, 
 	if user := UserFromContext(r.Context()); user != nil {
 		data["CurrentUser"] = user
 		data["IsSuperadmin"] = user.IsSuperadmin()
+		data["IsAdvisor"] = user.IsAdvisor()
+		data["CanManage"] = user.IsAdmin()
 
 		tid, tenant := effectiveTenant(appState, r)
 		data["ActiveTenantID"] = tid

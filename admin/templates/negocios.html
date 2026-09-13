@@ -41,6 +41,7 @@
                         <option value="discarded" {{if eq $s "discarded"}}selected{{end}}>Descartado</option>
                     </select>
                 </div>
+                {{if not .IsAdvisor}}
                 <div>
                     <label for="advisor">Asesor</label>
                     <select id="advisor" name="advisor">
@@ -49,6 +50,7 @@
                         {{range .Advisors}}<option value="{{.ID}}" {{if eq (printf "%d" .ID) $a}}selected{{end}}>{{.Name}}</option>{{end}}
                     </select>
                 </div>
+                {{end}}
                 <div>
                     <label for="category">Categoría</label>
                     <select id="category" name="category">
@@ -85,9 +87,11 @@
                     <span class="bulk-count" id="bulk-count">0 seleccionados</span>
                     <select name="action" id="bulk-action">
                         <option value="status">Cambiar estado</option>
+                        {{if .CanManage}}
                         <option value="advisor">Asignar asesor</option>
                         <option value="zone">Asignar zona</option>
                         <option value="category">Asignar categoría</option>
+                        {{end}}
                         <option value="delete">🗑 Eliminar de la lista</option>
                     </select>
                     <select name="value" id="bulk-value"></select>
@@ -162,6 +166,7 @@
                     <option value="discarded">Descartado</option>
                 </select>
             </div>
+            {{if .CanManage}}
             <div class="field">
                 <label>Asesor</label>
                 <select name="advisor_id" id="e-advisor">
@@ -169,6 +174,7 @@
                     {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
                 </select>
             </div>
+            {{end}}
             <div class="field">
                 <label>Zona</label>
                 <select name="zone_id" id="e-zone">
@@ -198,7 +204,8 @@
         document.getElementById("e-title").value = btn.dataset.title || "";
         document.getElementById("e-heading").textContent = btn.dataset.title || "Editar negocio";
         document.getElementById("e-status").value = btn.dataset.status || "prospect";
-        document.getElementById("e-advisor").value = btn.dataset.advisor || "";
+        var adv = document.getElementById("e-advisor");
+        if (adv) adv.value = btn.dataset.advisor || "";
         document.getElementById("e-zone").value = btn.dataset.zone || "";
         document.getElementById("e-category").value = btn.dataset.category || "";
         document.getElementById("e-notes").value = btn.dataset.notes || "";

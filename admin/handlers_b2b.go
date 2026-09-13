@@ -57,11 +57,10 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"Categories": categories,
 			"Cities":     cities,
 			"Summary":    summary,
-			// Passed into a <script> context; html/template JSON-encodes these
-			// safely for the map colouring logic.
-			"AdvisorsData":   advisors,
-			"ZonesData":      zones,
-			"CategoriesData": categories,
+			// JSON for the map colouring logic (template.JS, not Go dump).
+			"AdvisorsData":   asJSON(advisors),
+			"ZonesData":      asJSON(zones),
+			"CategoriesData": asJSON(categories),
 			// Embed (PowerPoint / external presentations): a per-tenant token
 			// that unlocks the read-only /embed/map page. Only offered on the
 			// tenant-wide view (not to advisor-scoped users).
@@ -176,6 +175,12 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 
 		out := []b2bJobView{}
 
+		// Advisors must not see the shared scrape queue (other tenants' keywords).
+		if advisorScope(r) != nil {
+			writeJSON(w, http.StatusOK, out)
+			return
+		}
+
 		if appState.RQueueClient != nil {
 			result, err := appState.RQueueClient.ListJobs(r.Context(), "", 8, "")
 			if err != nil {
@@ -242,6 +247,15 @@ func B2BSetStatusHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
+		if scope := advisorScope(r); scope != nil {
+			req.AdvisorID = scope
+
+			if err := ensureAdvisorOwns(appState, r, tid, []string{req.Key}); err != nil {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+
 		if err := appState.Store.SetBusinessCRM(
 			r.Context(), tid, req.Key, req.Status, req.AdvisorID, req.ZoneID, req.Notes, req.Title,
 		); err != nil {
@@ -284,9 +298,13 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 			keyword = what + " en " + where
 		}
 
-		maxDepth := 10
+		maxDepth := DefaultSearchDepth
 		if d, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_depth"))); err == nil && d > 0 {
 			maxDepth = d
+		}
+
+		if maxDepth > MaxSearchDepth {
+			maxDepth = MaxSearchDepth
 		}
 
 		jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
@@ -338,6 +356,13 @@ func CreateAdvisorHandler(appState *AppState) http.HandlerFunc {
 		// Optionally give the advisor a login (role=advisor) scoped to the tenant.
 		username := strings.TrimSpace(r.FormValue("username"))
 		password := r.FormValue("password")
+
+		if username != "" || password != "" {
+			if username == "" || !passwordMeetsPolicy(password) {
+				b2bRedirectBack(w, r, "/admin/b2b", "error", "Usuario+y+contraseña+(mín.+8+caracteres)+son+obligatorios")
+				return
+			}
+		}
 
 		if username != "" && password != "" {
 			user, uerr := appState.Store.CreateTenantUser(r.Context(), username, password, RoleAdvisor, tid)
@@ -542,6 +567,15 @@ func UpdateBusinessFormHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
+		if scope := advisorScope(r); scope != nil {
+			advisorID = scope
+
+			if err := ensureAdvisorOwns(appState, r, tid, []string{key}); err != nil {
+				b2bRedirectBack(w, r, "/admin/b2b/negocios", "error", "No+autorizado")
+				return
+			}
+		}
+
 		if err := appState.Store.SetBusinessCRM(r.Context(), tid, key, status, advisorID, zoneID,
 			strings.TrimSpace(r.FormValue("notes")), strings.TrimSpace(r.FormValue("title"))); err != nil {
 			log.Error("b2b: update business form", "error", err, "key", key)
@@ -597,4 +631,51 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// uniqueKeys returns trimmed, non-empty keys with duplicates removed.
+func uniqueKeys(keys []string) []string {
+	seen := make(map[string]struct{}, len(keys))
+	out := make([]string, 0, len(keys))
+
+	for _, k := range keys {
+		k = strings.TrimSpace(k)
+		if k == "" {
+			continue
+		}
+
+		if _, ok := seen[k]; ok {
+			continue
+		}
+
+		seen[k] = struct{}{}
+		out = append(out, k)
+	}
+
+	return out
+}
+
+// ensureAdvisorOwns rejects the write when an advisor tries to mutate a
+// business that is not assigned to them.
+func ensureAdvisorOwns(appState *AppState, r *http.Request, tenantID int64, keys []string) error {
+	scope := advisorScope(r)
+	if scope == nil {
+		return nil
+	}
+
+	keys = uniqueKeys(keys)
+	if len(keys) == 0 {
+		return errForbidden
+	}
+
+	owned, err := appState.Store.OwnedBusinessKeys(r.Context(), tenantID, *scope, keys)
+	if err != nil {
+		return err
+	}
+
+	if len(owned) != len(keys) {
+		return errForbidden
+	}
+
+	return nil
 }

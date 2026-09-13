@@ -2,11 +2,59 @@ package admin
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/gosom/google-maps-scraper/log"
 )
+
+// RequireTenantAdmin blocks advisor (and anonymous) users from tenant-management routes.
+func RequireTenantAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u := UserFromContext(r.Context())
+		if u == nil || !u.IsAdmin() {
+			http.Error(w, "No autorizado", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// safeAdminPath returns dest if it is a same-app /admin path, otherwise fallback.
+// Absolute URLs (e.g. Referer) keep only path+query when they point at /admin.
+func safeAdminPath(raw, fallback string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fallback
+	}
+
+	path := u.Path
+	if u.RawQuery != "" {
+		path += "?" + u.RawQuery
+	}
+
+	if path == "" || strings.HasPrefix(path, "//") || strings.ContainsAny(path, "\\\r\n") {
+		return fallback
+	}
+
+	if path != "/admin" && !strings.HasPrefix(path, "/admin/") {
+		return fallback
+	}
+
+	return path
+}
+
+// passwordMeetsPolicy reports whether pw satisfies the platform minimum.
+func passwordMeetsPolicy(pw string) bool {
+	return len(pw) >= MinPasswordLength
+}
 
 // effectiveTenant resolves which tenant's data the current request operates on:
 //   - admin / advisor: their own tenant.
@@ -115,8 +163,8 @@ func CreateTenantHandler(appState *AppState) http.HandlerFunc {
 		username := strings.TrimSpace(r.FormValue("username"))
 		password := r.FormValue("password")
 
-		if name == "" || username == "" || password == "" {
-			http.Redirect(w, r, "/admin/clientes?error=Nombre,+usuario+y+contraseña+son+obligatorios", http.StatusSeeOther)
+		if name == "" || username == "" || !passwordMeetsPolicy(password) {
+			http.Redirect(w, r, "/admin/clientes?error=Nombre,+usuario+y+contraseña+(mín.+8+caracteres)+son+obligatorios", http.StatusSeeOther)
 			return
 		}
 
@@ -156,6 +204,12 @@ func CreateTenantHandler(appState *AppState) http.HandlerFunc {
 // SwitchTenantHandler lets the superadmin choose which tenant to view.
 func SwitchTenantHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		u := UserFromContext(r.Context())
+		if u == nil || !u.IsSuperadmin() {
+			http.Error(w, "No autorizado", http.StatusForbidden)
+			return
+		}
+
 		id := strings.TrimSpace(r.FormValue("tenant_id"))
 		if _, err := strconv.ParseInt(id, 10, 64); err != nil {
 			http.Redirect(w, r, "/admin/b2b", http.StatusSeeOther)
@@ -171,11 +225,6 @@ func SwitchTenantHandler(appState *AppState) http.HandlerFunc {
 			Secure:   isSecureRequest(r),
 		})
 
-		dest := r.Referer()
-		if dest == "" || !strings.Contains(dest, "/admin/") {
-			dest = "/admin/b2b"
-		}
-
-		http.Redirect(w, r, dest, http.StatusSeeOther)
+		http.Redirect(w, r, safeAdminPath(r.Referer(), "/admin/b2b"), http.StatusSeeOther)
 	}
 }

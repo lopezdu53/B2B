@@ -26,6 +26,7 @@ var (
 	ErrSessionNotFound  = errors.New("session not found")
 	ErrSessionExpired   = errors.New("session expired")
 	ErrResourceNotFound = errors.New("provisioned resource not found")
+	errForbidden        = errors.New("forbidden")
 )
 
 type IStore interface {
@@ -93,6 +94,13 @@ const (
 	RoleAdvisor    = "advisor"    // a client's sales rep, scoped to their tenant
 )
 
+// Password and scrape-search limits used by the B2B admin UI.
+const (
+	MinPasswordLength  = 8
+	DefaultSearchDepth = 10
+	MaxSearchDepth     = 20
+)
+
 // Tenant is a client company on the platform.
 type Tenant struct {
 	ID        int64
@@ -118,6 +126,14 @@ type User struct {
 
 // IsSuperadmin reports whether the user is the platform owner.
 func (u *User) IsSuperadmin() bool { return u != nil && u.Role == RoleSuperadmin }
+
+// IsAdmin reports whether the user can manage a tenant (admin or superadmin).
+func (u *User) IsAdmin() bool {
+	return u != nil && (u.Role == RoleAdmin || u.Role == RoleSuperadmin)
+}
+
+// IsAdvisor reports whether the user is a sales advisor (scoped to assigned businesses).
+func (u *User) IsAdvisor() bool { return u != nil && u.Role == RoleAdvisor }
 
 // Session represents an admin session.
 type Session struct {

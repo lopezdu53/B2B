@@ -73,9 +73,9 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 			"Zones":          zones,
 			"Categories":     categories,
 			"Cities":         cities,
-			"AdvisorsData":   advisors,
-			"ZonesData":      zones,
-			"CategoriesData": categories,
+			"AdvisorsData":   asJSON(advisors),
+			"ZonesData":      asJSON(zones),
+			"CategoriesData": asJSON(categories),
 		}
 
 		// Rendered directly (not via renderTemplate) so no session/navbar

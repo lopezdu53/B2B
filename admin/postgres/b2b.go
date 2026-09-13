@@ -445,3 +445,34 @@ func (s *store) DeleteZone(ctx context.Context, tenantID, id int64) error {
 
 	return err
 }
+
+// OwnedBusinessKeys returns the subset of keys that belong to advisorID and
+// are not in the tenant trash.
+func (s *store) OwnedBusinessKeys(ctx context.Context, tenantID, advisorID int64, keys []string) ([]string, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	const q = `
+SELECT place_id FROM b2b_business_crm
+WHERE tenant_id = $1 AND advisor_id = $2 AND place_id = ANY($3)`
+
+	rows, err := s.db.Query(ctx, q, tenantID, advisorID, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+
+		out = append(out, k)
+	}
+
+	return out, rows.Err()
+}

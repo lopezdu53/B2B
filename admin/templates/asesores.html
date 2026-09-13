@@ -29,13 +29,13 @@
             </form>
             <details style="margin-top:1rem;">
                 <summary style="cursor:pointer; font-size:.88rem; color:var(--text-secondary);">Dar acceso al asesor (opcional)</summary>
-                <p class="empty-hint" style="margin:.5rem 0;">Si defines usuario y contraseña, el asesor podrá iniciar sesión y gestionar negocios, asesores y zonas de este cliente.</p>
+                <p class="empty-hint" style="margin:.5rem 0;">Si defines usuario y contraseña, el asesor podrá iniciar sesión y gestionar solo los negocios que le asignes.</p>
                 <form method="POST" action="/admin/b2b/advisors" class="filters-bar">
                     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                     <div><label>Nombre *</label><input type="text" name="name" placeholder="Nombre y apellido" required></div>
                     <div><label>Ciudad</label><input type="text" name="city" placeholder="Bogotá"></div>
                     <div><label>Usuario *</label><input type="text" name="username" placeholder="usuario" autocomplete="off" required></div>
-                    <div><label>Contraseña *</label><input type="text" name="password" placeholder="contraseña" autocomplete="off" required></div>
+                    <div><label>Contraseña *</label><input type="password" name="password" placeholder="mín. 8 caracteres" minlength="8" autocomplete="new-password" required></div>
                     <div><button type="submit" class="btn-primary">Agregar con acceso</button></div>
                 </form>
             </details>

@@ -141,4 +141,7 @@ type IB2BStore interface {
 	BulkSetZone(ctx context.Context, tenantID int64, keys []string, zoneID int64) error
 	BulkSetCategory(ctx context.Context, tenantID int64, keys []string, categoryID int64) error
 	BulkSetHidden(ctx context.Context, tenantID int64, keys []string, hidden bool) error
+
+	// OwnedBusinessKeys returns the subset of keys assigned to advisorID (and not trashed).
+	OwnedBusinessKeys(ctx context.Context, tenantID, advisorID int64, keys []string) ([]string, error)
 }

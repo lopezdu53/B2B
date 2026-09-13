@@ -150,8 +150,27 @@ func BulkBusinessHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		keys = uniqueKeys(keys)
+		if len(keys) == 0 {
+			b2bRedirectBack(w, r, "/admin/b2b/negocios", "error", "Selecciona+al+menos+un+negocio")
+			return
+		}
+
 		tid, _ := effectiveTenant(appState, r)
 		ctx := r.Context()
+
+		if scope := advisorScope(r); scope != nil {
+			switch action {
+			case "status", "delete":
+				if err := ensureAdvisorOwns(appState, r, tid, keys); err != nil {
+					b2bRedirectBack(w, r, "/admin/b2b/negocios", "error", "No+autorizado")
+					return
+				}
+			default:
+				b2bRedirectBack(w, r, "/admin/b2b/negocios", "error", "Los+asesores+solo+pueden+cambiar+estado+o+enviar+a+papelera")
+				return
+			}
+		}
 
 		var err error
 

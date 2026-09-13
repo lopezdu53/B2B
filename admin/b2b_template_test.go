@@ -26,8 +26,8 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"CSRFToken":    "test-token",
 		"Advisors":     advisors,
 		"Zones":        zones,
-		"AdvisorsData": advisors,
-		"ZonesData":    zones,
+		"AdvisorsData": asJSON(advisors),
+		"ZonesData":    asJSON(zones),
 		"Cities":       []string{"Bogotá", "Medellín"},
 		"Summary":      &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Advisors: 1, Zones: 1},
 		"Success":      "",
@@ -37,7 +37,9 @@ func TestB2BTemplateRenders(t *testing.T) {
 			{MapBusiness: MapBusiness{Title: "Rest", City: "Bogotá", Status: "client"}, StatusLabel: "Cliente", StatusClass: "client", AdvisorName: "Ana"},
 		},
 		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
-		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
+		"CategoriesData": asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
+		"CanManage":      true,
+		"IsAdvisor":      false,
 		"Count":          1,
 		"QVal":           "",
 		"CityVal":        "",
@@ -52,7 +54,6 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"PrevURL":        "",
 		"NextURL":        "",
 		"ExportURL":      "/admin/b2b/negocios/export",
-		"IsAdvisor":      false,
 		"EmbedToken":     "1.deadbeef",
 		"CanEmbed":       true,
 	}
@@ -70,9 +71,9 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Advisors":       advisors,
 		"Zones":          zones,
 		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
-		"AdvisorsData":   advisors,
-		"ZonesData":      zones,
-		"CategoriesData": []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
+		"AdvisorsData":   asJSON(advisors),
+		"ZonesData":      asJSON(zones),
+		"CategoriesData": asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "embed_map.html", embedData); err != nil {
 		t.Fatalf("execute embed_map.html: %v", err)
@@ -104,5 +105,16 @@ func TestB2BTemplateRenders(t *testing.T) {
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "categorias.html", catData); err != nil {
 		t.Fatalf("execute categorias.html: %v", err)
+	}
+
+	// Advisor view hides management chrome; the template must still render.
+	data["CanManage"] = false
+	data["IsAdvisor"] = true
+	data["CanEmbed"] = false
+	if err := tmpl.ExecuteTemplate(io.Discard, "b2b.html", data); err != nil {
+		t.Fatalf("execute b2b.html as advisor: %v", err)
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "negocios.html", data); err != nil {
+		t.Fatalf("execute negocios.html as advisor: %v", err)
 	}
 }

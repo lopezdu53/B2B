@@ -24,14 +24,11 @@ func statusMeta(status string) (label, class string) {
 	}
 }
 
-// b2bRedirectBack redirects to the page the request came from when it is an
-// admin page, otherwise to fallback. Used after create/delete so the user
-// returns to whichever management page they were on.
+// b2bRedirectBack redirects to the page the request came from when it is a
+// same-app admin path, otherwise to fallback. Referer is sanitized so an
+// external site cannot bounce the user off-app after a form POST.
 func b2bRedirectBack(w http.ResponseWriter, r *http.Request, fallback, key, msg string) {
-	dest := fallback
-	if ref := r.Referer(); ref != "" && strings.Contains(ref, "/admin/") {
-		dest = ref
-	}
+	dest := safeAdminPath(r.Referer(), fallback)
 
 	sep := "?"
 	if strings.Contains(dest, "?") {
@@ -431,13 +428,18 @@ func PapeleraBulkHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		keys := r.PostForm["keys"]
+		keys := uniqueKeys(r.PostForm["keys"])
 		if len(keys) == 0 {
 			b2bRedirectBack(w, r, "/admin/b2b/papelera", "error", "Selecciona+al+menos+un+negocio")
 			return
 		}
 
 		tid, _ := effectiveTenant(appState, r)
+
+		if err := ensureAdvisorOwns(appState, r, tid, keys); err != nil {
+			b2bRedirectBack(w, r, "/admin/b2b/papelera", "error", "No+autorizado")
+			return
+		}
 
 		if err := appState.Store.BulkSetHidden(r.Context(), tid, keys, false); err != nil {
 			log.Error("b2b: papelera restore", "error", err)
