@@ -117,8 +117,16 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"CSRFToken": "t",
 		"Rows":      []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 5}},
 	}
-	if err := tmpl.ExecuteTemplate(io.Discard, "categorias.html", catData); err != nil {
+	var catBuf strings.Builder
+	if err := tmpl.ExecuteTemplate(&catBuf, "categorias.html", catData); err != nil {
 		t.Fatalf("execute categorias.html: %v", err)
+	}
+	catHTML := catBuf.String()
+	if strings.Contains(catHTML, "Nueva categoría") || strings.Contains(catHTML, "Crear categoría") || strings.Contains(catHTML, "/delete") {
+		t.Fatal("categorias.html should not allow creating or deleting categories")
+	}
+	if !strings.Contains(catHTML, "Restaurantes") || !strings.Contains(catHTML, "Color e ícono") {
+		t.Fatal("categorias.html should list fixed categories and style-only edit")
 	}
 
 	// Advisor view hides management chrome; the template must still render.

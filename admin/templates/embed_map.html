@@ -170,6 +170,13 @@
                 </select>
             </div>
             <div class="fld">
+                <label for="f-category">Categoría</label>
+                <select id="f-category">
+                    <option value="">Todas</option>
+                    {{range .Categories}}<option value="{{.ID}}">{{.Icon}} {{.Name}}</option>{{end}}
+                </select>
+            </div>
+            <div class="fld">
                 <label for="f-colorby">Colorear por</label>
                 <select id="f-colorby">
                     <option value="status">Estado</option>
@@ -281,7 +288,8 @@
                 t: TOKEN,
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
-                advisor: document.getElementById("f-advisor").value
+                advisor: document.getElementById("f-advisor").value,
+                category: document.getElementById("f-category").value
             });
             fetch("/embed/businesses?" + params.toString())
                 .then(r => r.json())

@@ -133,6 +133,7 @@ type IB2BStore interface {
 	CreateCategory(ctx context.Context, tenantID int64, name, color, icon string) (*Category, error)
 	UpdateCategory(ctx context.Context, tenantID, id int64, name, color, icon string) error
 	DeleteCategory(ctx context.Context, tenantID, id int64) error
+	ReassignCategory(ctx context.Context, tenantID, fromID, toID int64) error
 	SetBusinessCategory(ctx context.Context, tenantID int64, key string, categoryID *int64) error
 
 	// Bulk CRM operations on a set of business keys (each is an upsert)

@@ -35,7 +35,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			log.Error("b2b: list zones", "error", err)
 		}
 
-		categories, err := appState.Store.ListCategories(ctx, tid)
+		categories, err := EnsureFixedCategories(ctx, appState.Store, tid)
 		if err != nil {
 			log.Error("b2b: list categories", "error", err)
 		}

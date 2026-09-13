@@ -137,7 +137,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
-		categories, _ := appState.Store.ListCategories(ctx, tid)
+		categories, _ := EnsureFixedCategories(ctx, appState.Store, tid)
 		cities := CityList()
 
 		advisorNames := map[int64]string{}
@@ -244,7 +244,7 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
-		categories, _ := appState.Store.ListCategories(ctx, tid)
+		categories, _ := EnsureFixedCategories(ctx, appState.Store, tid)
 
 		advisorNames := map[int64]string{}
 		for i := range advisors {
@@ -369,7 +369,7 @@ func PapeleraPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
-		categories, _ := appState.Store.ListCategories(ctx, tid)
+		categories, _ := EnsureFixedCategories(ctx, appState.Store, tid)
 
 		advisorNames := map[int64]string{}
 		for i := range advisors {

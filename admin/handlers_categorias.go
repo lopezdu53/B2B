@@ -20,7 +20,7 @@ func CategoriasPageHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
-		cats, err := appState.Store.ListCategories(r.Context(), tid)
+		cats, err := EnsureFixedCategories(r.Context(), appState.Store, tid)
 		if err != nil {
 			log.Error("b2b: categorias list", "error", err)
 		}
@@ -35,33 +35,15 @@ func CategoriasPageHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
-// CreateCategoryHandler creates a business category.
-func CreateCategoryHandler(appState *AppState) http.HandlerFunc {
+// CreateCategoryHandler rejects new categories: only the three locked ones exist.
+func CreateCategoryHandler(_ *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if SessionFromContext(r.Context()) == nil {
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 
-		name := strings.TrimSpace(r.FormValue("name"))
-		if name == "" {
-			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "El+nombre+es+obligatorio")
-			return
-		}
-
-		color := strings.TrimSpace(r.FormValue("color"))
-		icon := strings.TrimSpace(r.FormValue("icon"))
-
-		tid, _ := effectiveTenant(appState, r)
-
-		if _, err := appState.Store.CreateCategory(r.Context(), tid, name, color, icon); err != nil {
-			log.Error("b2b: create category", "error", err)
-			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "No+se+pudo+crear+(¿ya+existe?)")
-
-			return
-		}
-
-		b2bRedirectBack(w, r, "/admin/b2b/categorias", "success", "Categoría+creada")
+		b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "Las+categorías+son+fijas+(Restaurantes,+SúperMercados+y+Hoteles)")
 	}
 }
 
@@ -79,18 +61,26 @@ func UpdateCategoryHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		name := strings.TrimSpace(r.FormValue("name"))
-		if name == "" {
-			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "El+nombre+es+obligatorio")
+		tid, _ := effectiveTenant(appState, r)
+
+		cats, _ := appState.Store.ListCategories(r.Context(), tid)
+		var current *Category
+		for i := range cats {
+			if cats[i].ID == id {
+				current = &cats[i]
+				break
+			}
+		}
+
+		if current == nil || CanonicalFixedCategory(current.Name) == "" {
+			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "Solo+se+pueden+editar+las+3+categorías+principales")
 			return
 		}
 
 		color := strings.TrimSpace(r.FormValue("color"))
 		icon := strings.TrimSpace(r.FormValue("icon"))
 
-		tid, _ := effectiveTenant(appState, r)
-
-		if err := appState.Store.UpdateCategory(r.Context(), tid, id, name, color, icon); err != nil {
+		if err := appState.Store.UpdateCategory(r.Context(), tid, id, current.Name, color, icon); err != nil {
 			log.Error("b2b: update category", "error", err, "id", id)
 			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "No+se+pudo+guardar")
 
@@ -101,30 +91,15 @@ func UpdateCategoryHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
-// DeleteCategoryHandler removes a category.
-func DeleteCategoryHandler(appState *AppState) http.HandlerFunc {
+// DeleteCategoryHandler rejects deletes: the three principal categories are locked.
+func DeleteCategoryHandler(_ *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if SessionFromContext(r.Context()) == nil {
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 
-		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-		if err != nil {
-			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "ID+invalido")
-			return
-		}
-
-		tid, _ := effectiveTenant(appState, r)
-
-		if err := appState.Store.DeleteCategory(r.Context(), tid, id); err != nil {
-			log.Error("b2b: delete category", "error", err, "id", id)
-			b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "No+se+pudo+eliminar")
-
-			return
-		}
-
-		b2bRedirectBack(w, r, "/admin/b2b/categorias", "success", "Categoría+eliminada")
+		b2bRedirectBack(w, r, "/admin/b2b/categorias", "error", "Las+categorías+principales+no+se+pueden+eliminar")
 	}
 }
 

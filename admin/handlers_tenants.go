@@ -176,13 +176,8 @@ func CreateTenantHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		// Seed the new client with the common categories (with a color + icon).
-		for _, c := range []struct{ name, color, icon string }{
-			{"Restaurantes", "#e11d48", "🍽️"},
-			{"Hoteles", "#7c3aed", "🏨"},
-			{"Supermercados", "#059669", "🛒"},
-		} {
-			_, _ = appState.Store.CreateCategory(r.Context(), tenant.ID, c.name, c.color, c.icon)
+		for _, c := range FixedCategorySeeds() {
+			_, _ = appState.Store.CreateCategory(r.Context(), tenant.ID, c.Name, c.Color, c.Icon)
 		}
 
 		if _, err := appState.Store.CreateTenantUser(r.Context(), username, password, RoleAdmin, tenant.ID); err != nil {
