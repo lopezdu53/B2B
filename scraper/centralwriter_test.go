@@ -230,3 +230,15 @@ func TestCentralWriter_FlushSanitizesEntriesBeforeSave(t *testing.T) {
 	assert.Equal(t, "Title", saved[0].Title)
 	assert.Equal(t, "literal \\u0000 plusnul", saved[0].Description)
 }
+
+func TestMarshalScrapeResultsNeverWritesJSONNull(t *testing.T) {
+	t.Parallel()
+
+	raw, err := marshalScrapeResults(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(raw))
+
+	raw, err = marshalScrapeResults([]*gmaps.Entry{})
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(raw))
+}

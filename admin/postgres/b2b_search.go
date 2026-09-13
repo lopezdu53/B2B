@@ -187,7 +187,7 @@ FROM (
             COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey,
             COALESCE(elem->>'title', '') AS title
         FROM scrape_results sr
-        CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+        CROSS JOIN LATERAL jsonb_array_elements(` + scrapeResultsArraySQL + `) AS elem
         WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
           AND (elem->>'latitude') ~ '^-?[0-9]'
           AND (elem->>'latitude')::float8 <> 0

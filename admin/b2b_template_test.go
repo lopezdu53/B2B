@@ -374,6 +374,7 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 		`value="featured"`,
 		`Destacado`,
 		`PRICE_SMART`,
+		`paintPriceSmart`,
 		`Página web`,
 		`Ver en Google Maps`,
 	} {

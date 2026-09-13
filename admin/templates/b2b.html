@@ -686,6 +686,31 @@
             }).join("");
         }
 
+        function paintPriceSmart() {
+            var pois = priceSmartForCity(document.getElementById("f-city").value);
+            if (mapApi && mapApi.setPOIs) {
+                mapApi.setPOIs(pois, function (poi, marker) {
+                    renderSidePanel({
+                        poi: true,
+                        id: poi.id,
+                        title: poi.name,
+                        name: poi.name,
+                        address: poi.address,
+                        city: poi.city,
+                        phone: poi.phone,
+                        website: poi.website,
+                        maps_url: poi.maps_url,
+                        specialty: "PriceSmart",
+                        status: "featured",
+                        lat: poi.lat,
+                        lng: poi.lng
+                    }, marker);
+                });
+            }
+            if (mapApi && mapApi.fitOverview) mapApi.fitOverview(pois);
+            return pois;
+        }
+
         function loadBusinesses() {
             if (!mapApi) return;
             const hint = document.getElementById("loading-hint");
@@ -697,35 +722,25 @@
                 category: (document.getElementById("f-category") || {value: ""}).value
             });
             fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error("load failed");
+                    return r.json();
+                })
                 .then(list => {
+                    if (!Array.isArray(list)) throw new Error("bad payload");
                     mapApi.setMarkers(list, colorFor, renderSidePanel);
-                    var pois = priceSmartForCity(document.getElementById("f-city").value);
-                    if (mapApi.setPOIs) {
-                        mapApi.setPOIs(pois, function (poi, marker) {
-                            renderSidePanel({
-                                poi: true,
-                                id: poi.id,
-                                title: poi.name,
-                                name: poi.name,
-                                address: poi.address,
-                                city: poi.city,
-                                phone: poi.phone,
-                                website: poi.website,
-                                maps_url: poi.maps_url,
-                                specialty: "PriceSmart",
-                                status: "featured",
-                                lat: poi.lat,
-                                lng: poi.lng
-                            }, marker);
-                        });
-                    }
-                    if (mapApi.fitOverview) mapApi.fitOverview(pois);
+                    paintPriceSmart();
                     hint.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
                     renderZoneStats(list);
                 })
-                .catch(() => { hint.textContent = "Error cargando negocios"; });
+                .catch(() => {
+                    hint.textContent = "Error cargando negocios";
+                    if (mapApi.setMarkers) mapApi.setMarkers([], colorFor, renderSidePanel);
+                    paintPriceSmart();
+                    renderLegend();
+                    renderZoneStats([]);
+                });
         }
 
         function refreshSummary() {
