@@ -270,7 +270,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad, o <strong>Todas las especialidades</strong> (una búsqueda por cada tipo: tarda con un solo worker). Rápida 50, Normal 100, Amplia 250. El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad, o <strong>Todas las especialidades</strong> (una búsqueda por cada tipo: tarda con un solo worker). Rápida 50, Normal 100, Amplia 250. Puedes limitar por estrellas (2 a 3, 3 a 4 o 4 a 5). El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -311,6 +311,15 @@
                         <option value="50">Rápida (50 negocios)</option>
                         <option value="100" selected>Normal (100 negocios)</option>
                         <option value="250">Amplia (250 negocios)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="s-rating">Estrellas</label>
+                    <select id="s-rating" name="rating">
+                        <option value="">Todas</option>
+                        <option value="2-3">2 a 3</option>
+                        <option value="3-4">3 a 4</option>
+                        <option value="4-5">4 a 5</option>
                     </select>
                 </div>
                 <div>

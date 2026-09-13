@@ -241,7 +241,7 @@ type IB2BStore interface {
 	ListBusinessCities(ctx context.Context) ([]string, error)
 	SetBusinessCRM(ctx context.Context, tenantID int64, key, status string, advisorID, zoneID *int64, notes, title string) error
 	B2BSummary(ctx context.Context, tenantID int64, advisorID *int64) (*B2BSummary, error)
-	RecordSearchJob(ctx context.Context, jobID, tenantID int64, rubro, specialty string) error
+	RecordSearchJob(ctx context.Context, jobID, tenantID int64, rubro, specialty, ratingBand string) error
 	IngestSearchJob(ctx context.Context, jobID int64) error
 	IngestPendingSearchJobs(ctx context.Context) error
 	HideAllVisibleBusinesses(ctx context.Context, tenantID int64) (int64, error)

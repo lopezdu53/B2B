@@ -219,6 +219,9 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`Rápida (50 negocios)`,
 		`Normal (100 negocios)`,
 		`Amplia (250 negocios)`,
+		`id="s-rating"`,
+		`name="rating"`,
+		`limitar por estrellas`,
 		`más de 50 reseñas`,
 	} {
 		if !strings.Contains(html, needle) {
@@ -379,6 +382,7 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 	html := buf.String()
 	for _, needle := range []string{
 		`id="zone-stats"`,
+		`id="s-rating"`,
 		`id="f-rating"`,
 		`id="btn-map-full"`,
 		`Pantalla completa`,

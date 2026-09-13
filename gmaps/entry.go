@@ -133,6 +133,37 @@ type Entry struct {
 	Emails              []string     `json:"emails"`
 }
 
+// MatchesRating reports whether rating is inside [min, maxExcl).
+// A zero min and maxExcl means no filter (always true).
+func MatchesRating(rating, min, maxExcl float64) bool {
+	if min == 0 && maxExcl == 0 {
+		return true
+	}
+
+	return rating >= min && rating < maxExcl
+}
+
+// FilterEntriesByRating keeps entries whose review rating is in [min, maxExcl).
+// Nil entries are dropped when a filter is active.
+func FilterEntriesByRating(entries []*Entry, min, maxExcl float64) []*Entry {
+	if (min == 0 && maxExcl == 0) || len(entries) == 0 {
+		return entries
+	}
+
+	out := entries[:0]
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+
+		if MatchesRating(entry.ReviewRating, min, maxExcl) {
+			out = append(out, entry)
+		}
+	}
+
+	return out
+}
+
 // entryAlias is used inside Marshal/UnmarshalJSON to avoid infinite recursion
 // while still benefiting from the struct's json tags for every other field.
 type entryAlias Entry

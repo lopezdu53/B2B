@@ -11,17 +11,17 @@ import (
 
 // RecordSearchJob remembers which tenant launched a scrape and which rubro /
 // specialty it should file under once results land.
-func (s *store) RecordSearchJob(ctx context.Context, jobID, tenantID int64, rubro, specialty string) error {
+func (s *store) RecordSearchJob(ctx context.Context, jobID, tenantID int64, rubro, specialty, ratingBand string) error {
 	if jobID == 0 || tenantID == 0 {
 		return fmt.Errorf("missing job or tenant")
 	}
 
 	const q = `
-INSERT INTO b2b_search_jobs (job_id, tenant_id, rubro, specialty)
-VALUES ($1, $2, $3, $4)
+INSERT INTO b2b_search_jobs (job_id, tenant_id, rubro, specialty, rating_band)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (job_id) DO NOTHING`
 
-	_, err := s.db.Exec(ctx, q, jobID, tenantID, rubro, specialty)
+	_, err := s.db.Exec(ctx, q, jobID, tenantID, rubro, specialty, ratingBand)
 
 	return err
 }
@@ -73,16 +73,17 @@ func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 	}
 
 	var (
-		tenantID  int64
-		rubro     string
-		specialty string
-		ingested  bool
+		tenantID   int64
+		rubro      string
+		specialty  string
+		ingested   bool
+		ratingBand string
 	)
 
 	err := s.db.QueryRow(ctx,
-		`SELECT tenant_id, rubro, specialty, ingested FROM b2b_search_jobs WHERE job_id = $1`,
+		`SELECT tenant_id, rubro, specialty, ingested, rating_band FROM b2b_search_jobs WHERE job_id = $1`,
 		jobID,
-	).Scan(&tenantID, &rubro, &specialty, &ingested)
+	).Scan(&tenantID, &rubro, &specialty, &ingested, &ratingBand)
 	if err != nil {
 		return nil // no tagged job — nothing to file
 	}
@@ -102,6 +103,8 @@ func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 		return fmt.Errorf("decode scrape results: %w", err)
 	}
 
+	ratingMin, ratingMaxExcl, _, _ := admin.RatingBandBounds(ratingBand)
+
 	keys := make([]string, 0, len(entries))
 	titles := make([]string, 0, len(entries))
 	seen := make(map[string]struct{}, len(entries))
@@ -109,6 +112,10 @@ func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 	for i := range entries {
 		e := entries[i]
 		if !admin.QualifiesAsLead(e.Title, e.ReviewCount) {
+			continue
+		}
+
+		if !gmaps.MatchesRating(e.ReviewRating, ratingMin, ratingMaxExcl) {
 			continue
 		}
 
