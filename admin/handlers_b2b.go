@@ -41,6 +41,8 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		cities := CityList()
+		bogotaLocs := BogotaUrbanLocalidades()
+		bogotaIdx, _ := LoadBogotaIndex()
 
 		summary, err := appState.Store.B2BSummary(ctx, tid, advisorScope(r))
 		if err != nil {
@@ -49,12 +51,14 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		data := map[string]any{
-			"Advisors":   advisors,
-			"Zones":      zones,
-			"Categories": categories,
-			"Cities":     cities,
-			"CityVal":    DefaultCity,
-			"Summary":    summary,
+			"Advisors":          advisors,
+			"Zones":             zones,
+			"Categories":        categories,
+			"Cities":            cities,
+			"CityVal":           DefaultCity,
+			"BogotaLocalidades": bogotaLocs,
+			"BogotaIndexData":   asJSON(bogotaIdx),
+			"Summary":           summary,
 			// JSON for the map colouring logic (template.JS, not Go dump).
 			"AdvisorsData":   asJSON(advisors),
 			"ZonesData":      asJSON(zones),

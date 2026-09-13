@@ -253,6 +253,7 @@
                     <label for="s-localidad">Localidad</label>
                     <select id="s-localidad" name="localidad">
                         <option value="">Todas las localidades</option>
+                        {{range .BogotaLocalidades}}<option value="{{.Nombre}}">{{.Nombre}}</option>{{end}}
                     </select>
                 </div>
                 <div>
@@ -321,7 +322,10 @@
                 </div>
                 <div>
                     <label for="f-localidad">Localidad (Bogotá)</label>
-                    <select id="f-localidad"></select>
+                    <select id="f-localidad">
+                        <option value="">Todas las localidades</option>
+                        {{range .BogotaLocalidades}}<option value="{{.Nombre}}">{{.Nombre}}</option>{{end}}
+                    </select>
                 </div>
                 <div>
                     <label for="f-barrio">Barrio</label>
@@ -498,7 +502,7 @@
     {{end}}
 
     <script src="/admin/static/leaflet.js"></script>
-    <script src="/admin/static/b2b-map.js"></script>
+    <script src="/admin/static/b2b-map.js?v={{.AssetVersion}}"></script>
     {{if .GoogleMapsAPIKey}}
     <script src="https://maps.googleapis.com/maps/api/js?key={{.GoogleMapsAPIKey}}&amp;v=weekly&amp;language=es&amp;region=CO"></script>
     {{end}}
@@ -523,6 +527,7 @@
         const ADVISORS_LIST = {{.AdvisorsData}} || [];
         const ZONES_LIST = {{.ZonesData}} || [];
         const CATEGORIES_LIST = {{.CategoriesData}} || [];
+        const BOGOTA_INDEX = {{if .BogotaIndexData}}{{.BogotaIndexData}}{{else}}null{{end}};
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
         const advisorMeta = {}; // id -> {name, color}
@@ -767,13 +772,62 @@
             });
         }
 
-        if (window.B2BMap && B2BMap.bindLocationSelects) {
-            B2BMap.bindLocationSelects({
-                citySelect: document.getElementById("s-city"),
-                locSelect: document.getElementById("s-localidad"),
-                barSelect: document.getElementById("s-barrio")
-            });
-        }
+        (function bindSearchLocation() {
+            var citySel = document.getElementById("s-city");
+            var locSel = document.getElementById("s-localidad");
+            var barSel = document.getElementById("s-barrio");
+            if (!citySel || !locSel || !barSel) return;
+
+            function isBogota(name) {
+                return String(name || "").toLowerCase().replace(/á/g, "a").indexOf("bogota") === 0;
+            }
+
+            function fillLocs() {
+                locSel.innerHTML = '<option value="">Todas las localidades</option>';
+                var list = (BOGOTA_INDEX && BOGOTA_INDEX.localidades) || [];
+                list.forEach(function (loc) {
+                    if (loc.codigo === "20") return;
+                    var opt = document.createElement("option");
+                    opt.value = loc.nombre;
+                    opt.textContent = loc.nombre;
+                    locSel.appendChild(opt);
+                });
+            }
+
+            function fillBars(locName) {
+                barSel.innerHTML = '<option value="">Todos los barrios</option>';
+                var loc = ((BOGOTA_INDEX && BOGOTA_INDEX.localidades) || []).find(function (l) {
+                    return l.nombre === locName;
+                });
+                var names = loc ? loc.barrios || [] : [];
+                barSel.disabled = !locName || names.length === 0;
+                names.forEach(function (name) {
+                    var opt = document.createElement("option");
+                    opt.value = name;
+                    opt.textContent = name;
+                    barSel.appendChild(opt);
+                });
+            }
+
+            function applyCity() {
+                if (!isBogota(citySel.value)) {
+                    locSel.innerHTML = '<option value="">No hay localidades</option>';
+                    locSel.disabled = true;
+                    barSel.innerHTML = '<option value="">Todos los barrios</option>';
+                    barSel.disabled = true;
+                    return;
+                }
+                locSel.disabled = false;
+                if (BOGOTA_INDEX && BOGOTA_INDEX.localidades && BOGOTA_INDEX.localidades.length) {
+                    fillLocs();
+                }
+                fillBars(locSel.value);
+            }
+
+            locSel.addEventListener("change", function () { fillBars(locSel.value); });
+            citySel.addEventListener("change", applyCity);
+            applyCity();
+        })();
 
         B2BMap.create({
             el: document.getElementById("map"),

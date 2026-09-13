@@ -24,12 +24,22 @@ const DefaultCookieName = "gms_session"
 var assetVersion = computeAssetVersion()
 
 func computeAssetVersion() string {
-	b, err := staticFS.ReadFile("static/styles.css")
-	if err != nil {
+	h := crc32.NewIEEE()
+	for _, name := range []string{"static/styles.css", "static/b2b-map.js"} {
+		b, err := staticFS.ReadFile(name)
+		if err != nil {
+			continue
+		}
+
+		_, _ = h.Write(b)
+	}
+
+	sum := h.Sum32()
+	if sum == 0 {
 		return "1"
 	}
 
-	return fmt.Sprintf("%08x", crc32.ChecksumIEEE(b))
+	return fmt.Sprintf("%08x", sum)
 }
 
 // NewAppState creates a new AppState with all dependencies initialized.

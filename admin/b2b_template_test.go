@@ -19,21 +19,27 @@ func TestB2BTemplateRenders(t *testing.T) {
 
 	advisorCity := "Bogotá"
 	advisorID := int64(1)
+	bogotaIdx, err := LoadBogotaIndex()
+	if err != nil {
+		t.Fatalf("bogota index: %v", err)
+	}
 
 	advisors := []Advisor{{ID: advisorID, Name: "Ana", City: advisorCity, Email: "ana@example.com", Phone: "300"}}
 	zones := []Zone{{ID: 1, Name: "Centro", City: advisorCity, AdvisorID: &advisorID, Color: "#2563eb"}}
 
 	data := map[string]any{
-		"CSRFToken":    "test-token",
-		"Advisors":     advisors,
-		"Zones":        zones,
-		"AdvisorsData": asJSON(advisors),
-		"ZonesData":    asJSON(zones),
-		"Cities":       []string{"Bogotá", "Medellín"},
-		"CityVal":      "Bogotá",
-		"Summary":      &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Advisors: 1, Zones: 1},
-		"Success":      "",
-		"Error":        "",
+		"CSRFToken":         "test-token",
+		"Advisors":          advisors,
+		"Zones":             zones,
+		"AdvisorsData":      asJSON(advisors),
+		"ZonesData":         asJSON(zones),
+		"Cities":            []string{"Bogotá", "Medellín"},
+		"CityVal":           "Bogotá",
+		"BogotaLocalidades": BogotaUrbanLocalidades(),
+		"BogotaIndexData":   asJSON(bogotaIdx),
+		"Summary":           &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Advisors: 1, Zones: 1},
+		"Success":           "",
+		"Error":             "",
 		// list pages
 		"Rows": []businessRow{
 			{MapBusiness: MapBusiness{Title: "Rest", City: "Bogotá", Status: "client"}, StatusLabel: "Cliente", StatusClass: "client", AdvisorName: "Ana"},
@@ -68,16 +74,18 @@ func TestB2BTemplateRenders(t *testing.T) {
 
 	// embed_map.html is the standalone, framable presentation map.
 	embedData := map[string]any{
-		"Token":            "1.deadbeef",
-		"Cities":           []string{"Bogotá", "Medellín"},
-		"CityVal":          "Bogotá",
-		"Advisors":         advisors,
-		"Zones":            zones,
-		"Categories":       []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
-		"AdvisorsData":     asJSON(advisors),
-		"ZonesData":        asJSON(zones),
-		"CategoriesData":   asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
-		"GoogleMapsAPIKey": "AIza-test",
+		"Token":             "1.deadbeef",
+		"Cities":            []string{"Bogotá", "Medellín"},
+		"CityVal":           "Bogotá",
+		"Advisors":          advisors,
+		"Zones":             zones,
+		"Categories":        []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
+		"AdvisorsData":      asJSON(advisors),
+		"ZonesData":         asJSON(zones),
+		"CategoriesData":    asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
+		"GoogleMapsAPIKey":  "AIza-test",
+		"BogotaLocalidades": BogotaUrbanLocalidades(),
+		"AssetVersion":      "test",
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "embed_map.html", embedData); err != nil {
 		t.Fatalf("execute embed_map.html: %v", err)
@@ -141,19 +149,26 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		t.Fatalf("parse templates: %v", err)
 	}
 
+	idx, err := LoadBogotaIndex()
+	if err != nil {
+		t.Fatalf("index: %v", err)
+	}
+
 	data := map[string]any{
-		"CSRFToken":        "t",
-		"Advisors":         []Advisor{},
-		"Zones":            []Zone{},
-		"AdvisorsData":     asJSON([]Advisor{}),
-		"ZonesData":        asJSON([]Zone{}),
-		"Cities":           []string{"Bogotá", "Medellín"},
-		"CityVal":          "Bogotá",
-		"Summary":          &B2BSummary{},
-		"CanManage":        true,
-		"IsAdvisor":        false,
-		"CanEmbed":         false,
-		"GoogleMapsAPIKey": "",
+		"CSRFToken":         "t",
+		"Advisors":          []Advisor{},
+		"Zones":             []Zone{},
+		"AdvisorsData":      asJSON([]Advisor{}),
+		"ZonesData":         asJSON([]Zone{}),
+		"Cities":            []string{"Bogotá", "Medellín"},
+		"CityVal":           "Bogotá",
+		"BogotaLocalidades": BogotaUrbanLocalidades(),
+		"BogotaIndexData":   asJSON(idx),
+		"Summary":           &B2BSummary{},
+		"CanManage":         true,
+		"IsAdvisor":         false,
+		"CanEmbed":          false,
+		"GoogleMapsAPIKey":  "",
 	}
 
 	var buf strings.Builder
@@ -171,6 +186,10 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`id="s-barrio"`,
 		`Todos los barrios`,
 		`Bogotá`,
+		`Usaquén`,
+		`Chapinero`,
+		`Kennedy`,
+		`Suba`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("search form missing %q", needle)
