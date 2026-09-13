@@ -222,7 +222,7 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 					Error:       j.Error,
 				}
 				if j.Status == "completed" {
-					view.Note = "El mapa solo muestra los que tienen más de 50 reseñas, no son cadena y no están en papelera. Una sola consulta en una localidad suele topar en 60–120 fichas, aunque pidas 1000."
+					view.Note = JobMapCountNote()
 				}
 				out = append(out, view)
 			}

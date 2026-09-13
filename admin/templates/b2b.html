@@ -978,9 +978,23 @@
             if (!jobs || jobs.length === 0) { panel.style.display = "none"; return; }
             panel.style.display = "block";
             if (title) {
+                const extracted = jobs.reduce((s, j) => s + (j.result_count || 0), 0);
                 title.textContent = jobs.length === 1
                     ? "Búsquedas recientes"
                     : "Búsquedas recientes (" + jobs.length + ")";
+                let sum = document.getElementById("jobs-extracted-sum");
+                if (!sum) {
+                    sum = document.createElement("p");
+                    sum.id = "jobs-extracted-sum";
+                    sum.className = "empty-hint";
+                    sum.style.margin = "0 0 .7rem";
+                    title.insertAdjacentElement("afterend", sum);
+                }
+                if (extracted > 0) {
+                    sum.textContent = extracted + " fichas extraídas en total. El mapa muestra menos porque el mismo restaurante sale en varias búsquedas; solo se ocultan los de 50 reseñas o menos.";
+                } else {
+                    sum.textContent = "";
+                }
             }
 
             list.innerHTML = jobs.map(j => {
