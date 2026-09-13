@@ -1,6 +1,9 @@
 package admin
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestIsExcludedChain(t *testing.T) {
 	t.Parallel()
@@ -55,5 +58,14 @@ func TestQualifiesAsLead(t *testing.T) {
 
 	if QualifiesAsLead("Éxito", 900) {
 		t.Fatal("Éxito should never qualify")
+	}
+}
+
+func TestJobMapCountNoteMentionsDuplicates(t *testing.T) {
+	t.Parallel()
+
+	note := JobMapCountNote()
+	if note == "" || !strings.Contains(note, "place_id") {
+		t.Fatalf("note should mention dedup, got %q", note)
 	}
 }

@@ -54,3 +54,8 @@ func IsExcludedChain(title string) bool {
 func QualifiesAsLead(title string, reviewCount int) bool {
 	return reviewCount > MinLeadReviews && !IsExcludedChain(title)
 }
+
+// JobMapCountNote explains why job "extraídos" is larger than map pins.
+func JobMapCountNote() string {
+	return "Esos extraídos se suman entre búsquedas (Usaquén, Cedritos, un barrio…). El mapa junta el mismo place_id una sola vez. Solo se ocultan los que tienen 50 reseñas o menos o son cadena."
+}
