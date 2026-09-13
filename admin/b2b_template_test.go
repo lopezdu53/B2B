@@ -215,6 +215,10 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`Chapinero`,
 		`Kennedy`,
 		`Suba`,
+		`name="max_results"`,
+		`Rápida (100 negocios)`,
+		`Normal (500 negocios)`,
+		`Amplia (1000 negocios)`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("search form missing %q", needle)

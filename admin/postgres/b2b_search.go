@@ -177,26 +177,27 @@ func (s *store) HideAllVisibleBusinesses(ctx context.Context, tenantID int64) (i
 
 	const q = `
 INSERT INTO b2b_business_crm (place_id, tenant_id, hidden, title, updated_at)
-SELECT DISTINCT
-    COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')),
-    $1,
-    TRUE,
-    COALESCE(elem->>'title', ''),
-    NOW()
-FROM scrape_results sr
-CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
-LEFT JOIN b2b_business_crm crm
-    ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
-   AND crm.tenant_id = $1
-WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
-  AND (elem->>'latitude') ~ '^-?[0-9]'
-  AND (elem->>'latitude')::float8 <> 0
-  AND COALESCE(crm.hidden, false) = false
+SELECT bkey, $1, TRUE, title, NOW()
+FROM (
+    SELECT DISTINCT ON (bkey) bkey, title
+    FROM (
+        SELECT
+            COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey,
+            COALESCE(elem->>'title', '') AS title
+        FROM scrape_results sr
+        CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+        WHERE COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) IS NOT NULL
+          AND (elem->>'latitude') ~ '^-?[0-9]'
+          AND (elem->>'latitude')::float8 <> 0
 ` + adminLeadQualitySQL + `
+    ) raw
+    ORDER BY bkey
+) t
 ON CONFLICT (place_id, tenant_id) DO UPDATE SET
     hidden = TRUE,
     title = COALESCE(NULLIF(EXCLUDED.title, ''), b2b_business_crm.title),
-    updated_at = NOW()`
+    updated_at = NOW()
+WHERE NOT b2b_business_crm.hidden`
 
 	ct, err := s.db.Exec(ctx, q, tenantID)
 	if err != nil {
