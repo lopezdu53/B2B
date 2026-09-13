@@ -72,6 +72,16 @@
                     </select>
                 </div>
                 <div>
+                    <label for="rating">Estrellas</label>
+                    <select id="rating" name="rating">
+                        {{$r := .RateVal}}
+                        <option value="" {{if eq $r ""}}selected{{end}}>Todas</option>
+                        <option value="2-3" {{if eq $r "2-3"}}selected{{end}}>2 a 3</option>
+                        <option value="3-4" {{if eq $r "3-4"}}selected{{end}}>3 a 4</option>
+                        <option value="4-5" {{if eq $r "4-5"}}selected{{end}}>4 a 5</option>
+                    </select>
+                </div>
+                <div>
                     <label for="sort">Ordenar por</label>
                     <select id="sort" name="sort" onchange="this.form.submit()">
                         {{$s := .SortVal}}

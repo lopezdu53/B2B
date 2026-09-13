@@ -178,6 +178,15 @@
                 </select>
             </div>
             <div class="fld">
+                <label for="f-rating">Estrellas</label>
+                <select id="f-rating">
+                    <option value="">Todas</option>
+                    <option value="2-3">2 a 3</option>
+                    <option value="3-4">3 a 4</option>
+                    <option value="4-5">4 a 5</option>
+                </select>
+            </div>
+            <div class="fld">
                 <label for="f-colorby">Colorear por</label>
                 <select id="f-colorby">
                     <option value="status">Estado</option>
@@ -324,7 +333,8 @@
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
                 advisor: document.getElementById("f-advisor").value,
-                category: document.getElementById("f-category").value
+                category: document.getElementById("f-category").value,
+                rating: (document.getElementById("f-rating") || {value: ""}).value
             });
             fetch("/embed/businesses?" + params.toString())
                 .then(r => {

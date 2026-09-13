@@ -94,6 +94,7 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 			Status: r.URL.Query().Get("status"),
 			Search: strings.TrimSpace(r.URL.Query().Get("q")),
 		}
+		f.SetRatingBand(r.URL.Query().Get("rating"))
 
 		if a := strings.TrimSpace(r.URL.Query().Get("advisor")); a != "" {
 			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
