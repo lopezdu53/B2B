@@ -65,7 +65,8 @@ WHERE NOT j.ingested`
 
 // IngestSearchJob upserts qualifying leads from a finished scrape into the
 // tenant CRM, tagging category and specialty. Existing status / category /
-// specialty are left alone.
+// specialty are left alone. A new search un-hides matching keys so
+// "Eliminar todos" + volver a buscar los trae de la papelera.
 func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 	if jobID == 0 {
 		return nil
@@ -155,6 +156,7 @@ ON CONFLICT (place_id, tenant_id) DO UPDATE SET
     category_id = COALESCE(b2b_business_crm.category_id, EXCLUDED.category_id),
     specialty   = CASE WHEN COALESCE(b2b_business_crm.specialty, '') = '' THEN EXCLUDED.specialty ELSE b2b_business_crm.specialty END,
     title       = COALESCE(NULLIF(EXCLUDED.title, ''), b2b_business_crm.title),
+    hidden      = FALSE,
     updated_at  = NOW()`
 
 		if _, err := s.db.Exec(ctx, upsert, keys, tenantID, admin.StatusProspect, categoryID, specialty, titles); err != nil {

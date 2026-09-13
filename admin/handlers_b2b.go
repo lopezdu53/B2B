@@ -166,6 +166,11 @@ func B2BSummaryHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
+// b2bRecentJobsLimit is how many scrape jobs the map dashboard lists.
+// "Todas las especialidades" can enqueue ~100 keywords; the old cap of 8
+// made it look like only the first query ran.
+const b2bRecentJobsLimit = 120
+
 // b2bJobView is the compact job status returned to the dashboard for live
 // progress of scrape searches.
 type b2bJobView struct {
@@ -174,6 +179,7 @@ type b2bJobView struct {
 	Status      string `json:"status"`
 	ResultCount int    `json:"result_count"`
 	Error       string `json:"error"`
+	Note        string `json:"note,omitempty"`
 }
 
 // B2BJobsHandler returns the most recent scrape jobs as JSON so the dashboard
@@ -198,7 +204,7 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		if appState.RQueueClient != nil {
-			result, err := appState.RQueueClient.ListJobs(r.Context(), "", 8, "")
+			result, err := appState.RQueueClient.ListJobs(r.Context(), "", b2bRecentJobsLimit, "")
 			if err != nil {
 				log.Error("b2b: list jobs", "error", err)
 				http.Error(w, "failed to list jobs", http.StatusInternalServerError)
@@ -208,13 +214,17 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 
 			for i := range result.Jobs {
 				j := &result.Jobs[i]
-				out = append(out, b2bJobView{
+				view := b2bJobView{
 					JobID:       j.JobID,
 					Keyword:     j.Keyword,
 					Status:      j.Status,
 					ResultCount: j.ResultCount,
 					Error:       j.Error,
-				})
+				}
+				if j.Status == "completed" {
+					view.Note = "El mapa solo muestra los que tienen más de 50 reseñas, no son cadena y no están en papelera. Una sola consulta en una localidad suele topar en 60–120 fichas, aunque pidas 1000."
+				}
+				out = append(out, view)
 			}
 		}
 
