@@ -359,7 +359,7 @@
                     <input type="checkbox" id="tog-loc" checked> Colorear localidades
                 </label>
                 <label class="empty-hint" style="align-self:center; display:flex; gap:.4rem; align-items:center;">
-                    <input type="checkbox" id="tog-bar" checked> Líneas de barrios
+                    <input type="checkbox" id="tog-bar"> Líneas de barrios
                 </label>
                 <label class="empty-hint" style="align-self:center; display:flex; gap:.4rem; align-items:center;">
                     <input type="checkbox" id="tog-zones" checked> Zonas dibujadas
@@ -1093,14 +1093,15 @@
             el: document.getElementById("map"),
             apiKey: GOOGLE_KEY,
             localidadSelect: document.getElementById("f-localidad"),
-            barrioSelect: document.getElementById("f-barrio")
+            barrioSelect: document.getElementById("f-barrio"),
+            showBarrios: false
         }).then(function (api) {
             mapApi = api;
             api.setZones(ZONES_LIST);
             if (togZones) api.setZonesVisible(togZones.checked);
             var hint = document.getElementById("map-engine-hint");
             if (api.usesGoogle()) {
-                hint.textContent = "Google Maps · localidades en color · barrios en líneas. Las zonas usan rayas y puntos (grises con localidades, a color si las apagas) y el nombre al centro. Al dibujar, el borde sigue la calle.";
+                hint.textContent = "Solo los negocios se seleccionan con un clic. Localidades y barrios se eligen en los filtros. Al dibujar una zona solo se ven las otras zonas; el borde sigue la calle.";
             } else {
                 hint.textContent = "Mapa de respaldo (OpenStreetMap). Para Google Maps, configura GOOGLE_MAPS_API_KEY en EasyPanel (servicio web) o en Ajustes. También puedes dibujar zonas haciendo clic en el mapa.";
             }

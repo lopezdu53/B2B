@@ -319,7 +319,8 @@
             el: document.getElementById("map"),
             apiKey: GOOGLE_KEY,
             localidadSelect: document.getElementById("f-localidad"),
-            barrioSelect: document.getElementById("f-barrio")
+            barrioSelect: document.getElementById("f-barrio"),
+            showBarrios: false
         }).then(function (api) {
             mapApi = api;
             api.setZones(ZONES_LIST);

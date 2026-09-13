@@ -345,7 +345,7 @@
             this.labels = document.createElement("div");
             this.labels.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;";
             this.wrap.appendChild(this.labels);
-            this.getPanes().overlayMouseTarget.appendChild(this.wrap);
+            this.getPanes().overlayLayer.appendChild(this.wrap);
         };
         overlay.draw = function () {
             var proj = this.getProjection();
@@ -501,10 +501,7 @@
         var barLayer = new google.maps.Data({ map: map });
         var zoneLayer = new google.maps.Data({ map: map });
         var zoneChrome = createGoogleZoneChrome(map);
-        var zoneClickable = true;
         var zoneLocVisible = true;
-        var locClickable = true;
-        var barClickable = true;
         var markers = [];
         var info = new google.maps.InfoWindow();
 
@@ -513,33 +510,15 @@
                 var color = zoneInk({ color: feature.getProperty("color") }, zoneLocVisible);
                 return {
                     fillColor: color,
-                    fillOpacity: 0.04,
+                    fillOpacity: 0,
                     strokeColor: color,
-                    strokeWeight: 1.2,
-                    strokeOpacity: 0.35,
-                    clickable: zoneClickable
+                    strokeWeight: 0,
+                    strokeOpacity: 0,
+                    clickable: false
                 };
             });
         }
         applyZoneHitStyle();
-        zoneLayer.addListener("click", function (e) {
-            if (!zoneClickable) return;
-            var name = e.feature.getProperty("nombre") || "Zona";
-            var city = e.feature.getProperty("city") || "";
-            info.setContent("<strong>" + escapeHtml(name) + "</strong>" +
-                (city ? "<div>" + escapeHtml(city) + "</div>" : ""));
-            info.setPosition(e.latLng);
-            info.open(map);
-        });
-
-        locLayer.addListener("click", function (e) {
-            if (api.onLocalidadClick) api.onLocalidadClick(e.feature.getProperty("nombre"));
-        });
-        barLayer.addListener("click", function (e) {
-            if (api.onBarrioClick) {
-                api.onBarrioClick(e.feature.getProperty("nombre"), e.feature.getProperty("localidad"));
-            }
-        });
 
         return {
             kind: "google",
@@ -550,23 +529,20 @@
             styleLoc: function (fn) {
                 locLayer.setStyle(function (feature) {
                     var s = fn(feature);
-                    s.clickable = locClickable && (s.fillOpacity || 0) > 0;
+                    s.clickable = false;
                     return s;
                 });
             },
             styleBar: function (fn) {
                 barLayer.setStyle(function (feature) {
                     var s = fn(feature);
-                    s.clickable = barClickable && (s.strokeOpacity || 0) > 0;
+                    s.clickable = false;
                     return s;
                 });
             },
             setLocVisible: function (on) { locLayer.setMap(on ? map : null); },
             setBarVisible: function (on) { barLayer.setMap(on ? map : null); },
-            setClickThrough: function (on) {
-                locClickable = !on;
-                barClickable = !on;
-                zoneClickable = !on;
+            setClickThrough: function () {
                 applyZoneHitStyle();
             },
             clearZones: function () {
@@ -600,6 +576,7 @@
                     position: { lat: biz.lat, lng: biz.lng },
                     map: map,
                     title: biz.title || "",
+                    zIndex: 1000,
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         fillColor: color,
@@ -659,33 +636,32 @@
         }).addTo(map);
         map.createPane("locPane");
         map.getPane("locPane").style.zIndex = 350;
+        map.getPane("locPane").style.pointerEvents = "none";
         map.createPane("barPane");
-        map.getPane("barPane").style.zIndex = 410;
+        map.getPane("barPane").style.zIndex = 360;
+        map.getPane("barPane").style.pointerEvents = "none";
         map.createPane("zonePane");
-        map.getPane("zonePane").style.zIndex = 430;
+        map.getPane("zonePane").style.zIndex = 370;
+        map.getPane("zonePane").style.pointerEvents = "none";
         map.createPane("zoneLabelPane");
-        map.getPane("zoneLabelPane").style.zIndex = 445;
+        map.getPane("zoneLabelPane").style.zIndex = 380;
         map.getPane("zoneLabelPane").style.pointerEvents = "none";
+        map.createPane("bizPane");
+        map.getPane("bizPane").style.zIndex = 650;
 
-        var locLayer = L.geoJSON(null, { interactive: true, pane: "locPane" }).addTo(map);
-        var barLayer = L.geoJSON(null, { interactive: true, pane: "barPane" }).addTo(map);
+        var locLayer = L.geoJSON(null, { interactive: false, pane: "locPane" }).addTo(map);
+        var barLayer = L.geoJSON(null, { interactive: false, pane: "barPane" }).addTo(map);
         var zoneLocVisible = true;
         var zoneLabelLayer = L.layerGroup({ pane: "zoneLabelPane" }).addTo(map);
         var zoneLayer = L.geoJSON(null, {
-            interactive: true,
+            interactive: false,
             pane: "zonePane",
             style: function (feat) {
                 var c = zoneInk(feat.properties, zoneLocVisible);
                 return { color: c, weight: 2.2, fillColor: c, fillOpacity: 0.1, opacity: 0.95 };
-            },
-            onEachFeature: function (feat, layer) {
-                var name = feat.properties && feat.properties.nombre ? feat.properties.nombre : "Zona";
-                var city = feat.properties && feat.properties.city ? feat.properties.city : "";
-                layer.bindPopup("<strong>" + escapeHtml(name) + "</strong>" +
-                    (city ? "<div>" + escapeHtml(city) + "</div>" : ""));
             }
         }).addTo(map);
-        var markersLayer = L.layerGroup().addTo(map);
+        var markersLayer = L.layerGroup({ pane: "bizPane" }).addTo(map);
         var markers = [];
 
         function paintLeafletZones() {
@@ -741,10 +717,10 @@
                 if (on) { if (!map.hasLayer(barLayer)) barLayer.addTo(map); }
                 else map.removeLayer(barLayer);
             },
-            setClickThrough: function (on) {
+            setClickThrough: function () {
                 ["locPane", "barPane", "zonePane"].forEach(function (name) {
                     var pane = map.getPane(name);
-                    if (pane) pane.style.pointerEvents = on ? "none" : "auto";
+                    if (pane) pane.style.pointerEvents = "none";
                 });
             },
             clearZones: function () {
@@ -779,7 +755,8 @@
             addMarker: function (biz, color, onClick) {
                 var marker = L.circleMarker([biz.lat, biz.lng], {
                     radius: 7, fillColor: color, color: "#0b1220",
-                    weight: 1, opacity: 1, fillOpacity: 0.9
+                    weight: 1, opacity: 1, fillOpacity: 0.9,
+                    pane: "bizPane", interactive: true
                 });
                 marker.bindTooltip(escapeHtml(biz.title || "(sin nombre)"));
                 marker.on("click", function () { onClick(biz, marker); });
@@ -1066,7 +1043,7 @@
             var locSel = opts.localidadSelect;
             var barSel = opts.barrioSelect;
             var showLoc = opts.showLocalidades !== false;
-            var showBar = opts.showBarrios !== false;
+            var showBar = opts.showBarrios === true;
             var filterLoc = "";
             var filterBar = "";
             var index = null;
@@ -1082,29 +1059,7 @@
 
             function currentEngine() {
                 if (opts.apiKey && global.google && google.maps) {
-                    return createGoogleEngine(el, {
-                        onLocalidadClick: function (n) {
-                            if (drawing) return;
-                            if (locSel) locSel.value = n;
-                            filterLoc = n;
-                            filterBar = "";
-                            if (barSel) populateBarrios(index, n, barSel);
-                            applySectors();
-                            if (opts.onLocalidadClick) opts.onLocalidadClick(n);
-                        },
-                        onBarrioClick: function (b, loc) {
-                            if (drawing) return;
-                            if (locSel && loc) {
-                                locSel.value = loc;
-                                filterLoc = loc;
-                                populateBarrios(index, loc, barSel);
-                            }
-                            if (barSel) barSel.value = b;
-                            filterBar = b;
-                            applySectors();
-                            if (opts.onBarrioClick) opts.onBarrioClick(b, loc);
-                        }
-                    });
+                    return createGoogleEngine(el, {});
                 }
                 return createLeafletEngine(el);
             }
@@ -1119,8 +1074,8 @@
                     engine.styleLoc(function (p) { return styleLocalidad(p, filterLoc, showLoc); });
                     engine.styleBar(function (p) { return styleBarrio(p, filterLoc, filterBar, showBar); });
                 }
-                engine.setLocVisible(showLoc);
-                engine.setBarVisible(showBar);
+                engine.setLocVisible(showLoc && !drawing);
+                engine.setBarVisible(showBar && !drawing);
                 if (engine.setZoneVisible) engine.setZoneVisible(showZones);
                 if (engine.setZoneDecor) engine.setZoneDecor({ locVisible: showLoc });
                 applyMarkerFilter();
@@ -1177,7 +1132,7 @@
 
             function applyMarkerFilter() {
                 items.forEach(function (it) {
-                    engine.setMarkerVisible(it.marker, inFilter(it.biz));
+                    engine.setMarkerVisible(it.marker, !drawing && inFilter(it.biz));
                 });
             }
 
@@ -1204,33 +1159,6 @@
                 barFC = pack[2];
                 fillSectorSelects(index, locSel, barSel);
                 engine = currentEngine();
-                if (engine.kind === "leaflet") {
-                    engine.locLayer.on("click", function (e) {
-                        if (drawing) return;
-                        var n = e.layer && e.layer.feature && e.layer.feature.properties
-                            ? e.layer.feature.properties.nombre : "";
-                        if (n && locSel) {
-                            locSel.value = n;
-                            filterLoc = n;
-                            filterBar = "";
-                            populateBarrios(index, n, barSel);
-                            applySectors();
-                        }
-                    });
-                    engine.barLayer.on("click", function (e) {
-                        if (drawing) return;
-                        var p = e.layer && e.layer.feature ? e.layer.feature.properties : null;
-                        if (!p) return;
-                        if (locSel && p.localidad) {
-                            locSel.value = p.localidad;
-                            filterLoc = p.localidad;
-                            populateBarrios(index, p.localidad, barSel);
-                        }
-                        if (barSel) barSel.value = p.nombre;
-                        filterBar = p.nombre;
-                        applySectors();
-                    });
-                }
                 engine.addGeo(engine.locLayer, locFC);
                 engine.addGeo(engine.barLayer, barFC);
                 applySectors();
