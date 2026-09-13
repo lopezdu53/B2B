@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -48,7 +49,13 @@ type Zone struct {
 	City      string
 	AdvisorID *int64
 	Color     string
+	Geometry  json.RawMessage `json:"Geometry,omitempty"`
 	CreatedAt time.Time
+}
+
+// HasGeometry reports whether the zone has a drawn polygon on the map.
+func (z Zone) HasGeometry() bool {
+	return len(z.Geometry) > 0
 }
 
 // Category is a per-tenant business category (Restaurantes, Hoteles, …).
@@ -124,8 +131,8 @@ type IB2BStore interface {
 
 	// Zones
 	ListZones(ctx context.Context, tenantID int64) ([]Zone, error)
-	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string) (*Zone, error)
-	UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string) error
+	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) (*Zone, error)
+	UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) error
 	DeleteZone(ctx context.Context, tenantID, id int64) error
 
 	// Categories

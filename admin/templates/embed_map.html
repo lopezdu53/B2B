@@ -322,6 +322,7 @@
             barrioSelect: document.getElementById("f-barrio")
         }).then(function (api) {
             mapApi = api;
+            api.setZones(ZONES_LIST);
             load();
         }).catch(function () {
             document.getElementById("count").textContent = "Error al cargar el mapa";

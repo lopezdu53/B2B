@@ -70,6 +70,7 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 				r.Post("/b2b/advisors/{id}/update", UpdateAdvisorHandler(appState))
 				r.Post("/b2b/advisors/{id}/delete", DeleteAdvisorHandler(appState))
 				r.Post("/b2b/zones", CreateZoneHandler(appState))
+				r.Post("/b2b/zones/draw", DrawZoneHandler(appState))
 				r.Post("/b2b/zones/{id}/update", UpdateZoneHandler(appState))
 				r.Post("/b2b/zones/{id}/delete", DeleteZoneHandler(appState))
 			})

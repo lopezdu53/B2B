@@ -2,10 +2,19 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/gosom/google-maps-scraper/admin"
 )
+
+func jsonbOrNil(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	return raw
+}
 
 // defaultBusinessLimit caps how many businesses we return for the map so the
 // browser stays responsive even with very large scrape datasets.
@@ -357,7 +366,7 @@ func (s *store) DeleteAdvisor(ctx context.Context, tenantID, id int64) error {
 
 // ListZones returns the tenant's zones ordered by city then name.
 func (s *store) ListZones(ctx context.Context, tenantID int64) ([]admin.Zone, error) {
-	const q = `SELECT id, name, city, advisor_id, color, created_at FROM b2b_zones WHERE tenant_id = $1 ORDER BY city, name`
+	const q = `SELECT id, name, city, advisor_id, color, geometry, created_at FROM b2b_zones WHERE tenant_id = $1 ORDER BY city, name`
 
 	rows, err := s.db.Query(ctx, q, tenantID)
 	if err != nil {
@@ -369,8 +378,13 @@ func (s *store) ListZones(ctx context.Context, tenantID int64) ([]admin.Zone, er
 
 	for rows.Next() {
 		var z admin.Zone
-		if err := rows.Scan(&z.ID, &z.Name, &z.City, &z.AdvisorID, &z.Color, &z.CreatedAt); err != nil {
+		var geom []byte
+		if err := rows.Scan(&z.ID, &z.Name, &z.City, &z.AdvisorID, &z.Color, &geom, &z.CreatedAt); err != nil {
 			return nil, err
+		}
+
+		if len(geom) > 0 {
+			z.Geometry = geom
 		}
 
 		out = append(out, z)
@@ -380,33 +394,42 @@ func (s *store) ListZones(ctx context.Context, tenantID int64) ([]admin.Zone, er
 }
 
 // CreateZone inserts a new zone for the tenant.
-func (s *store) CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string) (*admin.Zone, error) {
+func (s *store) CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) (*admin.Zone, error) {
 	if color == "" {
 		color = "#2563eb"
 	}
 
-	const q = `INSERT INTO b2b_zones (tenant_id, name, city, advisor_id, color) VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, city, advisor_id, color, created_at`
+	const q = `INSERT INTO b2b_zones (tenant_id, name, city, advisor_id, color, geometry) VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, name, city, advisor_id, color, geometry, created_at`
 
 	var z admin.Zone
-	if err := s.db.QueryRow(ctx, q, tenantID, name, city, advisorID, color).Scan(
-		&z.ID, &z.Name, &z.City, &z.AdvisorID, &z.Color, &z.CreatedAt,
+	var geom []byte
+	if err := s.db.QueryRow(ctx, q, tenantID, name, city, advisorID, color, jsonbOrNil(geometry)).Scan(
+		&z.ID, &z.Name, &z.City, &z.AdvisorID, &z.Color, &geom, &z.CreatedAt,
 	); err != nil {
 		return nil, err
+	}
+
+	if len(geom) > 0 {
+		z.Geometry = geom
 	}
 
 	return &z, nil
 }
 
 // UpdateZone edits one of the tenant's zones.
-func (s *store) UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string) error {
+func (s *store) UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) error {
 	if color == "" {
 		color = "#2563eb"
 	}
 
-	ct, err := s.db.Exec(ctx,
-		`UPDATE b2b_zones SET name = $1, city = $2, advisor_id = $3, color = $4 WHERE id = $5 AND tenant_id = $6`,
-		name, city, advisorID, color, id, tenantID)
+	const q = `
+UPDATE b2b_zones
+SET name = $1, city = $2, advisor_id = $3, color = $4,
+    geometry = CASE WHEN $5::jsonb IS NULL THEN geometry ELSE $5::jsonb END
+WHERE id = $6 AND tenant_id = $7`
+
+	ct, err := s.db.Exec(ctx, q, name, city, advisorID, color, jsonbOrNil(geometry), id, tenantID)
 	if err != nil {
 		return err
 	}

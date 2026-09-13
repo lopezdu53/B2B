@@ -64,6 +64,60 @@
         return acc;
     }
 
+    function parseZoneGeom(z) {
+        var g = z && (z.Geometry || z.geometry);
+        if (!g) return null;
+        if (typeof g === "string") {
+            try { g = JSON.parse(g); } catch (e) { return null; }
+        }
+        if (g.type === "Feature") g = g.geometry;
+        if (!g || (g.type !== "Polygon" && g.type !== "MultiPolygon")) return null;
+        return g;
+    }
+
+    function zoneFeatureCollection(list) {
+        return {
+            type: "FeatureCollection",
+            features: (list || []).map(function (z) {
+                var geom = parseZoneGeom(z);
+                if (!geom) return null;
+                return {
+                    type: "Feature",
+                    properties: {
+                        id: z.ID,
+                        nombre: z.Name,
+                        city: z.City,
+                        color: z.Color || "#2563eb"
+                    },
+                    geometry: geom
+                };
+            }).filter(Boolean)
+        };
+    }
+
+    function closeRing(coords) {
+        if (!coords.length) return coords;
+        var first = coords[0], last = coords[coords.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+            coords = coords.concat([[first[0], first[1]]]);
+        }
+        return coords;
+    }
+
+    function hasGoogleDrawing() {
+        return global.google && google.maps && google.maps.drawing && google.maps.drawing.DrawingManager;
+    }
+
+    function ringFromGooglePolygon(polygon) {
+        var path = polygon.getPath();
+        var coords = [];
+        for (var i = 0; i < path.getLength(); i++) {
+            var p = path.getAt(i);
+            coords.push([p.lng(), p.lat()]);
+        }
+        return closeRing(coords);
+    }
+
     function fetchJSON(url) {
         return fetch(url, { credentials: "same-origin" }).then(function (r) {
             if (!r.ok) throw new Error("failed " + url);
@@ -163,8 +217,29 @@
         });
         var locLayer = new google.maps.Data({ map: map });
         var barLayer = new google.maps.Data({ map: map });
+        var zoneLayer = new google.maps.Data({ map: map });
         var markers = [];
         var info = new google.maps.InfoWindow();
+
+        zoneLayer.setStyle(function (feature) {
+            var color = feature.getProperty("color") || "#2563eb";
+            return {
+                fillColor: color,
+                fillOpacity: 0.22,
+                strokeColor: color,
+                strokeWeight: 2.4,
+                strokeOpacity: 0.95,
+                clickable: true
+            };
+        });
+        zoneLayer.addListener("click", function (e) {
+            var name = e.feature.getProperty("nombre") || "Zona";
+            var city = e.feature.getProperty("city") || "";
+            info.setContent("<strong>" + escapeHtml(name) + "</strong>" +
+                (city ? "<div>" + escapeHtml(city) + "</div>" : ""));
+            info.setPosition(e.latLng);
+            info.open(map);
+        });
 
         locLayer.addListener("click", function (e) {
             if (api.onLocalidadClick) api.onLocalidadClick(e.feature.getProperty("nombre"));
@@ -185,6 +260,18 @@
             styleBar: function (fn) { barLayer.setStyle(fn); },
             setLocVisible: function (on) { locLayer.setMap(on ? map : null); },
             setBarVisible: function (on) { barLayer.setMap(on ? map : null); },
+            clearZones: function () {
+                var gone = [];
+                zoneLayer.forEach(function (f) { gone.push(f); });
+                gone.forEach(function (f) { zoneLayer.remove(f); });
+            },
+            addZones: function (fc) {
+                this.clearZones();
+                if (fc && fc.features && fc.features.length) {
+                    zoneLayer.addGeoJson(fc);
+                }
+            },
+            setZoneVisible: function (on) { zoneLayer.setMap(on ? map : null); },
             clearMarkers: function () {
                 markers.forEach(function (m) { m.setMap(null); });
                 markers = [];
@@ -253,6 +340,19 @@
         }).addTo(map);
         var locLayer = L.geoJSON(null, { interactive: true }).addTo(map);
         var barLayer = L.geoJSON(null, { interactive: true }).addTo(map);
+        var zoneLayer = L.geoJSON(null, {
+            interactive: true,
+            style: function (feat) {
+                var c = (feat.properties && feat.properties.color) || "#2563eb";
+                return { color: c, weight: 2.4, fillColor: c, fillOpacity: 0.22, opacity: 0.95 };
+            },
+            onEachFeature: function (feat, layer) {
+                var name = feat.properties && feat.properties.nombre ? feat.properties.nombre : "Zona";
+                var city = feat.properties && feat.properties.city ? feat.properties.city : "";
+                layer.bindPopup("<strong>" + escapeHtml(name) + "</strong>" +
+                    (city ? "<div>" + escapeHtml(city) + "</div>" : ""));
+            }
+        }).addTo(map);
         var markersLayer = L.layerGroup().addTo(map);
         var markers = [];
 
@@ -275,6 +375,17 @@
             setBarVisible: function (on) {
                 if (on) { if (!map.hasLayer(barLayer)) barLayer.addTo(map); }
                 else map.removeLayer(barLayer);
+            },
+            clearZones: function () { zoneLayer.clearLayers(); },
+            addZones: function (fc) {
+                zoneLayer.clearLayers();
+                if (fc && fc.features && fc.features.length) {
+                    zoneLayer.addData(fc);
+                }
+            },
+            setZoneVisible: function (on) {
+                if (on) { if (!map.hasLayer(zoneLayer)) zoneLayer.addTo(map); }
+                else map.removeLayer(zoneLayer);
             },
             clearMarkers: function () {
                 markersLayer.clearLayers();
@@ -361,6 +472,177 @@
         };
     }
 
+    function startGoogleDrawing(engine, color, onComplete) {
+        var dm = new google.maps.drawing.DrawingManager({
+            drawingMode: google.maps.drawing.OverlayType.POLYGON,
+            drawingControl: false,
+            polygonOptions: {
+                fillColor: color,
+                fillOpacity: 0.25,
+                strokeColor: color,
+                strokeWeight: 2.4,
+                clickable: false,
+                editable: true
+            }
+        });
+        dm.setMap(engine.map);
+        var listener = google.maps.event.addListener(dm, "polygoncomplete", function (poly) {
+            google.maps.event.removeListener(listener);
+            dm.setDrawingMode(null);
+            dm.setMap(null);
+            var ring = ringFromGooglePolygon(poly);
+            if (!ring || ring.length < 4) {
+                poly.setMap(null);
+                return;
+            }
+            onComplete({ type: "Polygon", coordinates: [ring] }, function () {
+                poly.setMap(null);
+            });
+        });
+        return {
+            mode: "google",
+            finish: function () { return false; },
+            cancel: function () {
+                google.maps.event.removeListener(listener);
+                dm.setDrawingMode(null);
+                dm.setMap(null);
+            }
+        };
+    }
+
+    function startClickDraw(engine, color, onVertex, onComplete) {
+        var pts = [];
+        var preview = null;
+        var vertices = [];
+        var listeners = [];
+
+        function cleanupPreview() {
+            if (engine.kind === "google") {
+                if (preview) preview.setMap(null);
+                vertices.forEach(function (m) { m.setMap(null); });
+            } else {
+                if (preview) engine.map.removeLayer(preview);
+                vertices.forEach(function (m) { engine.map.removeLayer(m); });
+            }
+            preview = null;
+            vertices = [];
+        }
+
+        function redraw() {
+            cleanupPreview();
+            if (!pts.length) return;
+            if (engine.kind === "google") {
+                preview = new google.maps.Polyline({
+                    path: pts,
+                    strokeColor: color,
+                    strokeWeight: 2.6,
+                    map: engine.map
+                });
+                pts.forEach(function (p) {
+                    vertices.push(new google.maps.Marker({
+                        position: p,
+                        map: engine.map,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            fillColor: "#fff",
+                            fillOpacity: 1,
+                            strokeColor: color,
+                            strokeWeight: 2,
+                            scale: 5
+                        }
+                    }));
+                });
+            } else {
+                preview = L.polyline(pts.map(function (p) { return [p.lat, p.lng]; }), {
+                    color: color, weight: 2.6
+                }).addTo(engine.map);
+                pts.forEach(function (p) {
+                    vertices.push(L.circleMarker([p.lat, p.lng], {
+                        radius: 5, color: color, fillColor: "#fff", fillOpacity: 1, weight: 2
+                    }).addTo(engine.map));
+                });
+            }
+        }
+
+        function toGeom() {
+            if (pts.length < 3) return null;
+            return {
+                type: "Polygon",
+                coordinates: [closeRing(pts.map(function (p) { return [p.lng, p.lat]; }))]
+            };
+        }
+
+        function unbind() {
+            if (engine.kind === "google") {
+                listeners.forEach(function (l) { google.maps.event.removeListener(l); });
+                engine.map.setOptions({ disableDoubleClickZoom: false });
+            } else {
+                engine.map.off("click", onLeafClick);
+                engine.map.doubleClickZoom.enable();
+            }
+            listeners = [];
+        }
+
+        var finished = false;
+        function finish() {
+            if (finished) return false;
+            var geom = toGeom();
+            if (!geom) return false;
+            finished = true;
+            unbind();
+            cleanupPreview();
+            var draftCleanup;
+            if (engine.kind === "google") {
+                var poly = new google.maps.Polygon({
+                    paths: pts,
+                    fillColor: color,
+                    fillOpacity: 0.25,
+                    strokeColor: color,
+                    strokeWeight: 2.4,
+                    map: engine.map,
+                    clickable: false
+                });
+                draftCleanup = function () { poly.setMap(null); };
+            } else {
+                var lpoly = L.polygon(pts.map(function (p) { return [p.lat, p.lng]; }), {
+                    color: color, weight: 2.4, fillColor: color, fillOpacity: 0.25
+                }).addTo(engine.map);
+                draftCleanup = function () { engine.map.removeLayer(lpoly); };
+            }
+            onComplete(geom, draftCleanup);
+            return true;
+        }
+
+        function addPoint(lat, lng) {
+            pts.push({ lat: lat, lng: lng });
+            redraw();
+            if (onVertex) onVertex(pts.length);
+        }
+
+        function onLeafClick(e) {
+            addPoint(e.latlng.lat, e.latlng.lng);
+        }
+
+        if (engine.kind === "google") {
+            engine.map.setOptions({ disableDoubleClickZoom: true });
+            listeners.push(engine.map.addListener("click", function (e) {
+                addPoint(e.latLng.lat(), e.latLng.lng());
+            }));
+        } else {
+            engine.map.doubleClickZoom.disable();
+            engine.map.on("click", onLeafClick);
+        }
+
+        return {
+            mode: "click",
+            finish: finish,
+            cancel: function () {
+                unbind();
+                cleanupPreview();
+            }
+        };
+    }
+
     global.B2BMap = {
         escapeHtml: escapeHtml,
         bindLocationSelects: bindLocationSelects,
@@ -378,11 +660,17 @@
             var barFC = null;
             var engine = null;
             var items = [];
+            var zoneList = [];
+            var showZones = true;
+            var drawing = false;
+            var drawSession = null;
+            var draftCleanup = null;
 
             function currentEngine() {
                 if (opts.apiKey && global.google && google.maps) {
                     return createGoogleEngine(el, {
                         onLocalidadClick: function (n) {
+                            if (drawing) return;
                             if (locSel) locSel.value = n;
                             filterLoc = n;
                             filterBar = "";
@@ -391,6 +679,7 @@
                             if (opts.onLocalidadClick) opts.onLocalidadClick(n);
                         },
                         onBarrioClick: function (b, loc) {
+                            if (drawing) return;
                             if (locSel && loc) {
                                 locSel.value = loc;
                                 filterLoc = loc;
@@ -415,10 +704,32 @@
                     engine.styleLoc(function (p) { return styleLocalidad(p, filterLoc, showLoc); });
                     engine.styleBar(function (p) { return styleBarrio(p, filterLoc, filterBar, showBar); });
                 }
-                engine.setLocVisible(showLoc);
-                engine.setBarVisible(showBar);
+                engine.setLocVisible(showLoc && !drawing);
+                engine.setBarVisible(showBar && !drawing);
+                if (engine.setZoneVisible) engine.setZoneVisible(showZones && !drawing);
                 applyMarkerFilter();
                 zoomToFilter();
+            }
+
+            function renderZones() {
+                if (!engine || !engine.addZones) return;
+                engine.addZones(zoneFeatureCollection(zoneList));
+                engine.setZoneVisible(showZones && !drawing);
+            }
+
+            function stopDraw(keepDraft) {
+                drawing = false;
+                if (el && el.classList) el.classList.remove("is-drawing");
+                if (drawSession) {
+                    drawSession.cancel();
+                    drawSession = null;
+                }
+                if (!keepDraft && draftCleanup) {
+                    draftCleanup();
+                    draftCleanup = null;
+                }
+                applySectors();
+                renderZones();
             }
 
             function featureForFilter() {
@@ -477,6 +788,7 @@
                 engine = currentEngine();
                 if (engine.kind === "leaflet") {
                     engine.locLayer.on("click", function (e) {
+                        if (drawing) return;
                         var n = e.layer && e.layer.feature && e.layer.feature.properties
                             ? e.layer.feature.properties.nombre : "";
                         if (n && locSel) {
@@ -488,6 +800,7 @@
                         }
                     });
                     engine.barLayer.on("click", function (e) {
+                        if (drawing) return;
                         var p = e.layer && e.layer.feature ? e.layer.feature.properties : null;
                         if (!p) return;
                         if (locSel && p.localidad) {
@@ -539,7 +852,42 @@
                         return items.filter(function (it) { return inFilter(it.biz); }).length;
                     },
                     openInfo: function (marker, html) { engine.openInfo(marker, html); },
-                    usesGoogle: function () { return engine.kind === "google"; }
+                    usesGoogle: function () { return engine.kind === "google"; },
+                    setZones: function (list) {
+                        zoneList = list || [];
+                        renderZones();
+                    },
+                    setZonesVisible: function (on) {
+                        showZones = !!on;
+                        if (engine && engine.setZoneVisible) engine.setZoneVisible(showZones && !drawing);
+                    },
+                    startDraw: function (drawOpts) {
+                        drawOpts = drawOpts || {};
+                        stopDraw(false);
+                        drawing = true;
+                        if (el && el.classList) el.classList.add("is-drawing");
+                        applySectors();
+                        var color = drawOpts.color || "#2563eb";
+                        var onDone = function (geom, cleanup) {
+                            drawing = false;
+                            if (el && el.classList) el.classList.remove("is-drawing");
+                            drawSession = null;
+                            draftCleanup = cleanup;
+                            applySectors();
+                            if (drawOpts.onComplete) drawOpts.onComplete(geom);
+                        };
+                        if (engine.kind === "google" && hasGoogleDrawing()) {
+                            drawSession = startGoogleDrawing(engine, color, onDone);
+                        } else {
+                            drawSession = startClickDraw(engine, color, drawOpts.onVertex, onDone);
+                        }
+                        return drawSession.mode;
+                    },
+                    finishDraw: function () {
+                        return !!(drawSession && drawSession.finish && drawSession.finish());
+                    },
+                    cancelDraw: function () { stopDraw(false); },
+                    isDrawing: function () { return drawing; }
                 };
             });
         }
