@@ -94,7 +94,22 @@
         /* ---- Map + layout ---- */
         .b2b-wrap { display: grid; grid-template-columns: 1fr 360px; gap: 1.1rem; align-items: start; }
         @media (max-width: 960px) { .b2b-wrap { grid-template-columns: 1fr; } }
-        #map { height: 72vh; min-height: 500px; border-radius: 14px; border: 1px solid var(--line); box-shadow: var(--shadow-sm); z-index: 0; }
+        .map-stage { position: relative; }
+        .map-stage:fullscreen,
+        .map-stage:-webkit-full-screen,
+        .map-stage.is-full { width: 100vw; height: 100vh; background: #fff; padding: 0; }
+        .map-stage.is-full { position: fixed; inset: 0; z-index: 4000; }
+        .map-stage:fullscreen #map,
+        .map-stage:-webkit-full-screen #map,
+        .map-stage.is-full #map { height: 100vh; min-height: 0; border-radius: 0; }
+        .btn-map-full {
+            position: absolute; top: 12px; right: 12px; z-index: 5;
+            border: 1px solid var(--line); background: #fff; color: var(--ink);
+            border-radius: 9px; padding: .45rem .7rem; font-weight: 700; font-size: .82rem;
+            cursor: pointer; box-shadow: var(--shadow-sm);
+        }
+        .btn-map-full:hover { background: #f8fafc; }
+        #map { height: 72vh; min-height: 520px; border-radius: 14px; border: 1px solid var(--line); box-shadow: var(--shadow-sm); z-index: 0; }
         #map.is-drawing { cursor: crosshair; box-shadow: 0 0 0 3px rgba(8,145,178,.35); }
         .map-toolbar { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin: 0 0 .7rem; }
         .map-toolbar .btn-secondary { border-radius: 9px; padding: .55rem 1rem; font-weight: 600; }
@@ -391,13 +406,16 @@
                         <button type="button" class="btn-secondary" id="btn-draw-finish" style="display:none" disabled>Cerrar polígono</button>
                         <button type="button" class="btn-secondary" id="btn-draw-cancel" style="display:none">Cancelar dibujo</button>
                         <p class="empty-hint" id="draw-hint" style="display:none;">El trazo se pega a la calle o carrera más cercana. Las zonas actuales siguen visibles para que no se crucen.</p>
-                        <form method="POST" action="/admin/b2b/clients/delete-all" style="margin:0;" onsubmit="return confirm('¿Eliminar TODOS los clientes? Irán a la papelera y desaparecerán del mapa. Puedes restaurarlos desde Papelera.');">
+                        <form method="POST" action="/admin/b2b/businesses/delete-all" style="margin:0;" onsubmit="return confirm('¿Eliminar TODOS los negocios del mapa? Irán a la papelera. Puedes restaurarlos desde Papelera.');">
                             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                            <button type="submit" class="btn-danger" id="btn-delete-clients">Eliminar todos los clientes</button>
+                            <button type="submit" class="btn-danger" id="btn-delete-businesses">Eliminar todos los negocios</button>
                         </form>
                     </div>
                     {{end}}
+                    <div class="map-stage" id="map-stage">
                     <div id="map"></div>
+                    <button type="button" class="btn-map-full" id="btn-map-full" title="Pantalla completa">⛶ Pantalla completa</button>
+                    </div>
                     <p class="empty-hint" id="map-engine-hint" style="margin:.55rem 0 0;"></p>
                     <div class="legend" id="legend"></div>
                     <div id="zone-stats" class="zone-stats"></div>
@@ -446,84 +464,6 @@
                 </div>
             </div>
         </div>
-
-        {{if .CanManage}}
-        <details class="mgmt" {{if not .Advisors}}open{{end}}>
-            <summary>Asesores y zonas <span class="count-badge">{{len .Advisors}} asesores · {{len .Zones}} zonas</span></summary>
-            <div class="mgmt-grid">
-                <div class="card">
-                    <div class="card-header"><h2>Asesores comerciales</h2></div>
-                    <form method="POST" action="/admin/b2b/advisors" class="mini-form">
-                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                        <input type="text" name="name" placeholder="Nombre *" required>
-                        <input type="text" name="city" placeholder="Ciudad">
-                        <input type="email" name="email" placeholder="Email">
-                        <input type="text" name="phone" placeholder="Teléfono">
-                        <button type="submit" class="btn-primary full">Agregar asesor</button>
-                    </form>
-                    {{if .Advisors}}
-                    <table class="list-table">
-                        <thead><tr><th>Nombre</th><th>Ciudad</th><th>Contacto</th><th></th></tr></thead>
-                        <tbody>
-                        {{range .Advisors}}
-                            <tr>
-                                <td>{{.Name}}</td>
-                                <td>{{.City}}</td>
-                                <td>{{.Email}}{{if .Phone}}<br>{{.Phone}}{{end}}</td>
-                                <td>
-                                    <form method="POST" action="/admin/b2b/advisors/{{.ID}}/delete" class="inline-del" onsubmit="return confirm('¿Eliminar asesor?');">
-                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-                                        <button type="submit" class="btn-link">Eliminar</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
-                    {{else}}
-                    <p class="empty-hint">Aún no hay asesores. Agrega tus comerciales para poder asignarles prospectos.</p>
-                    {{end}}
-                </div>
-
-                <div class="card">
-                    <div class="card-header"><h2>Zonas por ciudad</h2></div>
-                    <p class="empty-hint" style="margin:0 0 .7rem;">Lo más fácil: <strong>Dibujar zona</strong> en el mapa, cerrar el polígono y guardarla con un nombre. También puedes crear solo el nombre aquí.</p>
-                    <form method="POST" action="/admin/b2b/zones" class="mini-form">
-                        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                        <input type="text" name="name" placeholder="Nombre de la zona *" required>
-                        <input type="text" name="city" placeholder="Ciudad *" required>
-                        <select name="advisor_id">
-                            <option value="">Asesor (opcional)</option>
-                            {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-                        </select>
-                        <input type="color" name="color" value="#2563eb" title="Color de la zona">
-                        <button type="submit" class="btn-primary full">Agregar zona</button>
-                    </form>
-                    {{if .Zones}}
-                    <table class="list-table">
-                        <thead><tr><th>Zona</th><th>Ciudad</th><th></th></tr></thead>
-                        <tbody>
-                        {{range .Zones}}
-                            <tr>
-                                <td><span class="dot" style="background: {{.Color}};"></span> {{.Name}}{{if .HasGeometry}} <span class="count-badge">mapa</span>{{end}}</td>
-                                <td>{{.City}}</td>
-                                <td>
-                                    <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" class="inline-del" onsubmit="return confirm('¿Eliminar zona?');">
-                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-                                        <button type="submit" class="btn-link">Eliminar</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
-                    {{else}}
-                    <p class="empty-hint">Crea zonas (ciudad + área) para repartir a tus asesores por el país.</p>
-                    {{end}}
-                </div>
-            </div>
-        </details>
-        {{end}}
     </main>
 
     {{if .CanManage}}
@@ -760,8 +700,9 @@
                 .then(r => r.json())
                 .then(list => {
                     mapApi.setMarkers(list, colorFor, renderSidePanel);
+                    var pois = priceSmartForCity(document.getElementById("f-city").value);
                     if (mapApi.setPOIs) {
-                        mapApi.setPOIs(priceSmartForCity(document.getElementById("f-city").value), function (poi, marker) {
+                        mapApi.setPOIs(pois, function (poi, marker) {
                             renderSidePanel({
                                 poi: true,
                                 id: poi.id,
@@ -779,6 +720,7 @@
                             }, marker);
                         });
                     }
+                    if (mapApi.fitOverview) mapApi.fitOverview(pois);
                     hint.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
                     renderZoneStats(list);
@@ -1202,6 +1144,22 @@
                 hint.textContent = "Mapa de respaldo (OpenStreetMap). Para Google Maps, configura GOOGLE_MAPS_API_KEY en EasyPanel (servicio web) o en Ajustes. También puedes dibujar zonas haciendo clic en el mapa.";
             }
             loadBusinesses();
+            var fullBtn = document.getElementById("btn-map-full");
+            var stage = document.getElementById("map-stage");
+            function syncFullLabel() {
+                var on = !!(document.fullscreenElement || document.webkitFullscreenElement || (stage && stage.classList.contains("is-full")));
+                if (fullBtn) fullBtn.textContent = on ? "✕ Salir" : "⛶ Pantalla completa";
+                if (mapApi.resize) mapApi.resize();
+            }
+            if (fullBtn) {
+                fullBtn.addEventListener("click", function () {
+                    mapApi.toggleFullscreen(stage);
+                    setTimeout(syncFullLabel, 220);
+                });
+                ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) {
+                    document.addEventListener(ev, syncFullLabel);
+                });
+            }
             if (location.hash === "#dibujar" && document.getElementById("btn-draw-zone")) {
                 beginDraw();
             }

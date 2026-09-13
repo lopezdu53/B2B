@@ -161,7 +161,7 @@ type IB2BStore interface {
 	RecordSearchJob(ctx context.Context, jobID, tenantID int64, rubro, specialty string) error
 	IngestSearchJob(ctx context.Context, jobID int64) error
 	IngestPendingSearchJobs(ctx context.Context) error
-	HideBusinessesByStatus(ctx context.Context, tenantID int64, status string) (int64, error)
+	HideAllVisibleBusinesses(ctx context.Context, tenantID int64) (int64, error)
 
 	// Advisors
 	ListAdvisors(ctx context.Context, tenantID int64) ([]Advisor, error)

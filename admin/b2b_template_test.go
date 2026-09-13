@@ -264,7 +264,6 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		`id="tog-zones"`,
 		`Zonas dibujadas`,
 		`libraries=drawing`,
-		`count-badge">mapa`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("b2b.html missing %q", needle)
@@ -273,6 +272,10 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 
 	if strings.Contains(html, `id="tog-bar" checked`) {
 		t.Error("barrio lines should be off by default")
+	}
+
+	if strings.Contains(html, "Asesores y zonas") || strings.Contains(html, "Agregar asesor") {
+		t.Error("map page should not include the advisors/zones management section")
 	}
 
 	data["CanManage"] = false
@@ -358,8 +361,10 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 	html := buf.String()
 	for _, needle := range []string{
 		`id="zone-stats"`,
-		`id="btn-delete-clients"`,
-		`/admin/b2b/clients/delete-all`,
+		`id="btn-delete-businesses"`,
+		`/admin/b2b/businesses/delete-all`,
+		`id="btn-map-full"`,
+		`Pantalla completa`,
 		`value="featured"`,
 		`Destacado`,
 		`PRICE_SMART`,
@@ -378,7 +383,7 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 
 	neg := buf.String()
 	for _, needle := range []string{
-		`id="btn-delete-clients"`,
+		`id="btn-delete-businesses"`,
 		`value="featured"`,
 		`target="_blank"`,
 	} {
