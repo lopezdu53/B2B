@@ -257,6 +257,7 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 	html := buf.String()
 	for _, needle := range []string{
 		`id="btn-draw-zone"`,
+		`id="btn-draw-undo"`,
 		`id="draw-zone-modal"`,
 		`id="tog-zones"`,
 		`Zonas dibujadas`,

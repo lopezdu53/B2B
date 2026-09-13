@@ -104,18 +104,300 @@
         return coords;
     }
 
-    function hasGoogleDrawing() {
-        return global.google && google.maps && google.maps.drawing && google.maps.drawing.DrawingManager;
+    function geomRings(geom) {
+        if (!geom) return [];
+        if (geom.type === "Polygon") return [geom.coordinates[0]];
+        if (geom.type === "MultiPolygon") {
+            return geom.coordinates.map(function (poly) { return poly[0]; });
+        }
+        return [];
     }
 
-    function ringFromGooglePolygon(polygon) {
-        var path = polygon.getPath();
-        var coords = [];
-        for (var i = 0; i < path.getLength(); i++) {
-            var p = path.getAt(i);
-            coords.push([p.lng(), p.lat()]);
+    function distMeters(a, b) {
+        var R = 6371000;
+        var dLat = (b.lat - a.lat) * Math.PI / 180;
+        var dLng = (b.lng - a.lng) * Math.PI / 180;
+        var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+    }
+
+    function ringCentroid(ring) {
+        if (!ring || !ring.length) return null;
+        var a = 0, x = 0, y = 0;
+        var n = ring.length - 1;
+        for (var i = 0; i < n; i++) {
+            var x0 = ring[i][0], y0 = ring[i][1];
+            var x1 = ring[i + 1][0], y1 = ring[i + 1][1];
+            var c = x0 * y1 - x1 * y0;
+            a += c;
+            x += (x0 + x1) * c;
+            y += (y0 + y1) * c;
         }
-        return closeRing(coords);
+        a *= 0.5;
+        var pt;
+        if (Math.abs(a) < 1e-12) {
+            pt = { lng: ring[0][0], lat: ring[0][1] };
+        } else {
+            pt = { lng: x / (6 * a), lat: y / (6 * a) };
+        }
+        if (!pointInRing(pt.lat, pt.lng, ring)) {
+            var box = geomBounds({ type: "Polygon", coordinates: [ring] });
+            pt = { lng: (box.west + box.east) / 2, lat: (box.south + box.north) / 2 };
+        }
+        return pt;
+    }
+
+    function perpDist(p, a, b) {
+        var x = p[0], y = p[1], x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1];
+        var dx = x2 - x1, dy = y2 - y1;
+        var len2 = dx * dx + dy * dy;
+        if (len2 < 1e-20) return Math.hypot(x - x1, y - y1);
+        var t = ((x - x1) * dx + (y - y1) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
+    }
+
+    function simplifyOpen(pts, eps) {
+        if (pts.length <= 2) return pts;
+        var maxD = 0, idx = 0;
+        var last = pts.length - 1;
+        for (var i = 1; i < last; i++) {
+            var d = perpDist(pts[i], pts[0], pts[last]);
+            if (d > maxD) { maxD = d; idx = i; }
+        }
+        if (maxD > eps) {
+            var left = simplifyOpen(pts.slice(0, idx + 1), eps);
+            var right = simplifyOpen(pts.slice(idx), eps);
+            return left.slice(0, -1).concat(right);
+        }
+        return [pts[0], pts[last]];
+    }
+
+    function simplifyRing(ring, eps) {
+        if (!ring || ring.length < 8) return ring;
+        var closed = ring[0][0] === ring[ring.length - 1][0] &&
+            ring[0][1] === ring[ring.length - 1][1];
+        var pts = closed ? ring.slice(0, -1) : ring.slice();
+        return closeRing(simplifyOpen(pts, eps || 0.00004));
+    }
+
+    var MUTED_ZONE = "#6b7280";
+
+    function ensureHatchPattern(color) {
+        var safe = String(color || MUTED_ZONE).replace(/[^#a-fA-F0-9]/g, "") || "6b7280";
+        var id = "b2b-hatch-" + safe.replace("#", "");
+        if (document.getElementById(id)) return id;
+        var svg = document.getElementById("b2b-zone-patterns");
+        if (!svg) {
+            svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("id", "b2b-zone-patterns");
+            svg.setAttribute("width", "0");
+            svg.setAttribute("height", "0");
+            svg.style.position = "absolute";
+            svg.style.width = "0";
+            svg.style.height = "0";
+            svg.innerHTML = "<defs></defs>";
+            document.body.appendChild(svg);
+        }
+        var defs = svg.querySelector("defs");
+        var pat = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+        pat.setAttribute("id", id);
+        pat.setAttribute("patternUnits", "userSpaceOnUse");
+        pat.setAttribute("width", "10");
+        pat.setAttribute("height", "10");
+        var bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        bg.setAttribute("width", "10");
+        bg.setAttribute("height", "10");
+        bg.setAttribute("fill", color);
+        bg.setAttribute("opacity", "0.16");
+        var dots = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dots.setAttribute("cx", "2.2");
+        dots.setAttribute("cy", "2.2");
+        dots.setAttribute("r", "1.25");
+        dots.setAttribute("fill", color);
+        dots.setAttribute("opacity", "0.95");
+        var line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        line.setAttribute("d", "M0 10 L10 0");
+        line.setAttribute("stroke", color);
+        line.setAttribute("stroke-width", "1.4");
+        line.setAttribute("opacity", "0.85");
+        pat.appendChild(bg);
+        pat.appendChild(dots);
+        pat.appendChild(line);
+        defs.appendChild(pat);
+        return id;
+    }
+
+    function zoneInk(props, locVisible) {
+        if (locVisible) return MUTED_ZONE;
+        return (props && props.color) || "#0891b2";
+    }
+
+    function osrmNearest(lat, lng) {
+        var url = "https://router.project-osrm.org/nearest/v1/driving/" +
+            lng + "," + lat + "?number=1";
+        return fetch(url).then(function (r) {
+            if (!r.ok) throw new Error("nearest");
+            return r.json();
+        }).then(function (data) {
+            var wp = data.waypoints && data.waypoints[0];
+            if (!wp || !wp.location) throw new Error("nearest");
+            var snapped = { lng: wp.location[0], lat: wp.location[1] };
+            if (typeof wp.distance === "number" && wp.distance > 140) {
+                return { lat: lat, lng: lng };
+            }
+            return snapped;
+        });
+    }
+
+    function osrmRoute(a, b) {
+        var url = "https://router.project-osrm.org/route/v1/driving/" +
+            a.lng + "," + a.lat + ";" + b.lng + "," + b.lat +
+            "?overview=full&geometries=geojson&continue_straight=true";
+        return fetch(url).then(function (r) {
+            if (!r.ok) throw new Error("route");
+            return r.json();
+        }).then(function (data) {
+            var coords = data.routes && data.routes[0] && data.routes[0].geometry &&
+                data.routes[0].geometry.coordinates;
+            if (!coords || coords.length < 2) throw new Error("route");
+            return coords.map(function (c) { return { lng: c[0], lat: c[1] }; });
+        });
+    }
+
+    function googleRoute(a, b) {
+        return new Promise(function (resolve, reject) {
+            if (!(global.google && google.maps && google.maps.DirectionsService)) {
+                reject(new Error("no directions"));
+                return;
+            }
+            var ds = new google.maps.DirectionsService();
+            ds.route({
+                origin: { lat: a.lat, lng: a.lng },
+                destination: { lat: b.lat, lng: b.lng },
+                travelMode: google.maps.TravelMode.DRIVING,
+                region: "CO",
+                provideRouteAlternatives: false
+            }, function (res, status) {
+                if (status !== "OK" || !res || !res.routes || !res.routes[0]) {
+                    reject(new Error(status || "route"));
+                    return;
+                }
+                resolve(res.routes[0].overview_path.map(function (p) {
+                    return { lat: p.lat(), lng: p.lng() };
+                }));
+            });
+        });
+    }
+
+    function googleSnap(lat, lng) {
+        return new Promise(function (resolve, reject) {
+            if (!(global.google && google.maps && google.maps.Geocoder)) {
+                reject(new Error("no geocoder"));
+                return;
+            }
+            var g = new google.maps.Geocoder();
+            g.geocode({ location: { lat: lat, lng: lng } }, function (results, status) {
+                if (status !== "OK" || !results || !results[0]) {
+                    reject(new Error(status || "geocode"));
+                    return;
+                }
+                var loc = results[0].geometry.location;
+                var snapped = { lat: loc.lat(), lng: loc.lng() };
+                if (distMeters({ lat: lat, lng: lng }, snapped) > 140) {
+                    resolve({ lat: lat, lng: lng });
+                    return;
+                }
+                resolve(snapped);
+            });
+        });
+    }
+
+    function snapToStreet(lat, lng) {
+        return osrmNearest(lat, lng).catch(function () {
+            return googleSnap(lat, lng);
+        }).catch(function () {
+            return { lat: lat, lng: lng };
+        });
+    }
+
+    function routeAlongStreet(a, b, preferGoogle) {
+        if (distMeters(a, b) < 8) return Promise.resolve([a, b]);
+        var first = preferGoogle ? googleRoute(a, b) : osrmRoute(a, b);
+        var fallback = preferGoogle ? function () { return osrmRoute(a, b); } : function () { return googleRoute(a, b); };
+        return first.catch(fallback).catch(function () { return [a, b]; });
+    }
+
+    function createGoogleZoneChrome(map) {
+        var overlay = new google.maps.OverlayView();
+        overlay._fc = { type: "FeatureCollection", features: [] };
+        overlay._locVisible = true;
+        overlay._visible = true;
+        overlay.onAdd = function () {
+            this.wrap = document.createElement("div");
+            this.wrap.className = "b2b-zone-overlay";
+            this.wrap.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;";
+            this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            this.svg.style.cssText = "position:absolute;overflow:visible;pointer-events:none;";
+            this.wrap.appendChild(this.svg);
+            this.labels = document.createElement("div");
+            this.labels.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;";
+            this.wrap.appendChild(this.labels);
+            this.getPanes().overlayMouseTarget.appendChild(this.wrap);
+        };
+        overlay.draw = function () {
+            var proj = this.getProjection();
+            if (!proj || !this.wrap) return;
+            this.wrap.style.display = this._visible ? "" : "none";
+            if (!this._visible) return;
+            var defs = "";
+            var paths = "";
+            var labels = "";
+            (this._fc.features || []).forEach(function (f) {
+                var color = zoneInk(f.properties, overlay._locVisible);
+                var pid = ensureHatchPattern(color);
+                geomRings(f.geometry).forEach(function (ring, ri) {
+                    var d = ring.map(function (c, idx) {
+                        var p = proj.fromLatLngToDivPixel(new google.maps.LatLng(c[1], c[0]));
+                        return (idx ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1);
+                    }).join(" ") + " Z";
+                    paths += '<path d="' + d + '" fill="url(#' + pid + ')" fill-opacity="0.92" stroke="' +
+                        color + '" stroke-width="2.2" stroke-opacity="0.95"></path>';
+                    if (ri === 0) {
+                        var c = ringCentroid(ring);
+                        if (c) {
+                            var lp = proj.fromLatLngToDivPixel(new google.maps.LatLng(c.lat, c.lng));
+                            var cls = overlay._locVisible ? "is-muted" : "is-color";
+                            labels += '<div class="b2b-zone-label ' + cls + '" style="left:' +
+                                lp.x.toFixed(1) + 'px;top:' + lp.y.toFixed(1) + 'px;position:absolute;">' +
+                                escapeHtml((f.properties && f.properties.nombre) || "Zona") + "</div>";
+                        }
+                    }
+                });
+            });
+            this.svg.innerHTML = defs + paths;
+            this.labels.innerHTML = labels;
+        };
+        overlay.onRemove = function () {
+            if (this.wrap && this.wrap.parentNode) this.wrap.parentNode.removeChild(this.wrap);
+        };
+        overlay.setFeatures = function (fc) {
+            this._fc = fc || { type: "FeatureCollection", features: [] };
+            if (this.getProjection()) this.draw();
+        };
+        overlay.setLocVisible = function (on) {
+            this._locVisible = !!on;
+            if (this.getProjection()) this.draw();
+        };
+        overlay.setVisible = function (on) {
+            this._visible = !!on;
+            if (this.wrap) this.wrap.style.display = on ? "" : "none";
+            if (on && this.getProjection()) this.draw();
+        };
+        overlay.setMap(map);
+        return overlay;
     }
 
     function fetchJSON(url) {
@@ -218,21 +500,30 @@
         var locLayer = new google.maps.Data({ map: map });
         var barLayer = new google.maps.Data({ map: map });
         var zoneLayer = new google.maps.Data({ map: map });
+        var zoneChrome = createGoogleZoneChrome(map);
+        var zoneClickable = true;
+        var zoneLocVisible = true;
+        var locClickable = true;
+        var barClickable = true;
         var markers = [];
         var info = new google.maps.InfoWindow();
 
-        zoneLayer.setStyle(function (feature) {
-            var color = feature.getProperty("color") || "#2563eb";
-            return {
-                fillColor: color,
-                fillOpacity: 0.22,
-                strokeColor: color,
-                strokeWeight: 2.4,
-                strokeOpacity: 0.95,
-                clickable: true
-            };
-        });
+        function applyZoneHitStyle() {
+            zoneLayer.setStyle(function (feature) {
+                var color = zoneInk({ color: feature.getProperty("color") }, zoneLocVisible);
+                return {
+                    fillColor: color,
+                    fillOpacity: 0.04,
+                    strokeColor: color,
+                    strokeWeight: 1.2,
+                    strokeOpacity: 0.35,
+                    clickable: zoneClickable
+                };
+            });
+        }
+        applyZoneHitStyle();
         zoneLayer.addListener("click", function (e) {
+            if (!zoneClickable) return;
             var name = e.feature.getProperty("nombre") || "Zona";
             var city = e.feature.getProperty("city") || "";
             info.setContent("<strong>" + escapeHtml(name) + "</strong>" +
@@ -256,10 +547,28 @@
             locLayer: locLayer,
             barLayer: barLayer,
             addGeo: function (layer, fc) { layer.addGeoJson(fc); },
-            styleLoc: function (fn) { locLayer.setStyle(fn); },
-            styleBar: function (fn) { barLayer.setStyle(fn); },
+            styleLoc: function (fn) {
+                locLayer.setStyle(function (feature) {
+                    var s = fn(feature);
+                    s.clickable = locClickable && (s.fillOpacity || 0) > 0;
+                    return s;
+                });
+            },
+            styleBar: function (fn) {
+                barLayer.setStyle(function (feature) {
+                    var s = fn(feature);
+                    s.clickable = barClickable && (s.strokeOpacity || 0) > 0;
+                    return s;
+                });
+            },
             setLocVisible: function (on) { locLayer.setMap(on ? map : null); },
             setBarVisible: function (on) { barLayer.setMap(on ? map : null); },
+            setClickThrough: function (on) {
+                locClickable = !on;
+                barClickable = !on;
+                zoneClickable = !on;
+                applyZoneHitStyle();
+            },
             clearZones: function () {
                 var gone = [];
                 zoneLayer.forEach(function (f) { gone.push(f); });
@@ -270,8 +579,18 @@
                 if (fc && fc.features && fc.features.length) {
                     zoneLayer.addGeoJson(fc);
                 }
+                zoneChrome.setFeatures(fc);
+                applyZoneHitStyle();
             },
-            setZoneVisible: function (on) { zoneLayer.setMap(on ? map : null); },
+            setZoneVisible: function (on) {
+                zoneLayer.setMap(on ? map : null);
+                zoneChrome.setVisible(on);
+            },
+            setZoneDecor: function (opts) {
+                zoneLocVisible = !!(opts && opts.locVisible);
+                zoneChrome.setLocVisible(zoneLocVisible);
+                applyZoneHitStyle();
+            },
             clearMarkers: function () {
                 markers.forEach(function (m) { m.setMap(null); });
                 markers = [];
@@ -338,13 +657,26 @@
             maxZoom: 19,
             attribution: "&copy; OpenStreetMap"
         }).addTo(map);
-        var locLayer = L.geoJSON(null, { interactive: true }).addTo(map);
-        var barLayer = L.geoJSON(null, { interactive: true }).addTo(map);
+        map.createPane("locPane");
+        map.getPane("locPane").style.zIndex = 350;
+        map.createPane("barPane");
+        map.getPane("barPane").style.zIndex = 410;
+        map.createPane("zonePane");
+        map.getPane("zonePane").style.zIndex = 430;
+        map.createPane("zoneLabelPane");
+        map.getPane("zoneLabelPane").style.zIndex = 445;
+        map.getPane("zoneLabelPane").style.pointerEvents = "none";
+
+        var locLayer = L.geoJSON(null, { interactive: true, pane: "locPane" }).addTo(map);
+        var barLayer = L.geoJSON(null, { interactive: true, pane: "barPane" }).addTo(map);
+        var zoneLocVisible = true;
+        var zoneLabelLayer = L.layerGroup({ pane: "zoneLabelPane" }).addTo(map);
         var zoneLayer = L.geoJSON(null, {
             interactive: true,
+            pane: "zonePane",
             style: function (feat) {
-                var c = (feat.properties && feat.properties.color) || "#2563eb";
-                return { color: c, weight: 2.4, fillColor: c, fillOpacity: 0.22, opacity: 0.95 };
+                var c = zoneInk(feat.properties, zoneLocVisible);
+                return { color: c, weight: 2.2, fillColor: c, fillOpacity: 0.1, opacity: 0.95 };
             },
             onEachFeature: function (feat, layer) {
                 var name = feat.properties && feat.properties.nombre ? feat.properties.nombre : "Zona";
@@ -355,6 +687,39 @@
         }).addTo(map);
         var markersLayer = L.layerGroup().addTo(map);
         var markers = [];
+
+        function paintLeafletZones() {
+            zoneLayer.eachLayer(function (layer) {
+                var feat = layer.feature || {};
+                var color = zoneInk(feat.properties, zoneLocVisible);
+                var pid = ensureHatchPattern(color);
+                layer.setStyle({
+                    color: color, weight: 2.2, fillColor: color, fillOpacity: 0.12, opacity: 0.95
+                });
+                if (layer._path) {
+                    layer._path.setAttribute("fill", "url(#" + pid + ")");
+                    layer._path.setAttribute("fill-opacity", "0.92");
+                }
+            });
+            zoneLabelLayer.clearLayers();
+            zoneLayer.eachLayer(function (layer) {
+                var feat = layer.feature;
+                if (!feat) return;
+                var ring = geomRings(feat.geometry)[0];
+                var c = ringCentroid(ring);
+                if (!c) return;
+                var name = (feat.properties && feat.properties.nombre) || "Zona";
+                var icon = L.divIcon({
+                    className: "b2b-zone-label " + (zoneLocVisible ? "is-muted" : "is-color"),
+                    html: "<span>" + escapeHtml(name) + "</span>",
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+                L.marker([c.lat, c.lng], { icon: icon, interactive: false, pane: "zoneLabelPane" })
+                    .addTo(zoneLabelLayer);
+            });
+        }
+        map.on("zoomend moveend", paintLeafletZones);
 
         return {
             kind: "leaflet",
@@ -376,16 +741,36 @@
                 if (on) { if (!map.hasLayer(barLayer)) barLayer.addTo(map); }
                 else map.removeLayer(barLayer);
             },
-            clearZones: function () { zoneLayer.clearLayers(); },
+            setClickThrough: function (on) {
+                ["locPane", "barPane", "zonePane"].forEach(function (name) {
+                    var pane = map.getPane(name);
+                    if (pane) pane.style.pointerEvents = on ? "none" : "auto";
+                });
+            },
+            clearZones: function () {
+                zoneLayer.clearLayers();
+                zoneLabelLayer.clearLayers();
+            },
             addZones: function (fc) {
                 zoneLayer.clearLayers();
+                zoneLabelLayer.clearLayers();
                 if (fc && fc.features && fc.features.length) {
                     zoneLayer.addData(fc);
                 }
+                paintLeafletZones();
             },
             setZoneVisible: function (on) {
-                if (on) { if (!map.hasLayer(zoneLayer)) zoneLayer.addTo(map); }
-                else map.removeLayer(zoneLayer);
+                if (on) {
+                    if (!map.hasLayer(zoneLayer)) zoneLayer.addTo(map);
+                    if (!map.hasLayer(zoneLabelLayer)) zoneLabelLayer.addTo(map);
+                } else {
+                    map.removeLayer(zoneLayer);
+                    map.removeLayer(zoneLabelLayer);
+                }
+            },
+            setZoneDecor: function (opts) {
+                zoneLocVisible = !!(opts && opts.locVisible);
+                paintLeafletZones();
             },
             clearMarkers: function () {
                 markersLayer.clearLayers();
@@ -472,49 +857,28 @@
         };
     }
 
-    function startGoogleDrawing(engine, color, onComplete) {
-        var dm = new google.maps.drawing.DrawingManager({
-            drawingMode: google.maps.drawing.OverlayType.POLYGON,
-            drawingControl: false,
-            polygonOptions: {
-                fillColor: color,
-                fillOpacity: 0.25,
-                strokeColor: color,
-                strokeWeight: 2.4,
-                clickable: false,
-                editable: true
-            }
-        });
-        dm.setMap(engine.map);
-        var listener = google.maps.event.addListener(dm, "polygoncomplete", function (poly) {
-            google.maps.event.removeListener(listener);
-            dm.setDrawingMode(null);
-            dm.setMap(null);
-            var ring = ringFromGooglePolygon(poly);
-            if (!ring || ring.length < 4) {
-                poly.setMap(null);
-                return;
-            }
-            onComplete({ type: "Polygon", coordinates: [ring] }, function () {
-                poly.setMap(null);
-            });
-        });
-        return {
-            mode: "google",
-            finish: function () { return false; },
-            cancel: function () {
-                google.maps.event.removeListener(listener);
-                dm.setDrawingMode(null);
-                dm.setMap(null);
-            }
-        };
-    }
-
-    function startClickDraw(engine, color, onVertex, onComplete) {
-        var pts = [];
+    function startStreetDraw(engine, color, onVertex, onComplete) {
+        var corners = [];
+        var segments = [];
         var preview = null;
         var vertices = [];
         var listeners = [];
+        var busy = false;
+        var finished = false;
+        var preferGoogle = engine.kind === "google";
+
+        function notify() {
+            if (onVertex) onVertex(corners.length, { routing: busy });
+        }
+
+        function fullPath() {
+            var out = [];
+            segments.forEach(function (seg, i) {
+                var start = i === 0 ? 0 : 1;
+                for (var k = start; k < seg.length; k++) out.push(seg[k]);
+            });
+            return out;
+        }
 
         function cleanupPreview() {
             if (engine.kind === "google") {
@@ -530,15 +894,19 @@
 
         function redraw() {
             cleanupPreview();
-            if (!pts.length) return;
+            var pts = fullPath();
+            if (!pts.length && !corners.length) return;
             if (engine.kind === "google") {
-                preview = new google.maps.Polyline({
-                    path: pts,
-                    strokeColor: color,
-                    strokeWeight: 2.6,
-                    map: engine.map
-                });
-                pts.forEach(function (p) {
+                if (pts.length) {
+                    preview = new google.maps.Polyline({
+                        path: pts,
+                        strokeColor: color,
+                        strokeWeight: 3,
+                        geodesic: false,
+                        map: engine.map
+                    });
+                }
+                corners.forEach(function (p) {
                     vertices.push(new google.maps.Marker({
                         position: p,
                         map: engine.map,
@@ -553,23 +921,17 @@
                     }));
                 });
             } else {
-                preview = L.polyline(pts.map(function (p) { return [p.lat, p.lng]; }), {
-                    color: color, weight: 2.6
-                }).addTo(engine.map);
-                pts.forEach(function (p) {
+                if (pts.length) {
+                    preview = L.polyline(pts.map(function (p) { return [p.lat, p.lng]; }), {
+                        color: color, weight: 3
+                    }).addTo(engine.map);
+                }
+                corners.forEach(function (p) {
                     vertices.push(L.circleMarker([p.lat, p.lng], {
                         radius: 5, color: color, fillColor: "#fff", fillOpacity: 1, weight: 2
                     }).addTo(engine.map));
                 });
             }
-        }
-
-        function toGeom() {
-            if (pts.length < 3) return null;
-            return {
-                type: "Polygon",
-                coordinates: [closeRing(pts.map(function (p) { return [p.lng, p.lat]; }))]
-            };
         }
 
         function unbind() {
@@ -583,40 +945,91 @@
             listeners = [];
         }
 
-        var finished = false;
-        function finish() {
-            if (finished) return false;
-            var geom = toGeom();
-            if (!geom) return false;
-            finished = true;
-            unbind();
+        function showDraft(path) {
             cleanupPreview();
             var draftCleanup;
             if (engine.kind === "google") {
                 var poly = new google.maps.Polygon({
-                    paths: pts,
+                    paths: path,
                     fillColor: color,
-                    fillOpacity: 0.25,
+                    fillOpacity: 0.18,
                     strokeColor: color,
-                    strokeWeight: 2.4,
+                    strokeWeight: 2.6,
                     map: engine.map,
                     clickable: false
                 });
                 draftCleanup = function () { poly.setMap(null); };
             } else {
-                var lpoly = L.polygon(pts.map(function (p) { return [p.lat, p.lng]; }), {
-                    color: color, weight: 2.4, fillColor: color, fillOpacity: 0.25
+                var lpoly = L.polygon(path.map(function (p) { return [p.lat, p.lng]; }), {
+                    color: color, weight: 2.6, fillColor: color, fillOpacity: 0.18
                 }).addTo(engine.map);
                 draftCleanup = function () { engine.map.removeLayer(lpoly); };
             }
-            onComplete(geom, draftCleanup);
+            return draftCleanup;
+        }
+
+        function finish() {
+            if (finished || busy || corners.length < 3) return false;
+            finished = true;
+            busy = true;
+            notify();
+            var last = corners[corners.length - 1];
+            var first = corners[0];
+            routeAlongStreet(last, first, preferGoogle).then(function (seg) {
+                if (seg && seg.length >= 2) segments.push(seg);
+                var ring = simplifyRing(closeRing(fullPath().map(function (p) {
+                    return [p.lng, p.lat];
+                })), 0.000035);
+                unbind();
+                var draft = showDraft(fullPath().concat([first]));
+                onComplete({ type: "Polygon", coordinates: [ring] }, draft);
+            }).catch(function () {
+                finished = false;
+                busy = false;
+                notify();
+            });
             return true;
         }
 
-        function addPoint(lat, lng) {
-            pts.push({ lat: lat, lng: lng });
+        function undo() {
+            if (busy || finished || !corners.length) return;
+            corners.pop();
+            segments.pop();
             redraw();
-            if (onVertex) onVertex(pts.length);
+            notify();
+        }
+
+        function addPoint(lat, lng) {
+            if (busy || finished) return;
+            busy = true;
+            notify();
+            snapToStreet(lat, lng).then(function (pt) {
+                if (!corners.length) {
+                    corners.push(pt);
+                    segments.push([pt]);
+                    redraw();
+                    return;
+                }
+                var prev = corners[corners.length - 1];
+                return routeAlongStreet(prev, pt, preferGoogle).then(function (seg) {
+                    corners.push(pt);
+                    segments.push(seg && seg.length ? seg : [prev, pt]);
+                    redraw();
+                });
+            }).catch(function () {
+                var raw = { lat: lat, lng: lng };
+                if (!corners.length) {
+                    corners.push(raw);
+                    segments.push([raw]);
+                } else {
+                    corners.push(raw);
+                    segments.push([corners[corners.length - 2], raw]);
+                }
+                redraw();
+            }).then(function () {
+                busy = false;
+                notify();
+            });
         }
 
         function onLeafClick(e) {
@@ -636,6 +1049,7 @@
         return {
             mode: "click",
             finish: finish,
+            undo: undo,
             cancel: function () {
                 unbind();
                 cleanupPreview();
@@ -697,6 +1111,7 @@
 
             function applySectors() {
                 if (!engine) return;
+                if (engine.setClickThrough) engine.setClickThrough(drawing);
                 if (engine.kind === "google") {
                     engine.styleLoc(googleStyle(function (p) { return styleLocalidad(p, filterLoc, showLoc); }));
                     engine.styleBar(googleStyle(function (p) { return styleBarrio(p, filterLoc, filterBar, showBar); }));
@@ -704,9 +1119,10 @@
                     engine.styleLoc(function (p) { return styleLocalidad(p, filterLoc, showLoc); });
                     engine.styleBar(function (p) { return styleBarrio(p, filterLoc, filterBar, showBar); });
                 }
-                engine.setLocVisible(showLoc && !drawing);
-                engine.setBarVisible(showBar && !drawing);
-                if (engine.setZoneVisible) engine.setZoneVisible(showZones && !drawing);
+                engine.setLocVisible(showLoc);
+                engine.setBarVisible(showBar);
+                if (engine.setZoneVisible) engine.setZoneVisible(showZones);
+                if (engine.setZoneDecor) engine.setZoneDecor({ locVisible: showLoc });
                 applyMarkerFilter();
                 zoomToFilter();
             }
@@ -714,7 +1130,9 @@
             function renderZones() {
                 if (!engine || !engine.addZones) return;
                 engine.addZones(zoneFeatureCollection(zoneList));
-                engine.setZoneVisible(showZones && !drawing);
+                engine.setZoneVisible(showZones);
+                if (engine.setZoneDecor) engine.setZoneDecor({ locVisible: showLoc });
+                if (engine.setClickThrough) engine.setClickThrough(drawing);
             }
 
             function stopDraw(keepDraft) {
@@ -859,7 +1277,7 @@
                     },
                     setZonesVisible: function (on) {
                         showZones = !!on;
-                        if (engine && engine.setZoneVisible) engine.setZoneVisible(showZones && !drawing);
+                        if (engine && engine.setZoneVisible) engine.setZoneVisible(showZones);
                     },
                     startDraw: function (drawOpts) {
                         drawOpts = drawOpts || {};
@@ -876,15 +1294,14 @@
                             applySectors();
                             if (drawOpts.onComplete) drawOpts.onComplete(geom);
                         };
-                        if (engine.kind === "google" && hasGoogleDrawing()) {
-                            drawSession = startGoogleDrawing(engine, color, onDone);
-                        } else {
-                            drawSession = startClickDraw(engine, color, drawOpts.onVertex, onDone);
-                        }
+                        drawSession = startStreetDraw(engine, color, drawOpts.onVertex, onDone);
                         return drawSession.mode;
                     },
                     finishDraw: function () {
                         return !!(drawSession && drawSession.finish && drawSession.finish());
+                    },
+                    undoDraw: function () {
+                        if (drawSession && drawSession.undo) drawSession.undo();
                     },
                     cancelDraw: function () { stopDraw(false); },
                     isDrawing: function () { return drawing; }
