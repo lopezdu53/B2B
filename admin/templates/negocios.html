@@ -15,6 +15,12 @@
         <div class="page-header">
             <h1>Negocios</h1>
             <p>Listado de todos los negocios encontrados en Google Maps, con su estado comercial y asignación.</p>
+            {{if .CanManage}}
+            <form method="POST" action="/admin/b2b/clients/delete-all" style="margin:.8rem 0 0;" onsubmit="return confirm('¿Eliminar TODOS los clientes? Irán a la papelera. Puedes restaurarlos desde Papelera.');">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <button type="submit" class="btn-danger" id="btn-delete-clients">Eliminar todos los clientes</button>
+            </form>
+            {{end}}
         </div>
 
         <div class="card">
@@ -39,6 +45,7 @@
                         <option value="prospect" {{if eq $s "prospect"}}selected{{end}}>Prospecto</option>
                         <option value="in_progress" {{if eq $s "in_progress"}}selected{{end}}>En gestión</option>
                         <option value="client" {{if eq $s "client"}}selected{{end}}>Cliente</option>
+                        <option value="featured" {{if eq $s "featured"}}selected{{end}}>Destacado</option>
                         <option value="discarded" {{if eq $s "discarded"}}selected{{end}}>Descartado</option>
                     </select>
                 </div>
@@ -113,8 +120,13 @@
                                 <td><input type="checkbox" class="row-check" name="keys" value="{{.Key}}"></td>
                                 <td>
                                     <strong>{{if .Title}}{{.Title}}{{else}}(sin nombre){{end}}</strong>
+                                    {{if .Specialty}}<br><span class="muted">{{.Specialty}}</span>{{end}}
                                     {{if .Category}}<br><span class="muted">{{.Category}}</span>{{end}}
                                     {{if .Address}}<br><span class="muted" style="font-size:.8rem;">{{.Address}}</span>{{end}}
+                                    <br>
+                                    {{if .WebsiteURL}}<a href="{{.WebsiteURL}}" target="_blank" rel="noopener">Web</a>{{end}}
+                                    {{if .MapsURL}}{{if .WebsiteURL}} · {{end}}<a href="{{.MapsURL}}" target="_blank" rel="noopener">Maps</a>{{end}}
+                                    {{if .EmailURL}}{{if or .WebsiteURL .MapsURL}} · {{end}}<a href="{{.EmailURL}}" target="_blank" rel="noopener">Email</a>{{end}}
                                 </td>
                                 <td>{{if .City}}{{.City}}{{else}}<span class="muted">—</span>{{end}}</td>
                                 <td>{{if .Phone}}{{.Phone}}{{else}}<span class="muted">—</span>{{end}}</td>
@@ -164,6 +176,7 @@
                     <option value="prospect">Prospecto</option>
                     <option value="in_progress">En gestión</option>
                     <option value="client">Cliente</option>
+                    <option value="featured">Destacado</option>
                     <option value="discarded">Descartado</option>
                 </select>
             </div>
@@ -222,7 +235,7 @@
         if (!form) return;
 
         var BULK = {
-            status: [["prospect","Prospecto"],["in_progress","En gestión"],["client","Cliente"],["discarded","Descartado"]],
+            status: [["prospect","Prospecto"],["in_progress","En gestión"],["client","Cliente"],["featured","Destacado"],["discarded","Descartado"]],
             advisor: [{{range .Advisors}}["{{.ID}}","{{.Name}}"],{{end}}],
             zone: [{{range .Zones}}["{{.ID}}","{{.Name}}"],{{end}}],
             category: [{{range .Categories}}["{{.ID}}","{{.Name}}"],{{end}}]

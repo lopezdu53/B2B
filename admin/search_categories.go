@@ -234,3 +234,29 @@ func ResolveSearchTerms(rubroID, specialtyKeyword string) ([]string, string, boo
 
 	return nil, rubro.Label, false
 }
+
+// SpecialtyLabelForKeyword returns the UI label for a specialty keyword.
+func SpecialtyLabelForKeyword(rubroID, keyword string) string {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return ""
+	}
+
+	if rubro := FindSearchRubro(rubroID); rubro != nil {
+		for _, s := range rubro.Specialties {
+			if s.Keyword == keyword {
+				return s.Label
+			}
+		}
+	}
+
+	for _, rubro := range SearchRubros() {
+		for _, s := range rubro.Specialties {
+			if s.Keyword == keyword {
+				return s.Label
+			}
+		}
+	}
+
+	return keyword
+}

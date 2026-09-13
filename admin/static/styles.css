@@ -349,6 +349,7 @@ main.container {
 .badge.in_progress { background: #fef3c7; color: #b45309; }
 .badge.client { background: #dcfce7; color: #15803d; }
 .badge.discarded { background: #f1f5f9; color: #64748b; }
+.badge.featured { background: #fef9c3; color: #a16207; }
 
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 4px; vertical-align: middle; box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
 .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); }

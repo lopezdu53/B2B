@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -18,13 +19,14 @@ const (
 	StatusProspect   = "prospect"    // negocio nuevo, candidato a cliente
 	StatusInProgress = "in_progress" // en gestión comercial
 	StatusClient     = "client"      // ya es cliente
+	StatusFeatured   = "featured"    // destacado
 	StatusDiscarded  = "discarded"   // descartado / no aplica
 )
 
 // ValidBusinessStatus reports whether s is a recognized CRM status.
 func ValidBusinessStatus(s string) bool {
 	switch s {
-	case StatusProspect, StatusInProgress, StatusClient, StatusDiscarded:
+	case StatusProspect, StatusInProgress, StatusClient, StatusFeatured, StatusDiscarded:
 		return true
 	default:
 		return false
@@ -78,6 +80,9 @@ type MapBusiness struct {
 	City        string  `json:"city"`
 	Phone       string  `json:"phone"`
 	Website     string  `json:"website"`
+	MapsURL     string  `json:"maps_url"`
+	Email       string  `json:"email"`
+	Specialty   string  `json:"specialty"`
 	Lat         float64 `json:"lat"`
 	Lng         float64 `json:"lng"`
 	Rating      float64 `json:"rating"`
@@ -87,6 +92,36 @@ type MapBusiness struct {
 	ZoneID      *int64  `json:"zone_id"`
 	CategoryID  *int64  `json:"category_id"`
 	Notes       string  `json:"notes"`
+}
+
+// AbsoluteHTTPURL prefixes https:// when a scraped site has no scheme.
+func AbsoluteHTTPURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return raw
+	}
+
+	return "https://" + raw
+}
+
+// WebsiteURL is the clickable website for this business.
+func (m MapBusiness) WebsiteURL() string {
+	return AbsoluteHTTPURL(m.Website)
+}
+
+// EmailURL is a mailto link, or empty.
+func (m MapBusiness) EmailURL() string {
+	email := strings.TrimSpace(m.Email)
+	if email == "" {
+		return ""
+	}
+
+	return "mailto:" + email
 }
 
 // BusinessFilter narrows down the businesses returned for the map.
@@ -109,6 +144,7 @@ type B2BSummary struct {
 	Prospects  int
 	InProgress int
 	Discarded  int
+	Featured   int
 	Advisors   int
 	Zones      int
 }
@@ -122,6 +158,10 @@ type IB2BStore interface {
 	ListBusinessCities(ctx context.Context) ([]string, error)
 	SetBusinessCRM(ctx context.Context, tenantID int64, key, status string, advisorID, zoneID *int64, notes, title string) error
 	B2BSummary(ctx context.Context, tenantID int64, advisorID *int64) (*B2BSummary, error)
+	RecordSearchJob(ctx context.Context, jobID, tenantID int64, rubro, specialty string) error
+	IngestSearchJob(ctx context.Context, jobID int64) error
+	IngestPendingSearchJobs(ctx context.Context) error
+	HideBusinessesByStatus(ctx context.Context, tenantID int64, status string) (int64, error)
 
 	// Advisors
 	ListAdvisors(ctx context.Context, tenantID int64) ([]Advisor, error)

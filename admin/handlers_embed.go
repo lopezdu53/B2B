@@ -78,6 +78,7 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 			"AdvisorsData":      asJSON(advisors),
 			"ZonesData":         asJSON(zones),
 			"CategoriesData":    asJSON(categories),
+			"PriceSmartData":    asJSON(PriceSmartLocations()),
 			"GoogleMapsAPIKey":  resolveGoogleMapsAPIKey(appState, r),
 			"AssetVersion":      assetVersion,
 		}

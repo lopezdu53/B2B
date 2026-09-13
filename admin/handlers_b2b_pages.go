@@ -19,6 +19,8 @@ func statusMeta(status string) (label, class string) {
 		return "En gestión", "in_progress"
 	case StatusDiscarded:
 		return "Descartado", "discarded"
+	case StatusFeatured:
+		return "Destacado", "featured"
 	default:
 		return "Prospecto", "prospect"
 	}
@@ -274,7 +276,7 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 		_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM for Excel
 
 		cw := csv.NewWriter(w)
-		_ = cw.Write([]string{"Negocio", "Categoría (Maps)", "Dirección", "Ciudad", "Teléfono", "Web", "Calificación", "N.º reseñas", "Estado", "Asesor", "Zona", "Categoría", "Notas"})
+		_ = cw.Write([]string{"Negocio", "Categoría (Maps)", "Especialidad", "Dirección", "Ciudad", "Teléfono", "Web", "Maps", "Email", "Calificación", "N.º reseñas", "Estado", "Asesor", "Zona", "Categoría", "Notas"})
 
 		for i := range businesses {
 			b := businesses[i]
@@ -302,8 +304,8 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 			}
 
 			_ = cw.Write([]string{
-				b.Title, b.Category, b.Address, b.City, b.Phone, b.Website,
-				rating, reviews, label, advisorName, zoneName, categoryName, b.Notes,
+				b.Title, b.Category, b.Specialty, b.Address, b.City, b.Phone, b.Website,
+				b.MapsURL, b.Email, rating, reviews, label, advisorName, zoneName, categoryName, b.Notes,
 			})
 		}
 

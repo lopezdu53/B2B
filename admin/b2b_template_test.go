@@ -39,7 +39,8 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"BogotaIndexData":   asJSON(bogotaIdx),
 		"SearchRubros":      SearchRubros(),
 		"SearchRubrosData":  asJSON(SearchRubros()),
-		"Summary":           &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Advisors: 1, Zones: 1},
+		"PriceSmartData":    asJSON(PriceSmartLocations()),
+		"Summary":           &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Featured: 1, Advisors: 1, Zones: 1},
 		"Success":           "",
 		"Error":             "",
 		// list pages
@@ -85,6 +86,7 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"AdvisorsData":      asJSON(advisors),
 		"ZonesData":         asJSON(zones),
 		"CategoriesData":    asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
+		"PriceSmartData":    asJSON(PriceSmartLocations()),
 		"GoogleMapsAPIKey":  "AIza-test",
 		"BogotaLocalidades": BogotaUrbanLocalidades(),
 		"AssetVersion":      "test",
@@ -302,5 +304,86 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 
 	if !strings.Contains(zonas, "/admin/b2b#dibujar") || !strings.Contains(zonas, "Dibujada") {
 		t.Error("zonas.html should link to map drawing and show drawn badge")
+	}
+}
+
+func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	if err != nil {
+		t.Fatalf("parse templates: %v", err)
+	}
+
+	data := map[string]any{
+		"CSRFToken":         "t",
+		"Advisors":          []Advisor{},
+		"Zones":             []Zone{{ID: 1, Name: "Norte", City: "Bogotá", Color: "#0891b2", Geometry: []byte(`{"type":"Polygon"}`)}},
+		"AdvisorsData":      asJSON([]Advisor{}),
+		"ZonesData":         asJSON([]Zone{}),
+		"Cities":            []string{"Bogotá", "Chía"},
+		"CityVal":           "Bogotá",
+		"BogotaLocalidades": BogotaUrbanLocalidades(),
+		"SearchRubros":      SearchRubros(),
+		"SearchRubrosData":  asJSON(SearchRubros()),
+		"PriceSmartData":    asJSON(PriceSmartLocations()),
+		"Summary":           &B2BSummary{},
+		"CanManage":         true,
+		"IsAdvisor":         false,
+		"CanEmbed":          false,
+		"GoogleMapsAPIKey":  "",
+		"Rows": []businessRow{{
+			MapBusiness: MapBusiness{
+				Title: "Rest", City: "Bogotá", Status: "client",
+				Website: "rest.com", MapsURL: "https://maps.google.com/?cid=1", Email: "a@b.com",
+				Specialty: "Taquerías",
+			},
+			StatusLabel: "Cliente", StatusClass: "client",
+		}},
+		"Categories": []Category{},
+		"Count":      1,
+		"QVal":       "",
+		"StatVal":    "",
+		"AdvVal":     "",
+		"CatVal":     "",
+		"SortVal":    "name",
+		"Page":       1,
+		"TotalPages": 1,
+		"ExportURL":  "/admin/b2b/negocios/export",
+	}
+
+	var buf strings.Builder
+	if err := tmpl.ExecuteTemplate(&buf, "b2b.html", data); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	html := buf.String()
+	for _, needle := range []string{
+		`id="zone-stats"`,
+		`id="btn-delete-clients"`,
+		`/admin/b2b/clients/delete-all`,
+		`value="featured"`,
+		`Destacado`,
+		`PRICE_SMART`,
+		`Página web`,
+		`Ver en Google Maps`,
+	} {
+		if !strings.Contains(html, needle) {
+			t.Errorf("b2b.html missing %q", needle)
+		}
+	}
+
+	buf.Reset()
+	if err := tmpl.ExecuteTemplate(&buf, "negocios.html", data); err != nil {
+		t.Fatalf("execute negocios: %v", err)
+	}
+
+	neg := buf.String()
+	for _, needle := range []string{
+		`id="btn-delete-clients"`,
+		`value="featured"`,
+		`target="_blank"`,
+	} {
+		if !strings.Contains(neg, needle) {
+			t.Errorf("negocios.html missing %q", needle)
+		}
 	}
 }
