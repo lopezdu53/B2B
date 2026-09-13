@@ -16,9 +16,9 @@
             <h1>Negocios</h1>
             <p>Listado de todos los negocios encontrados en Google Maps, con su estado comercial y asignación.</p>
             {{if .CanManage}}
-            <form method="POST" action="/admin/b2b/clients/delete-all" style="margin:.8rem 0 0;" onsubmit="return confirm('¿Eliminar TODOS los clientes? Irán a la papelera. Puedes restaurarlos desde Papelera.');">
+            <form method="POST" action="/admin/b2b/businesses/delete-all" style="margin:.8rem 0 0;" onsubmit="return confirm('¿Eliminar TODOS los negocios? Irán a la papelera. Puedes restaurarlos desde Papelera.');">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <button type="submit" class="btn-danger" id="btn-delete-clients">Eliminar todos los clientes</button>
+                <button type="submit" class="btn-danger" id="btn-delete-businesses">Eliminar todos los negocios</button>
             </form>
             {{end}}
         </div>

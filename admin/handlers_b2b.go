@@ -285,9 +285,9 @@ func B2BSetStatusHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
-// HideAllClientsHandler sends every tenant business marked as client to the
-// trash after the user confirms in the UI.
-func HideAllClientsHandler(appState *AppState) http.HandlerFunc {
+// HideAllBusinessesHandler sends every visible lead to the trash after the
+// user confirms in the UI.
+func HideAllBusinessesHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if SessionFromContext(r.Context()) == nil {
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
@@ -296,15 +296,15 @@ func HideAllClientsHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
-		n, err := appState.Store.HideBusinessesByStatus(r.Context(), tid, StatusClient)
+		n, err := appState.Store.HideAllVisibleBusinesses(r.Context(), tid)
 		if err != nil {
-			log.Error("b2b: hide all clients", "error", err)
-			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudieron+eliminar+los+clientes")
+			log.Error("b2b: hide all businesses", "error", err)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudieron+eliminar+los+negocios")
 
 			return
 		}
 
-		msg := url.QueryEscape("Se enviaron " + strconv.FormatInt(n, 10) + " clientes a la papelera")
+		msg := url.QueryEscape("Se enviaron " + strconv.FormatInt(n, 10) + " negocios a la papelera")
 		b2bRedirectBack(w, r, "/admin/b2b", "success", msg)
 	}
 }
