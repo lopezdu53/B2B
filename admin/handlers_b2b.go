@@ -505,7 +505,13 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
-		if _, err := appState.Store.CreateZone(r.Context(), tid, name, city, advisorID, strings.TrimSpace(r.FormValue("color"))); err != nil {
+		geom, gerr := NormalizeZoneGeometry(r.FormValue("geometry"))
+		if gerr != nil {
+			b2bRedirectBack(w, r, "/admin/b2b", "error", url.QueryEscape(gerr.Error()))
+			return
+		}
+
+		if _, err := appState.Store.CreateZone(r.Context(), tid, name, city, advisorID, strings.TrimSpace(r.FormValue("color")), geom); err != nil {
 			log.Error("b2b: create zone", "error", err)
 			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+crear+la+zona")
 
@@ -513,6 +519,70 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		b2bRedirectBack(w, r, "/admin/b2b", "success", "Zona+creada")
+	}
+}
+
+// DrawZoneHandler saves a zone drawn on the map (JSON body or form).
+func DrawZoneHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var req struct {
+			Name     string          `json:"name"`
+			City     string          `json:"city"`
+			Color    string          `json:"color"`
+			Geometry json.RawMessage `json:"geometry"`
+		}
+
+		if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return
+			}
+		} else {
+			req.Name = r.FormValue("name")
+			req.City = r.FormValue("city")
+			req.Color = r.FormValue("color")
+			req.Geometry = json.RawMessage(r.FormValue("geometry"))
+		}
+
+		name := strings.TrimSpace(req.Name)
+		city := strings.TrimSpace(req.City)
+
+		if city == "" {
+			city = DefaultCity
+		}
+
+		if name == "" {
+			http.Error(w, "El nombre de la zona es obligatorio", http.StatusBadRequest)
+			return
+		}
+
+		geom, err := NormalizeZoneGeometryJSON(req.Geometry)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if len(geom) == 0 {
+			http.Error(w, "Dibuja el polígono en el mapa", http.StatusBadRequest)
+			return
+		}
+
+		tid, _ := effectiveTenant(appState, r)
+
+		zone, err := appState.Store.CreateZone(r.Context(), tid, name, city, nil, strings.TrimSpace(req.Color), geom)
+		if err != nil {
+			log.Error("b2b: draw zone", "error", err)
+			http.Error(w, "No se pudo guardar la zona", http.StatusInternalServerError)
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, zone)
 	}
 }
 
@@ -547,7 +617,13 @@ func UpdateZoneHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
-		if err := appState.Store.UpdateZone(r.Context(), tid, id, name, city, advisorID, strings.TrimSpace(r.FormValue("color"))); err != nil {
+		geom, gerr := NormalizeZoneGeometry(r.FormValue("geometry"))
+		if gerr != nil {
+			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", url.QueryEscape(gerr.Error()))
+			return
+		}
+
+		if err := appState.Store.UpdateZone(r.Context(), tid, id, name, city, advisorID, strings.TrimSpace(r.FormValue("color")), geom); err != nil {
 			log.Error("b2b: update zone", "error", err, "id", id)
 			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", "No+se+pudo+actualizar")
 

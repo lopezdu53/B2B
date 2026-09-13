@@ -14,7 +14,8 @@
 
         <div class="page-header">
             <h1>Zonas</h1>
-            <p>Define zonas (ciudad + área) y asígnalas a un asesor para repartir el territorio.</p>
+            <p>Define zonas por nombre o <a href="/admin/b2b#dibujar">dibújalas en el mapa</a> y asígnalas a un asesor para repartir el territorio.</p>
+            <p><a href="/admin/b2b#dibujar" class="btn-primary">✏️ Dibujar zona en el mapa</a></p>
         </div>
 
         <div class="card">
@@ -43,13 +44,14 @@
             </div>
             <div class="table-wrap">
                 <table class="data-table" id="zone-table">
-                    <thead><tr><th>Zona</th><th>Ciudad</th><th>Asesor</th><th></th></tr></thead>
+                    <thead><tr><th>Zona</th><th>Ciudad</th><th>Asesor</th><th>Mapa</th><th></th></tr></thead>
                     <tbody>
                     {{range .Rows}}
                         <tr>
                             <td><span class="swatch" style="background:{{.Color}};"></span> <strong>{{.Name}}</strong></td>
                             <td>{{.City}}</td>
                             <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
+                            <td>{{if .HasGeometry}}<span class="count-badge">Dibujada</span>{{else}}<span class="muted">Solo nombre</span>{{end}}</td>
                             <td style="text-align:right; white-space:nowrap;">
                                 <button type="button" class="btn-edit"
                                     data-id="{{.ID}}" data-name="{{.Name}}" data-city="{{.City}}" data-color="{{.Color}}"
@@ -68,7 +70,7 @@
             {{else}}
             <div class="empty-state">
                 <div class="big">📍</div>
-                <p>Aún no hay zonas. Crea zonas por ciudad para repartir a tus 50 asesores por el país.</p>
+                <p>Aún no hay zonas. <a href="/admin/b2b#dibujar">Dibújala en el mapa</a> o créala por nombre y ciudad.</p>
             </div>
             {{end}}
         </div>
