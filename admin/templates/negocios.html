@@ -26,8 +26,9 @@
                 <div>
                     <label for="city">Ciudad</label>
                     <select id="city" name="city">
-                        <option value="">Todas</option>
-                        {{$c := .CityVal}}{{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
+                        {{$c := .CityVal}}
+                        <option value="all" {{if eq $c "all"}}selected{{end}}>Todas</option>
+                        {{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
                     </select>
                 </div>
                 <div>

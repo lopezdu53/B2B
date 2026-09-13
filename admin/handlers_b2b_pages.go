@@ -61,11 +61,17 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		ctx := r.Context()
 		q := r.URL.Query()
 
+		city, allCities := ResolveCityFilter(q.Get("city"))
 		f := BusinessFilter{
-			City:   q.Get("city"),
+			City:   city,
 			Status: q.Get("status"),
 			Search: strings.TrimSpace(q.Get("q")),
 			Sort:   q.Get("sort"),
+		}
+
+		cityVal := city
+		if allCities {
+			cityVal = "all"
 		}
 
 		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
@@ -108,7 +114,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		// Preserve filters across page links.
 		params := url.Values{}
 		for _, kv := range []struct{ k, v string }{
-			{"q", f.Search}, {"city", f.City}, {"status", f.Status},
+			{"q", f.Search}, {"city", cityVal}, {"status", f.Status},
 			{"advisor", q.Get("advisor")}, {"category", q.Get("category")}, {"sort", f.Sort},
 		} {
 			if kv.v != "" {
@@ -132,7 +138,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
 		categories, _ := appState.Store.ListCategories(ctx, tid)
-		cities, _ := appState.Store.ListBusinessCities(ctx)
+		cities := CityList()
 
 		advisorNames := map[int64]string{}
 		for i := range advisors {
@@ -183,7 +189,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			"Categories": categories,
 			"Cities":     cities,
 			"QVal":       f.Search,
-			"CityVal":    f.City,
+			"CityVal":    cityVal,
 			"StatVal":    f.Status,
 			"AdvVal":     q.Get("advisor"),
 			"CatVal":     q.Get("category"),
@@ -215,7 +221,8 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 		ctx := r.Context()
 		q := r.URL.Query()
 
-		f := BusinessFilter{City: q.Get("city"), Status: q.Get("status"), Search: strings.TrimSpace(q.Get("q"))}
+		city, _ := ResolveCityFilter(q.Get("city"))
+		f := BusinessFilter{City: city, Status: q.Get("status"), Search: strings.TrimSpace(q.Get("q"))}
 
 		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
 			if id, err := strconv.ParseInt(a, 10, 64); err == nil {

@@ -65,7 +65,7 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 		advisors, _ := appState.Store.ListAdvisors(ctx, tid)
 		zones, _ := appState.Store.ListZones(ctx, tid)
 		categories, _ := appState.Store.ListCategories(ctx, tid)
-		cities, _ := appState.Store.ListBusinessCities(ctx)
+		cities := CityList()
 
 		data := map[string]any{
 			"Token":            r.URL.Query().Get("t"),
@@ -73,6 +73,7 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 			"Zones":            zones,
 			"Categories":       categories,
 			"Cities":           cities,
+			"CityVal":          DefaultCity,
 			"AdvisorsData":     asJSON(advisors),
 			"ZonesData":        asJSON(zones),
 			"CategoriesData":   asJSON(categories),
@@ -102,8 +103,9 @@ func EmbedBusinessesHandler(appState *AppState) http.HandlerFunc {
 
 		q := r.URL.Query()
 
+		city, _ := ResolveCityFilter(q.Get("city"))
 		f := BusinessFilter{
-			City:   q.Get("city"),
+			City:   city,
 			Status: q.Get("status"),
 			Search: strings.TrimSpace(q.Get("q")),
 		}
