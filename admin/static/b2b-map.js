@@ -119,19 +119,15 @@
         var barSel = opts && opts.barSelect;
         if (!citySel || !locSel || !barSel) return Promise.resolve(null);
 
-        function resetNoSectors() {
-            locSel.innerHTML = '<option value="">No hay localidades</option>';
-            locSel.disabled = true;
-            locSel.value = "";
-            barSel.innerHTML = '<option value="">Todos los barrios</option>';
-            barSel.disabled = true;
-            barSel.value = "";
-        }
-
-        return fetchJSON(GEO_IDX).then(function (index) {
+        function wire(index) {
             function applyCity() {
                 if (!isBogotaCity(citySel.value)) {
-                    resetNoSectors();
+                    locSel.innerHTML = '<option value="">No hay localidades</option>';
+                    locSel.disabled = true;
+                    locSel.value = "";
+                    barSel.innerHTML = '<option value="">Todos los barrios</option>';
+                    barSel.disabled = true;
+                    barSel.value = "";
                     return;
                 }
                 locSel.disabled = false;
@@ -145,7 +141,13 @@
             citySel.addEventListener("change", applyCity);
             applyCity();
             return index;
-        });
+        }
+
+        if (opts.index) {
+            return Promise.resolve(wire(opts.index));
+        }
+
+        return fetchJSON(GEO_IDX).then(wire);
     }
 
     function createGoogleEngine(el, api) {

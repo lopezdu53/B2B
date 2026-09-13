@@ -5,15 +5,6 @@ import (
 	"testing"
 )
 
-type bogotaIndex struct {
-	Localidades []struct {
-		Nombre  string   `json:"nombre"`
-		Codigo  string   `json:"codigo"`
-		Color   string   `json:"color"`
-		Barrios []string `json:"barrios"`
-	} `json:"localidades"`
-}
-
 type geoFC struct {
 	Type     string `json:"type"`
 	Features []struct {
@@ -32,7 +23,7 @@ func TestBogotaGeoAssets(t *testing.T) {
 		t.Fatalf("index: %v", err)
 	}
 
-	var idx bogotaIndex
+	var idx BogotaIndex
 	if err := json.Unmarshal(raw, &idx); err != nil {
 		t.Fatalf("index json: %v", err)
 	}
@@ -88,6 +79,30 @@ func TestBogotaGeoAssets(t *testing.T) {
 
 	if bars.Features[0].Properties.Localidad == "" || bars.Features[0].Properties.Nombre == "" {
 		t.Fatal("barrio feature missing nombre/localidad")
+	}
+}
+
+func TestBogotaUrbanLocalidades(t *testing.T) {
+	locs := BogotaUrbanLocalidades()
+	if len(locs) != 19 {
+		t.Fatalf("urban localidades: got %d want 19", len(locs))
+	}
+
+	names := map[string]bool{}
+	for _, loc := range locs {
+		if loc.Codigo == sumapazCodigo {
+			t.Fatal("Sumapaz should be excluded from the search dropdown")
+		}
+		if loc.Nombre == "" {
+			t.Fatal("empty localidad name")
+		}
+		names[loc.Nombre] = true
+	}
+
+	for _, want := range []string{"Usaquén", "Chapinero", "Kennedy", "Suba", "La Candelaria"} {
+		if !names[want] {
+			t.Errorf("missing %q", want)
+		}
 	}
 }
 

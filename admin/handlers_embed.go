@@ -68,16 +68,18 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 		cities := CityList()
 
 		data := map[string]any{
-			"Token":            r.URL.Query().Get("t"),
-			"Advisors":         advisors,
-			"Zones":            zones,
-			"Categories":       categories,
-			"Cities":           cities,
-			"CityVal":          DefaultCity,
-			"AdvisorsData":     asJSON(advisors),
-			"ZonesData":        asJSON(zones),
-			"CategoriesData":   asJSON(categories),
-			"GoogleMapsAPIKey": resolveGoogleMapsAPIKey(appState, r),
+			"Token":             r.URL.Query().Get("t"),
+			"Advisors":          advisors,
+			"Zones":             zones,
+			"Categories":        categories,
+			"Cities":            cities,
+			"CityVal":           DefaultCity,
+			"BogotaLocalidades": BogotaUrbanLocalidades(),
+			"AdvisorsData":      asJSON(advisors),
+			"ZonesData":         asJSON(zones),
+			"CategoriesData":    asJSON(categories),
+			"GoogleMapsAPIKey":  resolveGoogleMapsAPIKey(appState, r),
+			"AssetVersion":      assetVersion,
 		}
 
 		// Rendered directly (not via renderTemplate) so no session/navbar
