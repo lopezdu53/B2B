@@ -90,6 +90,59 @@ func CanonicalCity(s string) string {
 	return ""
 }
 
+// BuildSearchWhere composes the Google Maps "en …" location from the
+// cascaded search dropdowns: barrio, localidad, city (most specific first).
+// Empty city defaults to Bogotá. Unknown city names are kept as typed.
+func BuildSearchWhere(city, localidad, barrio string) string {
+	city = strings.TrimSpace(city)
+	if canon := CanonicalCity(city); canon != "" {
+		city = canon
+	}
+
+	if city == "" {
+		city = DefaultCity
+	}
+
+	localidad = strings.TrimSpace(localidad)
+	barrio = strings.TrimSpace(barrio)
+
+	parts := make([]string, 0, 3)
+	if barrio != "" {
+		parts = append(parts, barrio)
+	}
+
+	if localidad != "" {
+		parts = append(parts, localidad)
+	}
+
+	parts = append(parts, city)
+
+	return strings.Join(parts, ", ")
+}
+
+// SearchKeyword builds the scrape job keyword from the form fields.
+// Structured city/localidad/barrio win over the legacy free-text "where".
+func SearchKeyword(what, city, localidad, barrio, where string) string {
+	what = strings.TrimSpace(what)
+	loc := ""
+
+	if strings.TrimSpace(city) != "" || strings.TrimSpace(localidad) != "" || strings.TrimSpace(barrio) != "" {
+		loc = BuildSearchWhere(city, localidad, barrio)
+	} else {
+		loc = strings.TrimSpace(where)
+	}
+
+	if loc == "" {
+		loc = DefaultCity
+	}
+
+	if what == "" {
+		return loc
+	}
+
+	return what + " en " + loc
+}
+
 // ResolveCityFilter interprets a city query parameter.
 // "all" / "todas" / "*" means no city filter. Empty defaults to Bogotá.
 func ResolveCityFilter(raw string) (city string, all bool) {

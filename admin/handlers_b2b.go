@@ -285,17 +285,18 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		what := strings.TrimSpace(r.FormValue("what"))
-		where := strings.TrimSpace(r.FormValue("where"))
-
 		if what == "" {
 			http.Redirect(w, r, "/admin/b2b?error=Escribe+que+buscar+(ej.+restaurantes)", http.StatusSeeOther)
 			return
 		}
 
-		keyword := what
-		if where != "" {
-			keyword = what + " en " + where
-		}
+		keyword := SearchKeyword(
+			what,
+			r.FormValue("city"),
+			r.FormValue("localidad"),
+			r.FormValue("barrio"),
+			r.FormValue("where"),
+		)
 
 		maxDepth := DefaultSearchDepth
 		if d, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_depth"))); err == nil && d > 0 {

@@ -4,6 +4,7 @@ package admin
 import (
 	"html/template"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -131,5 +132,52 @@ func TestB2BTemplateRenders(t *testing.T) {
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "settings.html", sdata); err != nil {
 		t.Fatalf("execute settings.html: %v", err)
+	}
+}
+
+func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	if err != nil {
+		t.Fatalf("parse templates: %v", err)
+	}
+
+	data := map[string]any{
+		"CSRFToken":        "t",
+		"Advisors":         []Advisor{},
+		"Zones":            []Zone{},
+		"AdvisorsData":     asJSON([]Advisor{}),
+		"ZonesData":        asJSON([]Zone{}),
+		"Cities":           []string{"Bogotá", "Medellín"},
+		"CityVal":          "Bogotá",
+		"Summary":          &B2BSummary{},
+		"CanManage":        true,
+		"IsAdvisor":        false,
+		"CanEmbed":         false,
+		"GoogleMapsAPIKey": "",
+	}
+
+	var buf strings.Builder
+	if err := tmpl.ExecuteTemplate(&buf, "b2b.html", data); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	html := buf.String()
+	for _, needle := range []string{
+		`name="city"`,
+		`name="localidad"`,
+		`name="barrio"`,
+		`id="s-city"`,
+		`id="s-localidad"`,
+		`id="s-barrio"`,
+		`Todos los barrios`,
+		`Bogotá`,
+	} {
+		if !strings.Contains(html, needle) {
+			t.Errorf("search form missing %q", needle)
+		}
+	}
+
+	if strings.Contains(html, `name="where"`) {
+		t.Error("legacy free-text where field should be gone from search form")
 	}
 }

@@ -101,6 +101,53 @@
         });
     }
 
+    function isBogotaCity(name) {
+        if (!name) return false;
+        var n = String(name).toLowerCase()
+            .replace(/á/g, "a").replace(/à/g, "a")
+            .replace(/é/g, "e").replace(/í/g, "i")
+            .replace(/ó/g, "o").replace(/ú/g, "u").replace(/ü/g, "u")
+            .replace(/ñ/g, "n");
+        return n.indexOf("bogota") === 0;
+    }
+
+    // Cascaded city → localidad → barrio selects for the search form.
+    // Only Bogotá has official locality/barrio lists; other cities disable both.
+    function bindLocationSelects(opts) {
+        var citySel = opts && opts.citySelect;
+        var locSel = opts && opts.locSelect;
+        var barSel = opts && opts.barSelect;
+        if (!citySel || !locSel || !barSel) return Promise.resolve(null);
+
+        function resetNoSectors() {
+            locSel.innerHTML = '<option value="">No hay localidades</option>';
+            locSel.disabled = true;
+            locSel.value = "";
+            barSel.innerHTML = '<option value="">Todos los barrios</option>';
+            barSel.disabled = true;
+            barSel.value = "";
+        }
+
+        return fetchJSON(GEO_IDX).then(function (index) {
+            function applyCity() {
+                if (!isBogotaCity(citySel.value)) {
+                    resetNoSectors();
+                    return;
+                }
+                locSel.disabled = false;
+                fillSectorSelects(index, locSel, barSel);
+                populateBarrios(index, locSel.value, barSel);
+            }
+
+            locSel.addEventListener("change", function () {
+                populateBarrios(index, locSel.value, barSel);
+            });
+            citySel.addEventListener("change", applyCity);
+            applyCity();
+            return index;
+        });
+    }
+
     function createGoogleEngine(el, api) {
         var map = new google.maps.Map(el, {
             center: URBAN,
@@ -314,6 +361,7 @@
 
     global.B2BMap = {
         escapeHtml: escapeHtml,
+        bindLocationSelects: bindLocationSelects,
         create: function (opts) {
             opts = opts || {};
             var el = opts.el;

@@ -59,6 +59,52 @@ func TestResolveCityFilter(t *testing.T) {
 	}
 }
 
+func TestBuildSearchWhere(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		city, loc, bar, want string
+	}{
+		{"", "", "", "Bogotá"},
+		{"Bogotá", "", "", "Bogotá"},
+		{"Bogotá", "Usaquén", "", "Usaquén, Bogotá"},
+		{"Bogotá", "Usaquén", "El Redil", "El Redil, Usaquén, Bogotá"},
+		{"bogota dc", "Chapinero", "", "Chapinero, Bogotá"},
+		{"Medellín", "", "", "Medellín"},
+		{"Medellín", "El Poblado", "", "El Poblado, Medellín"},
+	}
+
+	for _, tc := range cases {
+		if got := BuildSearchWhere(tc.city, tc.loc, tc.bar); got != tc.want {
+			t.Errorf("BuildSearchWhere(%q,%q,%q)=%q want %q", tc.city, tc.loc, tc.bar, got, tc.want)
+		}
+	}
+}
+
+func TestSearchKeyword(t *testing.T) {
+	t.Parallel()
+
+	got := SearchKeyword("restaurantes", "Bogotá", "Usaquén", "", "")
+	if got != "restaurantes en Usaquén, Bogotá" {
+		t.Fatalf("structured: %q", got)
+	}
+
+	got = SearchKeyword("hoteles", "", "", "", "Laureles, Medellín")
+	if got != "hoteles en Laureles, Medellín" {
+		t.Fatalf("legacy where: %q", got)
+	}
+
+	got = SearchKeyword("cafés", "", "", "", "")
+	if got != "cafés en Bogotá" {
+		t.Fatalf("default city: %q", got)
+	}
+
+	got = SearchKeyword("farmacias", "Bogotá", "Suba", "Lisboa", "ignored")
+	if got != "farmacias en Lisboa, Suba, Bogotá" {
+		t.Fatalf("barrio wins over where: %q", got)
+	}
+}
+
 func TestCityListStartsWithBogota(t *testing.T) {
 	t.Parallel()
 
