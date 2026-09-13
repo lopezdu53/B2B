@@ -101,6 +101,8 @@
         .search-form label, .b2b-filters label { font-size: .78rem; font-weight: 600; color: var(--muted); margin-bottom: .3rem; }
         .search-form input, .search-form select, .b2b-filters select { margin: 0; border-radius: 9px; }
         .search-form input[type=text] { min-width: 220px; }
+        .search-form select { min-width: 160px; }
+        .search-form #s-barrio { min-width: 200px; }
         .b2b-filters { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; margin-bottom: 1.1rem; }
         .b2b-filters select { min-width: 150px; }
         .b2b-page .btn-primary { border-radius: 9px; padding: .62rem 1.15rem; font-weight: 600; }
@@ -234,20 +236,30 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
-            <form method="POST" action="/admin/b2b/search" class="search-form">
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige ciudad, luego localidad y barrio (o todos los barrios). Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
+            <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
                     <label for="s-what">Qué buscar</label>
                     <input type="text" id="s-what" name="what" placeholder="restaurantes, hoteles, supermercados…" required>
                 </div>
                 <div>
-                    <label for="s-where">Zona o ciudad</label>
-                    <input type="text" id="s-where" name="where" placeholder="Usaquén, Bogotá" list="zone-list">
-                    <datalist id="zone-list">
-                        {{range .Zones}}<option value="{{.Name}}, {{.City}}"></option>{{end}}
-                        {{range .Cities}}<option value="{{.}}"></option>{{end}}
-                    </datalist>
+                    <label for="s-city">Ciudad</label>
+                    <select id="s-city" name="city">
+                        {{range .Cities}}<option value="{{.}}" {{if eq . "Bogotá"}}selected{{end}}>{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="s-localidad">Localidad</label>
+                    <select id="s-localidad" name="localidad">
+                        <option value="">Todas las localidades</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="s-barrio">Barrio</label>
+                    <select id="s-barrio" name="barrio" disabled>
+                        <option value="">Todos los barrios</option>
+                    </select>
                 </div>
                 <div>
                     <label for="s-depth">Cantidad</label>
@@ -752,6 +764,14 @@
                 const done = () => { copyBtn.textContent = "¡Copiado!"; setTimeout(() => { copyBtn.textContent = "Copiar"; }, 1800); };
                 if (navigator.clipboard) { navigator.clipboard.writeText(embedURL).then(done).catch(() => { document.execCommand("copy"); done(); }); }
                 else { document.execCommand("copy"); done(); }
+            });
+        }
+
+        if (window.B2BMap && B2BMap.bindLocationSelects) {
+            B2BMap.bindLocationSelects({
+                citySelect: document.getElementById("s-city"),
+                locSelect: document.getElementById("s-localidad"),
+                barSelect: document.getElementById("s-barrio")
             });
         }
 
