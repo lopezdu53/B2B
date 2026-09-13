@@ -10,6 +10,7 @@ const (
 	EnvDBMaxConnLifetime = "DB_MAX_CONN_LIFETIME"
 	EnvDBMaxConnIdleTime = "DB_MAX_CONN_IDLE_TIME"
 	EnvEncryptionKey     = "ENCRYPTION_KEY"
+	EnvGoogleMapsAPIKey  = "GOOGLE_MAPS_API_KEY"
 
 	// Worker
 	EnvConcurrency     = "CONCURRENCY"

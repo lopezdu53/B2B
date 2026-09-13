@@ -39,6 +39,28 @@
             </form>
         </div>
 
+        {{if .IsSuperadmin}}
+        <div class="card">
+            <div class="card-header">
+                <h2>Google Maps</h2>
+                {{if .GoogleMapsKeySet}}
+                <span class="status success">Activa ({{.GoogleMapsKeyMask}})</span>
+                {{else}}
+                <span class="status warning">Sin clave</span>
+                {{end}}
+            </div>
+            <p>El mapa B2B usa la API de JavaScript de Google Maps, con localidades de Bogotá en color y líneas de barrios. En EasyPanel añade <code>GOOGLE_MAPS_API_KEY</code> al servicio web (no al worker), o pégala aquí.</p>
+            <p class="empty-hint">En Google Cloud: habilita “Maps JavaScript API” y restringe la clave por HTTP referrer a tu dominio (https://easypanelventabot.cloud/*).</p>
+            <form method="POST" action="/admin/settings/maps-key">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <label for="google_maps_api_key">Clave de Maps JavaScript API</label>
+                <input type="password" id="google_maps_api_key" name="google_maps_api_key" placeholder="AIza…" autocomplete="off">
+                <small>Déjala vacía y guarda para quitar la clave guardada (la variable de entorno sigue valiendo).</small>
+                <button type="submit" class="btn-primary" style="margin-top: 1rem;">Guardar clave</button>
+            </form>
+        </div>
+        {{end}}
+
         <!-- Two-Factor Authentication -->
         <div class="card">
             <div class="card-header">

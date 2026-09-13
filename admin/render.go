@@ -9,6 +9,24 @@ import (
 	"github.com/gosom/google-maps-scraper/cryptoext"
 )
 
+// resolveGoogleMapsAPIKey prefers the process env / serve flag, then a stored
+// admin setting. The JS key is public (restrict it by HTTP referrer in GCP).
+func resolveGoogleMapsAPIKey(appState *AppState, r *http.Request) string {
+	if appState != nil {
+		if k := strings.TrimSpace(appState.GoogleMapsAPIKey); k != "" {
+			return k
+		}
+
+		if appState.Store != nil && r != nil {
+			if cfg, err := appState.Store.GetConfig(r.Context(), ConfigGoogleMapsAPIKey); err == nil && cfg != nil {
+				return strings.TrimSpace(cfg.Value)
+			}
+		}
+	}
+
+	return ""
+}
+
 // asJSON encodes v for safe embedding inside a <script> tag. encoding/json
 // already escapes <, > and & so the payload cannot break out of the script.
 func asJSON(v any) template.JS {
@@ -28,6 +46,7 @@ func renderTemplate(appState *AppState, w http.ResponseWriter, r *http.Request, 
 
 	data["CSRFToken"] = CSRFTokenFromContext(r.Context())
 	data["AssetVersion"] = assetVersion
+	data["GoogleMapsAPIKey"] = resolveGoogleMapsAPIKey(appState, r)
 
 	// Inject identity + active-tenant context for the sidebar.
 	if user := UserFromContext(r.Context()); user != nil {

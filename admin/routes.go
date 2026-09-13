@@ -76,6 +76,7 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 
 			r.Get("/settings", SettingsPageHandler(appState))
 			r.Post("/settings/password", ChangePasswordHandler(appState))
+			r.With(RequireSuperadmin).Post("/settings/maps-key", SaveGoogleMapsKeyHandler(appState))
 			r.Get("/2fa/prompt", TwoFactorPromptPageHandler(appState))
 			r.Get("/2fa/setup", TwoFactorSetupPageHandler(appState))
 			r.Post("/2fa/setup", TwoFactorSetupSubmitHandler(appState))
