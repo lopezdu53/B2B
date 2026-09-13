@@ -29,6 +29,7 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"AdvisorsData": asJSON(advisors),
 		"ZonesData":    asJSON(zones),
 		"Cities":       []string{"Bogotá", "Medellín"},
+		"CityVal":      "Bogotá",
 		"Summary":      &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Advisors: 1, Zones: 1},
 		"Success":      "",
 		"Error":        "",
@@ -42,7 +43,6 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"IsAdvisor":        false,
 		"Count":            1,
 		"QVal":             "",
-		"CityVal":          "",
 		"StatVal":          "",
 		"AdvVal":           "",
 		"CatVal":           "",
@@ -69,6 +69,7 @@ func TestB2BTemplateRenders(t *testing.T) {
 	embedData := map[string]any{
 		"Token":            "1.deadbeef",
 		"Cities":           []string{"Bogotá", "Medellín"},
+		"CityVal":          "Bogotá",
 		"Advisors":         advisors,
 		"Zones":            zones,
 		"Categories":       []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},

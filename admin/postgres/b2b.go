@@ -11,6 +11,10 @@ import (
 // browser stays responsive even with very large scrape datasets.
 const defaultBusinessLimit = 5000
 
+// cityMatchSQL compares the first letter-token of a scraped city to $1 so
+// "Bogotá, BOGOTÁ D.C." and "BOGOTÁ" both match the filter "Bogotá".
+const cityMatchSQL = `split_part(translate(lower(regexp_replace(COALESCE(city, ''), '[^A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), ' ', 1) = split_part(translate(lower(regexp_replace($1, '[^A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), ' ', 1)`
+
 // listBusinessesQuery returns scraped businesses (shared lead pool) joined with
 // the requesting tenant's CRM overlay. All filters are parameterized so the
 // query stays a compile-time constant. $6 is the tenant id.
@@ -51,7 +55,7 @@ FROM (
           AND (elem->>'latitude')::float8 <> 0
           AND COALESCE(crm.hidden, false) = $10
     ) raw
-    WHERE ($1 = '' OR city = $1)
+    WHERE ($1 = '' OR ` + cityMatchSQL + `)
       AND ($2 = '' OR status = $2)
       AND ($3 = 0 OR advisor_id = $3)
       AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
@@ -139,7 +143,7 @@ SELECT COUNT(*) FROM (
           AND (elem->>'latitude')::float8 <> 0
           AND COALESCE(crm.hidden, false) = $7
     ) t
-    WHERE ($1 = '' OR city = $1)
+    WHERE ($1 = '' OR ` + cityMatchSQL + `)
       AND ($2 = '' OR status = $2)
       AND ($3 = 0 OR advisor_id = $3)
       AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%')
@@ -165,36 +169,11 @@ func (s *store) CountBusinesses(ctx context.Context, tenantID int64, f admin.Bus
 	return n, err
 }
 
-// ListBusinessCities returns the distinct cities present in the scraped data
-// (shared lead pool), ordered alphabetically, for populating filter dropdowns.
-func (s *store) ListBusinessCities(ctx context.Context) ([]string, error) {
-	const q = `
-SELECT DISTINCT city FROM (
-    SELECT elem->'complete_address'->>'city' AS city
-    FROM scrape_results sr
-    CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
-) t
-WHERE city IS NOT NULL AND city <> ''
-ORDER BY city`
-
-	rows, err := s.db.Query(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var cities []string
-
-	for rows.Next() {
-		var c string
-		if err := rows.Scan(&c); err != nil {
-			return nil, err
-		}
-
-		cities = append(cities, c)
-	}
-
-	return cities, rows.Err()
+// ListBusinessCities returns the predefined city list (Bogotá first).
+// Scraped raw values are not used: they produce duplicates like
+// "Bogotá, BOGOTÁ D.C." and leftover towns from old searches.
+func (s *store) ListBusinessCities(_ context.Context) ([]string, error) {
+	return admin.CityList(), nil
 }
 
 // SetBusinessCRM upserts the tenant's CRM overlay for a business.

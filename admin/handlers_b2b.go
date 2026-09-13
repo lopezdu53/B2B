@@ -40,10 +40,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			log.Error("b2b: list categories", "error", err)
 		}
 
-		cities, err := appState.Store.ListBusinessCities(ctx)
-		if err != nil {
-			log.Error("b2b: list cities", "error", err)
-		}
+		cities := CityList()
 
 		summary, err := appState.Store.B2BSummary(ctx, tid, advisorScope(r))
 		if err != nil {
@@ -56,6 +53,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"Zones":      zones,
 			"Categories": categories,
 			"Cities":     cities,
+			"CityVal":    DefaultCity,
 			"Summary":    summary,
 			// JSON for the map colouring logic (template.JS, not Go dump).
 			"AdvisorsData":   asJSON(advisors),
@@ -83,8 +81,9 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		city, _ := ResolveCityFilter(r.URL.Query().Get("city"))
 		f := BusinessFilter{
-			City:   r.URL.Query().Get("city"),
+			City:   city,
 			Status: r.URL.Query().Get("status"),
 			Search: strings.TrimSpace(r.URL.Query().Get("q")),
 		}

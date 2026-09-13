@@ -274,8 +274,9 @@
                 <div>
                     <label for="f-city">Ciudad</label>
                     <select id="f-city">
-                        <option value="">Todas</option>
-                        {{range .Cities}}<option value="{{.}}">{{.}}</option>{{end}}
+                        {{$c := .CityVal}}
+                        <option value="all" {{if eq $c "all"}}selected{{end}}>Todas</option>
+                        {{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
                     </select>
                 </div>
                 <div>
