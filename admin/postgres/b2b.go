@@ -363,13 +363,7 @@ func (s *store) B2BSummary(ctx context.Context, tenantID int64, advisorID *int64
 		return nil, err
 	}
 
-	if advisorID != nil {
-		// The advisor only sees their assigned businesses; total is their sum.
-		sum.Total = sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects + sum.Featured
-	} else if tracked := sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects + sum.Featured; sum.Total > tracked {
-		// Every business without a CRM row yet counts as a prospect.
-		sum.Prospects = sum.Total - sum.Clients - sum.InProgress - sum.Discarded - sum.Featured
-	}
+	admin.ReconcileLeadSummary(&sum, advisorID != nil)
 
 	if err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM b2b_advisors WHERE active AND tenant_id = $1`, tenantID).Scan(&sum.Advisors); err != nil {
 		return nil, err

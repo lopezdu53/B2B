@@ -101,11 +101,11 @@ const (
 // Password and scrape-search limits used by the B2B admin UI.
 const (
 	MinPasswordLength      = 8
-	DefaultSearchDepth     = 25
-	MaxSearchDepth         = 50
-	SearchSizeFast         = 100
-	SearchSizeNormal       = 500
-	SearchSizeWide         = 1000
+	DefaultSearchDepth     = 5
+	MaxSearchDepth         = 15
+	SearchSizeFast         = 50
+	SearchSizeNormal       = 100
+	SearchSizeWide         = 250
 	searchResultsPerScroll = 20
 )
 

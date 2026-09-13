@@ -319,6 +319,38 @@ func HideAllBusinessesHandler(appState *AppState) http.HandlerFunc {
 	}
 }
 
+// ResetLeadsHandler wipes scrapes, CRM (including papelera) and queued jobs.
+func ResetLeadsHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+
+		tid, _ := effectiveTenant(appState, r)
+
+		if appState.RQueueClient != nil {
+			if err := appState.RQueueClient.ResetScrapeQueue(r.Context()); err != nil {
+				log.Error("b2b: reset scrape queue", "error", err)
+			}
+		}
+
+		res, err := appState.Store.ResetLeads(r.Context(), tid)
+		if err != nil {
+			log.Error("b2b: reset leads", "error", err)
+			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+reiniciar.+Intenta+de+nuevo.")
+
+			return
+		}
+
+		msg := url.QueryEscape("Reinicio listo: 0 negocios. Se borraron " +
+			strconv.FormatInt(res.CRM, 10) + " fichas CRM, " +
+			strconv.FormatInt(res.Scrapes, 10) + " scrapes y " +
+			strconv.FormatInt(res.SearchJobs, 10) + " búsquedas. Ya puedes buscar de nuevo.")
+		b2bRedirectBack(w, r, "/admin/b2b", "success", msg)
+	}
+}
+
 // B2BSearchHandler enqueues a Google Maps scrape job from the dashboard, so a
 // non-technical user can launch a search ("restaurantes en Usaquén, Bogotá")
 // with one click instead of calling the REST API. A running worker is required
@@ -352,6 +384,10 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 		size := SearchSizeNormal
 		if n, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_results"))); err == nil && n > 0 {
 			size = n
+		}
+
+		if size > SearchSizeWide {
+			size = SearchSizeWide
 		}
 
 		maxDepth := SearchDepthForSize(size)

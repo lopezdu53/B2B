@@ -20,6 +20,10 @@
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <button type="submit" class="btn-danger" id="btn-delete-businesses">Eliminar todos los negocios</button>
             </form>
+            <form method="POST" action="/admin/b2b/businesses/reset" style="margin:.8rem 0 0;" onsubmit="return confirm('REINICIAR A CERO: borra negocios, papelera, scrapes y trabajos en cola. No se puede deshacer. ¿Seguro?');">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <button type="submit" class="btn-danger" id="btn-reset-leads">Reiniciar a cero</button>
+            </form>
             {{end}}
         </div>
 

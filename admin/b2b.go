@@ -137,6 +137,46 @@ type BusinessFilter struct {
 	Offset     int
 }
 
+// ResetLeadsResult is how many rows a full lead reset removed.
+type ResetLeadsResult struct {
+	CRM        int64
+	Scrapes    int64
+	SearchJobs int64
+}
+
+// ReconcileLeadSummary keeps KPI tiles consistent with the visible lead pool.
+// Orphan CRM rows (jobs deleted, scrape gone) must not inflate Prospectos
+// above Negocios.
+func ReconcileLeadSummary(sum *B2BSummary, advisorScoped bool) {
+	if sum == nil {
+		return
+	}
+
+	if advisorScoped {
+		sum.Total = sum.Clients + sum.InProgress + sum.Discarded + sum.Prospects + sum.Featured
+		return
+	}
+
+	assigned := sum.Clients + sum.InProgress + sum.Discarded + sum.Featured
+	if assigned < 0 {
+		assigned = 0
+	}
+
+	if sum.Total > assigned+sum.Prospects {
+		sum.Prospects = sum.Total - assigned
+		return
+	}
+
+	remaining := sum.Total - assigned
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	if sum.Prospects > remaining {
+		sum.Prospects = remaining
+	}
+}
+
 // B2BSummary holds aggregate counters for the dashboard header.
 type B2BSummary struct {
 	Total      int
@@ -162,6 +202,7 @@ type IB2BStore interface {
 	IngestSearchJob(ctx context.Context, jobID int64) error
 	IngestPendingSearchJobs(ctx context.Context) error
 	HideAllVisibleBusinesses(ctx context.Context, tenantID int64) (int64, error)
+	ResetLeads(ctx context.Context, tenantID int64) (*ResetLeadsResult, error)
 
 	// Advisors
 	ListAdvisors(ctx context.Context, tenantID int64) ([]Advisor, error)

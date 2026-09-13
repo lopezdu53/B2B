@@ -208,3 +208,46 @@ WHERE NOT b2b_business_crm.hidden`
 
 	return ct.RowsAffected(), nil
 }
+
+// ResetLeads wipes CRM overlays (including papelera), tagged search jobs,
+// and the shared scrape pool so the map and KPI tiles start at zero.
+func (s *store) ResetLeads(ctx context.Context, tenantID int64) (*admin.ResetLeadsResult, error) {
+	if tenantID == 0 {
+		return nil, fmt.Errorf("missing tenant")
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var out admin.ResetLeadsResult
+
+	ct, err := tx.Exec(ctx, `DELETE FROM b2b_business_crm WHERE tenant_id = $1`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("reset crm: %w", err)
+	}
+
+	out.CRM = ct.RowsAffected()
+
+	ct, err = tx.Exec(ctx, `DELETE FROM b2b_search_jobs WHERE tenant_id = $1`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("reset search jobs: %w", err)
+	}
+
+	out.SearchJobs = ct.RowsAffected()
+
+	ct, err = tx.Exec(ctx, `DELETE FROM scrape_results`)
+	if err != nil {
+		return nil, fmt.Errorf("reset scrapes: %w", err)
+	}
+
+	out.Scrapes = ct.RowsAffected()
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}

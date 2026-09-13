@@ -270,7 +270,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad (están agrupadas: colombiana, latina, internacional, etc.), o <strong>Todas las especialidades</strong> para lanzar una búsqueda por cada una. Amplia (1000) pide más scroll, pero Google Maps en una sola localidad o barrio suele devolver 60–120 fichas. El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad, o <strong>Todas las especialidades</strong> (una búsqueda por cada tipo: tarda con un solo worker). Rápida 50, Normal 100, Amplia 250. El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -308,9 +308,9 @@
                 <div>
                     <label for="s-depth">Cantidad</label>
                     <select id="s-depth" name="max_results">
-                        <option value="100">Rápida (100 negocios)</option>
-                        <option value="500" selected>Normal (500 negocios)</option>
-                        <option value="1000">Amplia (1000 negocios)</option>
+                        <option value="50">Rápida (50 negocios)</option>
+                        <option value="100" selected>Normal (100 negocios)</option>
+                        <option value="250">Amplia (250 negocios)</option>
                     </select>
                 </div>
                 <div>
@@ -409,6 +409,10 @@
                         <form method="POST" action="/admin/b2b/businesses/delete-all" style="margin:0;" onsubmit="return confirm('¿Eliminar TODOS los negocios del mapa? Irán a la papelera. Puedes restaurarlos desde Papelera.');">
                             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                             <button type="submit" class="btn-danger" id="btn-delete-businesses">Eliminar todos los negocios</button>
+                        </form>
+                        <form method="POST" action="/admin/b2b/businesses/reset" style="margin:0;" onsubmit="return confirm('REINICIAR A CERO: borra negocios, papelera, scrapes y trabajos en cola. No se puede deshacer. ¿Seguro?');">
+                            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                            <button type="submit" class="btn-danger" id="btn-reset-leads">Reiniciar a cero</button>
                         </form>
                     </div>
                     {{end}}
@@ -1028,6 +1032,18 @@
                     }
                 })
                 .catch(() => { jobsTimer = setTimeout(pollJobs, 8000); });
+        }
+
+        const searchForm = document.getElementById("search-form");
+        if (searchForm) {
+            searchForm.addEventListener("submit", function (e) {
+                const spec = document.getElementById("s-specialty");
+                if (spec && !spec.value) {
+                    if (!confirm("Vas a lanzar una búsqueda por cada especialidad. Con un worker tardan, una detrás de otra. ¿Continuar?")) {
+                        e.preventDefault();
+                    }
+                }
+            });
         }
 
         // --- Embed / PowerPoint modal ---

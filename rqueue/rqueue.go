@@ -852,6 +852,46 @@ func (c *Client) GetJobResults(ctx context.Context, encodedJobID string) (json.R
 	return results, keyword, nil
 }
 
+// ResetScrapeQueue cancels running scrapes and deletes the rest so a lead
+// reset is not immediately refilled by leftover jobs.
+func (c *Client) ResetScrapeQueue(ctx context.Context) error {
+	if c == nil || c.dbPool == nil {
+		return nil
+	}
+
+	rows, err := c.dbPool.Query(ctx, `SELECT id FROM river_job WHERE kind = 'scrape' AND state = 'running'`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var running []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+
+		running = append(running, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if c.riverClient != nil {
+		for _, id := range running {
+			_, _ = c.riverClient.JobCancel(ctx, id)
+		}
+	}
+
+	_, err = c.dbPool.Exec(ctx, `
+DELETE FROM river_job
+WHERE kind = 'scrape' AND state <> 'running'`)
+
+	return err
+}
+
 // DeleteJob queues a background job to delete a scrape job and its results.
 // Returns immediately after validation; actual deletion happens async.
 func (c *Client) DeleteJob(ctx context.Context, encodedJobID string) error {

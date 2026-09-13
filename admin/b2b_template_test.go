@@ -216,10 +216,9 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`Kennedy`,
 		`Suba`,
 		`name="max_results"`,
-		`Rápida (100 negocios)`,
-		`Normal (500 negocios)`,
-		`Amplia (1000 negocios)`,
-		`60–120 fichas`,
+		`Rápida (50 negocios)`,
+		`Normal (100 negocios)`,
+		`Amplia (250 negocios)`,
 		`más de 50 reseñas`,
 	} {
 		if !strings.Contains(html, needle) {
@@ -369,6 +368,9 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 		`id="zone-stats"`,
 		`id="btn-delete-businesses"`,
 		`/admin/b2b/businesses/delete-all`,
+		`id="btn-reset-leads"`,
+		`/admin/b2b/businesses/reset`,
+		`Reiniciar a cero`,
 		`id="btn-map-full"`,
 		`Pantalla completa`,
 		`value="featured"`,
@@ -391,6 +393,7 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 	neg := buf.String()
 	for _, needle := range []string{
 		`id="btn-delete-businesses"`,
+		`id="btn-reset-leads"`,
 		`value="featured"`,
 		`target="_blank"`,
 	} {
