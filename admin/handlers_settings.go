@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gosom/google-maps-scraper/cryptoext"
 	"github.com/gosom/google-maps-scraper/log"
@@ -22,11 +23,21 @@ func SettingsPageHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
+		key := resolveGoogleMapsAPIKey(appState, r)
+		masked := ""
+		if n := len(key); n > 8 {
+			masked = key[:4] + "…" + key[n-4:]
+		} else if n > 0 {
+			masked = "configurada"
+		}
+
 		data := map[string]any{
-			"Username":    user.Username,
-			"TOTPEnabled": user.TOTPEnabled,
-			"Success":     r.URL.Query().Get("success"),
-			"Error":       r.URL.Query().Get("error"),
+			"Username":          user.Username,
+			"TOTPEnabled":       user.TOTPEnabled,
+			"GoogleMapsKeySet":  key != "",
+			"GoogleMapsKeyMask": masked,
+			"Success":           r.URL.Query().Get("success"),
+			"Error":             r.URL.Query().Get("error"),
 		}
 		renderTemplate(appState, w, r, "settings.html", data)
 	}
@@ -88,5 +99,34 @@ func ChangePasswordHandler(appState *AppState) http.HandlerFunc {
 		log.Info("audit", "action", "password_change", "user_id", session.UserID, "ip", r.RemoteAddr)
 
 		http.Redirect(w, r, "/admin/settings?success=Password+updated+successfully", http.StatusSeeOther)
+	}
+}
+
+// SaveGoogleMapsKeyHandler stores the Maps JavaScript API key (superadmin).
+func SaveGoogleMapsKeyHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := UserFromContext(r.Context())
+		if u == nil || !u.IsSuperadmin() {
+			http.Error(w, "No autorizado", http.StatusForbidden)
+			return
+		}
+
+		key := strings.TrimSpace(r.FormValue("google_maps_api_key"))
+		if key == "" {
+			_ = appState.Store.DeleteConfig(r.Context(), ConfigGoogleMapsAPIKey)
+			http.Redirect(w, r, "/admin/settings?success=Clave+de+Google+Maps+eliminada", http.StatusSeeOther)
+			return
+		}
+
+		if err := appState.Store.SetConfig(r.Context(), &AppConfig{
+			Key:   ConfigGoogleMapsAPIKey,
+			Value: key,
+		}, true); err != nil {
+			log.Error("settings: save google maps key", "error", err)
+			http.Redirect(w, r, "/admin/settings?error=No+se+pudo+guardar+la+clave", http.StatusSeeOther)
+			return
+		}
+
+		http.Redirect(w, r, "/admin/settings?success=Clave+de+Google+Maps+guardada", http.StatusSeeOther)
 	}
 }

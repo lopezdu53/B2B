@@ -11,13 +11,17 @@ import (
 )
 
 type AppState struct {
-	Store         IStore
-	RateLimiter   ratelimit.Store
-	Templates     *template.Template
-	EncryptionKey []byte
-	CookieName    string
-	RQueueClient  *rqueue.Client
+	Store            IStore
+	RateLimiter      ratelimit.Store
+	Templates        *template.Template
+	EncryptionKey    []byte
+	CookieName       string
+	RQueueClient     *rqueue.Client
+	GoogleMapsAPIKey string
 }
+
+// ConfigGoogleMapsAPIKey is the admin config key for a stored Maps JavaScript key.
+const ConfigGoogleMapsAPIKey = "google_maps_api_key"
 
 var (
 	ErrUserExists       = errors.New("user already exists")

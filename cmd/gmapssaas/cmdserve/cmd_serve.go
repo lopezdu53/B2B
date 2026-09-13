@@ -72,6 +72,11 @@ var Command = &cli.Command{
 			Sources:  cli.EnvVars(saas.EnvEncryptionKey),
 			Required: true,
 		},
+		&cli.StringFlag{
+			Name:    "google-maps-api-key",
+			Usage:   "Google Maps JavaScript API key (EasyPanel: GOOGLE_MAPS_API_KEY on the web service)",
+			Sources: cli.EnvVars(saas.EnvGoogleMapsAPIKey),
+		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		addr := cmd.String("addr")
@@ -156,6 +161,7 @@ var Command = &cli.Command{
 		}
 
 		adminState.RQueueClient = rqueueClient
+		adminState.GoogleMapsAPIKey = cmd.String("google-maps-api-key")
 
 		apiState := api.NewAppState(rqueueClient, apiStore)
 

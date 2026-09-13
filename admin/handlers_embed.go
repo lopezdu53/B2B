@@ -68,14 +68,15 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 		cities, _ := appState.Store.ListBusinessCities(ctx)
 
 		data := map[string]any{
-			"Token":          r.URL.Query().Get("t"),
-			"Advisors":       advisors,
-			"Zones":          zones,
-			"Categories":     categories,
-			"Cities":         cities,
-			"AdvisorsData":   asJSON(advisors),
-			"ZonesData":      asJSON(zones),
-			"CategoriesData": asJSON(categories),
+			"Token":            r.URL.Query().Get("t"),
+			"Advisors":         advisors,
+			"Zones":            zones,
+			"Categories":       categories,
+			"Cities":           cities,
+			"AdvisorsData":     asJSON(advisors),
+			"ZonesData":        asJSON(zones),
+			"CategoriesData":   asJSON(categories),
+			"GoogleMapsAPIKey": resolveGoogleMapsAPIKey(appState, r),
 		}
 
 		// Rendered directly (not via renderTemplate) so no session/navbar

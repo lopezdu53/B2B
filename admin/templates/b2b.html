@@ -298,7 +298,7 @@
                 </div>
                 {{end}}
                 <div>
-                    <label for="f-colorby">Colorear por</label>
+                    <label for="f-colorby">Colorear negocios por</label>
                     <select id="f-colorby">
                         <option value="status">Estado</option>
                         <option value="advisor">Asesor</option>
@@ -307,14 +307,29 @@
                     </select>
                 </div>
                 <div>
+                    <label for="f-localidad">Localidad (Bogotá)</label>
+                    <select id="f-localidad"></select>
+                </div>
+                <div>
+                    <label for="f-barrio">Barrio</label>
+                    <select id="f-barrio"></select>
+                </div>
+                <div>
                     <button type="button" class="btn-primary" id="btn-apply">Aplicar filtros</button>
                 </div>
+                <label class="empty-hint" style="align-self:center; display:flex; gap:.4rem; align-items:center;">
+                    <input type="checkbox" id="tog-loc" checked> Colorear localidades
+                </label>
+                <label class="empty-hint" style="align-self:center; display:flex; gap:.4rem; align-items:center;">
+                    <input type="checkbox" id="tog-bar" checked> Líneas de barrios
+                </label>
                 <div id="loading-hint" class="empty-hint" style="align-self:center;"></div>
             </div>
 
             <div class="b2b-wrap">
                 <div>
                     <div id="map"></div>
+                    <p class="empty-hint" id="map-engine-hint" style="margin:.55rem 0 0;"></p>
                     <div class="legend" id="legend"></div>
                 </div>
 
@@ -470,9 +485,14 @@
     {{end}}
 
     <script src="/admin/static/leaflet.js"></script>
+    <script src="/admin/static/b2b-map.js"></script>
+    {{if .GoogleMapsAPIKey}}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{.GoogleMapsAPIKey}}&amp;v=weekly&amp;language=es&amp;region=CO"></script>
+    {{end}}
     <script>
     (function () {
         const CSRF = "{{.CSRFToken}}";
+        const GOOGLE_KEY = "{{.GoogleMapsAPIKey}}";
         const STATUS_COLORS = {
             prospect: "#2563eb",
             in_progress: "#f59e0b",
@@ -513,33 +533,9 @@
             return STATUS_COLORS[biz.status] || STATUS_COLORS.prospect;
         }
 
-        // Colombia default view.
-        const map = L.map("map").setView([4.5709, -74.2973], 6);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            maxZoom: 19,
-            attribution: "&copy; OpenStreetMap"
-        }).addTo(map);
-
-        const markersLayer = L.layerGroup().addTo(map);
-        const allMarkers = []; // [{ biz, marker }]
+        const escapeHtml = window.B2BMap.escapeHtml;
+        let mapApi = null;
         let selected = null; // { biz, marker }
-
-        function escapeHtml(s) {
-            return (s || "").replace(/[&<>"']/g, c => ({
-                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-            }[c]));
-        }
-
-        function markerStyle(biz) {
-            return {
-                radius: 7,
-                fillColor: colorFor(biz),
-                color: "#111827",
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.85
-            };
-        }
 
         function renderLegend() {
             const el = document.getElementById("legend");
@@ -567,7 +563,7 @@
         }
 
         function recolorMarkers() {
-            allMarkers.forEach(m => m.marker.setStyle(markerStyle(m.biz)));
+            if (mapApi) mapApi.recolor(colorFor);
             renderLegend();
         }
 
@@ -593,16 +589,8 @@
             document.getElementById("biz-save-hint").textContent = "";
         }
 
-        function addBusiness(biz) {
-            const marker = L.circleMarker([biz.lat, biz.lng], markerStyle(biz));
-            marker.bindTooltip(escapeHtml(biz.title || "(sin nombre)"));
-            marker.on("click", () => renderSidePanel(biz, marker));
-            marker.addTo(markersLayer);
-            allMarkers.push({ biz: biz, marker: marker });
-            return marker;
-        }
-
         function loadBusinesses() {
+            if (!mapApi) return;
             const hint = document.getElementById("loading-hint");
             hint.textContent = "Cargando…";
             const params = new URLSearchParams({
@@ -613,18 +601,9 @@
             fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
                 .then(r => r.json())
                 .then(list => {
-                    markersLayer.clearLayers();
-                    allMarkers.length = 0;
-                    const bounds = [];
-                    list.forEach(biz => {
-                        addBusiness(biz);
-                        bounds.push([biz.lat, biz.lng]);
-                    });
-                    hint.textContent = list.length + " negocios";
+                    mapApi.setMarkers(list, colorFor, renderSidePanel);
+                    hint.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
-                    if (bounds.length > 0) {
-                        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
-                    }
                 })
                 .catch(() => { hint.textContent = "Error cargando negocios"; });
         }
@@ -669,7 +648,7 @@
                     selected.biz.advisor_id = payload.advisor_id;
                     selected.biz.zone_id = payload.zone_id;
                     selected.biz.notes = payload.notes;
-                    selected.marker.setStyle(markerStyle(selected.biz));
+                    if (mapApi) mapApi.recolor(colorFor);
                     hint.textContent = "✓ Guardado como " + (STATUS_LABELS[payload.status] || payload.status);
                     refreshSummary();
                 })
@@ -682,6 +661,15 @@
             colorMode = this.value;
             recolorMarkers();
         });
+        function syncLayers() {
+            if (!mapApi) return;
+            mapApi.setLayers(
+                document.getElementById("tog-loc").checked,
+                document.getElementById("tog-bar").checked
+            );
+        }
+        document.getElementById("tog-loc").addEventListener("change", syncLayers);
+        document.getElementById("tog-bar").addEventListener("change", syncLayers);
 
         // --- Live progress of scrape searches ---
         const JOB_LABELS = { pending: "En cola", running: "Procesando", completed: "Completado", failed: "Error" };
@@ -766,7 +754,23 @@
             });
         }
 
-        loadBusinesses();
+        B2BMap.create({
+            el: document.getElementById("map"),
+            apiKey: GOOGLE_KEY,
+            localidadSelect: document.getElementById("f-localidad"),
+            barrioSelect: document.getElementById("f-barrio")
+        }).then(function (api) {
+            mapApi = api;
+            var hint = document.getElementById("map-engine-hint");
+            if (api.usesGoogle()) {
+                hint.textContent = "Google Maps · localidades en color · barrios en líneas. Clic en una localidad o barrio para filtrar.";
+            } else {
+                hint.textContent = "Mapa de respaldo (OpenStreetMap). Para Google Maps, configura GOOGLE_MAPS_API_KEY en EasyPanel (servicio web) o en Ajustes.";
+            }
+            loadBusinesses();
+        }).catch(function () {
+            document.getElementById("loading-hint").textContent = "Error cargando el mapa de Bogotá";
+        });
         if (document.getElementById("jobs-panel")) pollJobs();
     })();
     </script>

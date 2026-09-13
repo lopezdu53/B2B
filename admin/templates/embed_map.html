@@ -177,6 +177,14 @@
                     <option value="category">Categoría</option>
                 </select>
             </div>
+            <div class="fld">
+                <label for="f-localidad">Localidad</label>
+                <select id="f-localidad"></select>
+            </div>
+            <div class="fld">
+                <label for="f-barrio">Barrio</label>
+                <select id="f-barrio"></select>
+            </div>
             <button type="button" class="btn-apply" id="btn-apply">Aplicar</button>
         </div>
 
@@ -195,9 +203,14 @@
     </div>
 
     <script src="/admin/static/leaflet.js"></script>
+    <script src="/admin/static/b2b-map.js"></script>
+    {{if .GoogleMapsAPIKey}}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{.GoogleMapsAPIKey}}&amp;v=weekly&amp;language=es&amp;region=CO"></script>
+    {{end}}
     <script>
     (function () {
         const TOKEN = "{{.Token}}";
+        const GOOGLE_KEY = "{{.GoogleMapsAPIKey}}";
         const STATUS_COLORS = { prospect:"#2563eb", in_progress:"#f59e0b", client:"#16a34a", discarded:"#9ca3af" };
         const STATUS_LABELS = { prospect:"Prospecto", in_progress:"En gestión", client:"Cliente", discarded:"Descartado" };
 
@@ -219,18 +232,8 @@
             return STATUS_COLORS[b.status] || STATUS_COLORS.prospect;
         }
 
-        function escapeHtml(s) {
-            return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-        }
-
-        const map = L.map("map", { scrollWheelZoom: true, zoomControl: true }).setView([4.5709, -74.2973], 6);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
-        const markersLayer = L.layerGroup().addTo(map);
-        const allMarkers = [];
-
-        function markerStyle(b) {
-            return { radius: 7, fillColor: colorFor(b), color: "#0b1220", weight: 1, opacity: 1, fillOpacity: 0.88 };
-        }
+        const escapeHtml = window.B2BMap.escapeHtml;
+        let mapApi = null;
 
         function popupHtml(b) {
             const parts = ['<div class="pop"><h4>' + escapeHtml(b.title || "(sin nombre)") + "</h4>", '<div class="meta">'];
@@ -262,11 +265,12 @@
         }
 
         function recolor() {
-            allMarkers.forEach(m => m.marker.setStyle(markerStyle(m.biz)));
+            if (mapApi) mapApi.recolor(colorFor);
             renderLegend();
         }
 
         function load() {
+            if (!mapApi) return;
             const count = document.getElementById("count");
             count.textContent = "Cargando…";
             const params = new URLSearchParams({
@@ -278,20 +282,11 @@
             fetch("/embed/businesses?" + params.toString())
                 .then(r => r.json())
                 .then(list => {
-                    markersLayer.clearLayers();
-                    allMarkers.length = 0;
-                    const bounds = [];
-                    list.forEach(b => {
-                        const marker = L.circleMarker([b.lat, b.lng], markerStyle(b));
-                        marker.bindTooltip(escapeHtml(b.title || "(sin nombre)"));
-                        marker.bindPopup(popupHtml(b));
-                        marker.addTo(markersLayer);
-                        allMarkers.push({ biz: b, marker: marker });
-                        bounds.push([b.lat, b.lng]);
+                    mapApi.setMarkers(list, colorFor, function (b, marker) {
+                        mapApi.openInfo(marker, popupHtml(b));
                     });
-                    count.textContent = list.length + " negocios";
+                    count.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
-                    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
                 })
                 .catch(() => { count.textContent = "Error al cargar"; });
         }
@@ -308,7 +303,17 @@
         document.getElementById("legend-head").addEventListener("click", () => legendCard.classList.toggle("collapsed"));
 
         renderLegend();
-        load();
+        B2BMap.create({
+            el: document.getElementById("map"),
+            apiKey: GOOGLE_KEY,
+            localidadSelect: document.getElementById("f-localidad"),
+            barrioSelect: document.getElementById("f-barrio")
+        }).then(function (api) {
+            mapApi = api;
+            load();
+        }).catch(function () {
+            document.getElementById("count").textContent = "Error al cargar el mapa";
+        });
     })();
     </script>
 </body>

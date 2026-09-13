@@ -36,26 +36,27 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Rows": []businessRow{
 			{MapBusiness: MapBusiness{Title: "Rest", City: "Bogotá", Status: "client"}, StatusLabel: "Cliente", StatusClass: "client", AdvisorName: "Ana"},
 		},
-		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
-		"CategoriesData": asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
-		"CanManage":      true,
-		"IsAdvisor":      false,
-		"Count":          1,
-		"QVal":           "",
-		"CityVal":        "",
-		"StatVal":        "",
-		"AdvVal":         "",
-		"CatVal":         "",
-		"SortVal":        "name",
-		"Page":           1,
-		"TotalPages":     1,
-		"HasPrev":        false,
-		"HasNext":        false,
-		"PrevURL":        "",
-		"NextURL":        "",
-		"ExportURL":      "/admin/b2b/negocios/export",
-		"EmbedToken":     "1.deadbeef",
-		"CanEmbed":       true,
+		"Categories":       []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
+		"CategoriesData":   asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
+		"CanManage":        true,
+		"IsAdvisor":        false,
+		"Count":            1,
+		"QVal":             "",
+		"CityVal":          "",
+		"StatVal":          "",
+		"AdvVal":           "",
+		"CatVal":           "",
+		"SortVal":          "name",
+		"Page":             1,
+		"TotalPages":       1,
+		"HasPrev":          false,
+		"HasNext":          false,
+		"PrevURL":          "",
+		"NextURL":          "",
+		"ExportURL":        "/admin/b2b/negocios/export",
+		"EmbedToken":       "1.deadbeef",
+		"CanEmbed":         true,
+		"GoogleMapsAPIKey": "",
 	}
 
 	for _, name := range []string{"b2b.html", "negocios.html", "papelera.html", "asesores.html"} {
@@ -66,14 +67,15 @@ func TestB2BTemplateRenders(t *testing.T) {
 
 	// embed_map.html is the standalone, framable presentation map.
 	embedData := map[string]any{
-		"Token":          "1.deadbeef",
-		"Cities":         []string{"Bogotá", "Medellín"},
-		"Advisors":       advisors,
-		"Zones":          zones,
-		"Categories":     []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
-		"AdvisorsData":   asJSON(advisors),
-		"ZonesData":      asJSON(zones),
-		"CategoriesData": asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
+		"Token":            "1.deadbeef",
+		"Cities":           []string{"Bogotá", "Medellín"},
+		"Advisors":         advisors,
+		"Zones":            zones,
+		"Categories":       []Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}},
+		"AdvisorsData":     asJSON(advisors),
+		"ZonesData":        asJSON(zones),
+		"CategoriesData":   asJSON([]Category{{ID: 1, Name: "Restaurantes", Color: "#e11d48", Icon: "🍽️", Count: 3}}),
+		"GoogleMapsAPIKey": "AIza-test",
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "embed_map.html", embedData); err != nil {
 		t.Fatalf("execute embed_map.html: %v", err)
@@ -116,5 +118,17 @@ func TestB2BTemplateRenders(t *testing.T) {
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "negocios.html", data); err != nil {
 		t.Fatalf("execute negocios.html as advisor: %v", err)
+	}
+
+	sdata := map[string]any{
+		"CSRFToken":         "t",
+		"IsSuperadmin":      true,
+		"GoogleMapsKeySet":  false,
+		"GoogleMapsKeyMask": "",
+		"TOTPEnabled":       false,
+		"Username":          "admin",
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "settings.html", sdata); err != nil {
+		t.Fatalf("execute settings.html: %v", err)
 	}
 }
