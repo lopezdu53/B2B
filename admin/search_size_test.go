@@ -9,11 +9,12 @@ func TestSearchDepthForSize(t *testing.T) {
 		n    int
 		want int
 	}{
+		{50, 3},
 		{100, 5},
-		{500, 25},
-		{1000, 50},
-		{0, 25},
-		{-1, 25},
+		{250, 13},
+		{1000, 15},
+		{0, 5},
+		{-1, 5},
 	}
 	for _, tc := range cases {
 		if got := SearchDepthForSize(tc.n); got != tc.want {
