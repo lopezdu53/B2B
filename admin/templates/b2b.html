@@ -102,7 +102,7 @@
         .search-form input, .search-form select, .b2b-filters select { margin: 0; border-radius: 9px; }
         .search-form input[type=text] { min-width: 220px; }
         .search-form select { min-width: 160px; }
-        .search-form #s-barrio, .search-form #s-specialty { min-width: 210px; }
+        .search-form #s-barrio, .search-form #s-specialty { min-width: 240px; }
         .b2b-filters { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; margin-bottom: 1.1rem; }
         .b2b-filters select { min-width: 150px; }
         .b2b-page .btn-primary { border-radius: 9px; padding: .62rem 1.15rem; font-weight: 600; }
@@ -236,7 +236,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad, o <strong>Todas las especialidades</strong> para lanzar varias búsquedas (taquerías, cafeterías, etc.). Luego ciudad, localidad y barrio.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad (están agrupadas: colombiana, latina, internacional, etc.), o <strong>Todas las especialidades</strong> para lanzar una búsqueda por cada una. Conviene acotar por localidad o barrio.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -789,12 +789,33 @@
 
             function fillSpecialties() {
                 var rubro = SEARCH_RUBROS.find(function (r) { return r.id === catSel.value; }) || SEARCH_RUBROS[0];
-                specSel.innerHTML = '<option value="">Todas las especialidades</option>';
-                (rubro.specialties || []).forEach(function (s) {
-                    var opt = document.createElement("option");
-                    opt.value = s.keyword;
-                    opt.textContent = s.label;
-                    specSel.appendChild(opt);
+                var list = rubro.specialties || [];
+                specSel.innerHTML = "";
+                var all = document.createElement("option");
+                all.value = "";
+                all.textContent = "Todas las especialidades (" + list.length + ")";
+                specSel.appendChild(all);
+
+                var order = [];
+                var byGroup = {};
+                list.forEach(function (s) {
+                    var g = s.group || "Otras";
+                    if (!byGroup[g]) {
+                        byGroup[g] = [];
+                        order.push(g);
+                    }
+                    byGroup[g].push(s);
+                });
+                order.forEach(function (g) {
+                    var og = document.createElement("optgroup");
+                    og.label = g;
+                    byGroup[g].forEach(function (s) {
+                        var opt = document.createElement("option");
+                        opt.value = s.keyword;
+                        opt.textContent = s.label;
+                        og.appendChild(opt);
+                    });
+                    specSel.appendChild(og);
                 });
             }
 
