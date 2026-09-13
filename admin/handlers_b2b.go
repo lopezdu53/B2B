@@ -58,6 +58,8 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"CityVal":           DefaultCity,
 			"BogotaLocalidades": bogotaLocs,
 			"BogotaIndexData":   asJSON(bogotaIdx),
+			"SearchRubros":      SearchRubros(),
+			"SearchRubrosData":  asJSON(SearchRubros()),
 			"Summary":           summary,
 			// JSON for the map colouring logic (template.JS, not Go dump).
 			"AdvisorsData":   asJSON(advisors),
@@ -288,19 +290,18 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		what := strings.TrimSpace(r.FormValue("what"))
-		if what == "" {
-			http.Redirect(w, r, "/admin/b2b?error=Escribe+que+buscar+(ej.+restaurantes)", http.StatusSeeOther)
-			return
+		terms, rubroLabel, ok := ResolveSearchTerms(r.FormValue("category"), r.FormValue("specialty"))
+		if !ok || len(terms) == 0 {
+			if what := strings.TrimSpace(r.FormValue("what")); what != "" {
+				terms = []string{what}
+				rubroLabel = what
+			}
 		}
 
-		keyword := SearchKeyword(
-			what,
-			r.FormValue("city"),
-			r.FormValue("localidad"),
-			r.FormValue("barrio"),
-			r.FormValue("where"),
-		)
+		if len(terms) == 0 {
+			http.Redirect(w, r, "/admin/b2b?error=Elige+que+buscar+(Restaurantes,+SuperMercados+o+Hoteles)", http.StatusSeeOther)
+			return
+		}
 
 		maxDepth := DefaultSearchDepth
 		if d, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_depth"))); err == nil && d > 0 {
@@ -311,19 +312,46 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 			maxDepth = MaxSearchDepth
 		}
 
-		jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
-			Keyword:  keyword,
-			Lang:     "es",
-			MaxDepth: maxDepth,
-		})
-		if err != nil {
-			log.Error("b2b: enqueue search", "error", err, "keyword", keyword)
-			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+encolar+la+busqueda", http.StatusSeeOther)
+		city := r.FormValue("city")
+		localidad := r.FormValue("localidad")
+		barrio := r.FormValue("barrio")
+		where := r.FormValue("where")
 
-			return
+		queued := make([]string, 0, len(terms))
+		keywords := make([]string, 0, len(terms))
+
+		for _, term := range terms {
+			keyword := SearchKeyword(term, city, localidad, barrio, where)
+			jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
+				Keyword:  keyword,
+				Lang:     "es",
+				MaxDepth: maxDepth,
+			})
+			if err != nil {
+				log.Error("b2b: enqueue search", "error", err, "keyword", keyword)
+				if len(queued) == 0 {
+					http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+encolar+la+busqueda", http.StatusSeeOther)
+
+					return
+				}
+
+				break
+			}
+
+			queued = append(queued, jobID)
+			keywords = append(keywords, keyword)
 		}
 
-		msg := url.QueryEscape("Búsqueda encolada: \"" + keyword + "\" (job " + jobID + "). Necesitas un worker activo para procesarla; los negocios aparecerán en el mapa al terminar.")
+		whereLabel := BuildSearchWhere(city, localidad, barrio)
+		var msg string
+
+		switch len(queued) {
+		case 1:
+			msg = url.QueryEscape("Búsqueda encolada: \"" + keywords[0] + "\" (job " + queued[0] + "). Necesitas un worker activo para procesarla; los negocios aparecerán en el mapa al terminar.")
+		default:
+			msg = url.QueryEscape("Se encolaron " + strconv.Itoa(len(queued)) + " búsquedas de " + rubroLabel + " en " + whereLabel + ". Un worker activo las procesará; los negocios aparecerán en el mapa al terminar.")
+		}
+
 		http.Redirect(w, r, "/admin/b2b?success="+msg, http.StatusSeeOther)
 	}
 }

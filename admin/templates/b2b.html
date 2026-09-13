@@ -102,7 +102,7 @@
         .search-form input, .search-form select, .b2b-filters select { margin: 0; border-radius: 9px; }
         .search-form input[type=text] { min-width: 220px; }
         .search-form select { min-width: 160px; }
-        .search-form #s-barrio { min-width: 200px; }
+        .search-form #s-barrio, .search-form #s-specialty { min-width: 210px; }
         .b2b-filters { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; margin-bottom: 1.1rem; }
         .b2b-filters select { min-width: 150px; }
         .b2b-page .btn-primary { border-radius: 9px; padding: .62rem 1.15rem; font-weight: 600; }
@@ -236,12 +236,21 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige ciudad, luego localidad y barrio (o todos los barrios). Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad, o <strong>Todas las especialidades</strong> para lanzar varias búsquedas (taquerías, cafeterías, etc.). Luego ciudad, localidad y barrio.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
-                    <label for="s-what">Qué buscar</label>
-                    <input type="text" id="s-what" name="what" placeholder="restaurantes, hoteles, supermercados…" required>
+                    <label for="s-category">Qué buscar</label>
+                    <select id="s-category" name="category">
+                        {{range .SearchRubros}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="s-specialty">Especialidad</label>
+                    <select id="s-specialty" name="specialty">
+                        <option value="">Todas las especialidades</option>
+                        {{if .SearchRubros}}{{with index .SearchRubros 0}}{{range .Specialties}}<option value="{{.Keyword}}">{{.Label}}</option>{{end}}{{end}}{{end}}
+                    </select>
                 </div>
                 <div>
                     <label for="s-city">Ciudad</label>
@@ -528,6 +537,7 @@
         const ZONES_LIST = {{.ZonesData}} || [];
         const CATEGORIES_LIST = {{.CategoriesData}} || [];
         const BOGOTA_INDEX = {{if .BogotaIndexData}}{{.BogotaIndexData}}{{else}}null{{end}};
+        const SEARCH_RUBROS = {{if .SearchRubrosData}}{{.SearchRubrosData}}{{else}}[]{{end}};
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
         const advisorMeta = {}; // id -> {name, color}
@@ -771,6 +781,26 @@
                 else { document.execCommand("copy"); done(); }
             });
         }
+
+        (function bindSearchSpecialties() {
+            var catSel = document.getElementById("s-category");
+            var specSel = document.getElementById("s-specialty");
+            if (!catSel || !specSel || !SEARCH_RUBROS || !SEARCH_RUBROS.length) return;
+
+            function fillSpecialties() {
+                var rubro = SEARCH_RUBROS.find(function (r) { return r.id === catSel.value; }) || SEARCH_RUBROS[0];
+                specSel.innerHTML = '<option value="">Todas las especialidades</option>';
+                (rubro.specialties || []).forEach(function (s) {
+                    var opt = document.createElement("option");
+                    opt.value = s.keyword;
+                    opt.textContent = s.label;
+                    specSel.appendChild(opt);
+                });
+            }
+
+            catSel.addEventListener("change", fillSpecialties);
+            fillSpecialties();
+        })();
 
         (function bindSearchLocation() {
             var citySel = document.getElementById("s-city");

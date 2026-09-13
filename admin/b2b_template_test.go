@@ -37,6 +37,8 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"CityVal":           "Bogotá",
 		"BogotaLocalidades": BogotaUrbanLocalidades(),
 		"BogotaIndexData":   asJSON(bogotaIdx),
+		"SearchRubros":      SearchRubros(),
+		"SearchRubrosData":  asJSON(SearchRubros()),
 		"Summary":           &B2BSummary{Total: 10, Clients: 2, Prospects: 6, InProgress: 1, Discarded: 1, Advisors: 1, Zones: 1},
 		"Success":           "",
 		"Error":             "",
@@ -164,6 +166,8 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		"CityVal":           "Bogotá",
 		"BogotaLocalidades": BogotaUrbanLocalidades(),
 		"BogotaIndexData":   asJSON(idx),
+		"SearchRubros":      SearchRubros(),
+		"SearchRubrosData":  asJSON(SearchRubros()),
 		"Summary":           &B2BSummary{},
 		"CanManage":         true,
 		"IsAdvisor":         false,
@@ -178,6 +182,13 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 
 	html := buf.String()
 	for _, needle := range []string{
+		`name="category"`,
+		`name="specialty"`,
+		`Todas las especialidades`,
+		`Restaurantes`,
+		`SúperMercados`,
+		`Hoteles`,
+		`taquerías`,
 		`name="city"`,
 		`name="localidad"`,
 		`name="barrio"`,
