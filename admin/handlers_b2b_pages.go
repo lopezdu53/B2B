@@ -70,6 +70,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			Search: strings.TrimSpace(q.Get("q")),
 			Sort:   q.Get("sort"),
 		}
+		f.SetRatingBand(q.Get("rating"))
 
 		cityVal := city
 		if allCities {
@@ -118,6 +119,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		for _, kv := range []struct{ k, v string }{
 			{"q", f.Search}, {"city", cityVal}, {"status", f.Status},
 			{"advisor", q.Get("advisor")}, {"category", q.Get("category")}, {"sort", f.Sort},
+			{"rating", f.RatingBand},
 		} {
 			if kv.v != "" {
 				params.Set(kv.k, kv.v)
@@ -196,6 +198,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			"AdvVal":     q.Get("advisor"),
 			"CatVal":     q.Get("category"),
 			"SortVal":    f.Sort,
+			"RateVal":    f.RatingBand,
 			"Page":       page,
 			"TotalPages": totalPages,
 			"HasPrev":    page > 1,
@@ -225,6 +228,7 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 
 		city, _ := ResolveCityFilter(q.Get("city"))
 		f := BusinessFilter{City: city, Status: q.Get("status"), Search: strings.TrimSpace(q.Get("q"))}
+		f.SetRatingBand(q.Get("rating"))
 
 		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
 			if id, err := strconv.ParseInt(a, 10, 64); err == nil {

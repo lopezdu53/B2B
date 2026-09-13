@@ -263,15 +263,24 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 
 	html := buf.String()
 	for _, needle := range []string{
-		`id="btn-draw-zone"`,
-		`id="btn-draw-undo"`,
-		`id="draw-zone-modal"`,
 		`id="tog-zones"`,
 		`Zonas dibujadas`,
-		`libraries=drawing`,
+		`id="f-rating"`,
+		`2 a 3`,
+		`4 a 5`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("b2b.html missing %q", needle)
+		}
+	}
+
+	for _, gone := range []string{
+		`id="btn-draw-zone"`,
+		`id="btn-delete-businesses"`,
+		`id="btn-reset-leads"`,
+	} {
+		if strings.Contains(html, gone) {
+			t.Errorf("map page should not include %q", gone)
 		}
 	}
 
@@ -310,8 +319,12 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 
 	zonas := buf.String()
 
-	if !strings.Contains(zonas, "/admin/b2b#dibujar") || !strings.Contains(zonas, "Dibujada") {
-		t.Error("zonas.html should link to map drawing and show drawn badge")
+	if !strings.Contains(zonas, "Dibujada") {
+		t.Error("zonas.html should show drawn badge")
+	}
+
+	if strings.Contains(zonas, "/admin/b2b#dibujar") {
+		t.Error("zonas.html should not send users to map drawing")
 	}
 }
 
@@ -366,11 +379,7 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 	html := buf.String()
 	for _, needle := range []string{
 		`id="zone-stats"`,
-		`id="btn-delete-businesses"`,
-		`/admin/b2b/businesses/delete-all`,
-		`id="btn-reset-leads"`,
-		`/admin/b2b/businesses/reset`,
-		`Reiniciar a cero`,
+		`id="f-rating"`,
 		`id="btn-map-full"`,
 		`Pantalla completa`,
 		`value="featured"`,
@@ -395,6 +404,10 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 	for _, needle := range []string{
 		`id="btn-delete-businesses"`,
 		`id="btn-reset-leads"`,
+		`name="rating"`,
+		`2 a 3`,
+		`3 a 4`,
+		`4 a 5`,
 		`value="featured"`,
 		`target="_blank"`,
 	} {

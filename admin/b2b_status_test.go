@@ -36,3 +36,32 @@ func TestAbsoluteHTTPURL(t *testing.T) {
 		t.Fatalf("email %q", biz.EmailURL())
 	}
 }
+
+func TestRatingBandBounds(t *testing.T) {
+	t.Parallel()
+
+	min, max, band, ok := RatingBandBounds("2-3")
+	if !ok || min != 2 || max != 3 || band != RatingBand23 {
+		t.Fatalf("2-3: %v %v %q %v", min, max, band, ok)
+	}
+
+	min, max, band, ok = RatingBandBounds("4-5")
+	if !ok || min != 4 || max != 5.01 || band != RatingBand45 {
+		t.Fatalf("4-5: %v %v %q %v", min, max, band, ok)
+	}
+
+	if _, _, _, ok = RatingBandBounds(""); ok {
+		t.Fatal("empty band should be off")
+	}
+
+	var f BusinessFilter
+	f.SetRatingBand("3-4")
+	if f.RatingMin != 3 || f.RatingMaxExcl != 4 || f.RatingBand != RatingBand34 {
+		t.Fatalf("set 3-4: %+v", f)
+	}
+
+	f.SetRatingBand("nope")
+	if f.RatingMin != 0 || f.RatingMaxExcl != 0 || f.RatingBand != "" {
+		t.Fatalf("invalid should clear: %+v", f)
+	}
+}

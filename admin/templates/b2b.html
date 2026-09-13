@@ -363,6 +363,15 @@
                     </select>
                 </div>
                 <div>
+                    <label for="f-rating">Estrellas</label>
+                    <select id="f-rating">
+                        <option value="">Todas</option>
+                        <option value="2-3">2 a 3</option>
+                        <option value="3-4">3 a 4</option>
+                        <option value="4-5">4 a 5</option>
+                    </select>
+                </div>
+                <div>
                     <label for="f-colorby">Colorear negocios por</label>
                     <select id="f-colorby">
                         <option value="status">Estado</option>
@@ -399,23 +408,6 @@
 
             <div class="b2b-wrap">
                 <div>
-                    {{if .CanManage}}
-                    <div class="map-toolbar">
-                        <button type="button" class="btn-primary" id="btn-draw-zone">✏️ Dibujar zona</button>
-                        <button type="button" class="btn-secondary" id="btn-draw-undo" style="display:none" disabled>Borrar último</button>
-                        <button type="button" class="btn-secondary" id="btn-draw-finish" style="display:none" disabled>Cerrar polígono</button>
-                        <button type="button" class="btn-secondary" id="btn-draw-cancel" style="display:none">Cancelar dibujo</button>
-                        <p class="empty-hint" id="draw-hint" style="display:none;">El trazo se pega a la calle o carrera más cercana. Las zonas actuales siguen visibles para que no se crucen.</p>
-                        <form method="POST" action="/admin/b2b/businesses/delete-all" style="margin:0;" onsubmit="return confirm('¿Eliminar TODOS los negocios del mapa? Irán a la papelera. Puedes restaurarlos desde Papelera.');">
-                            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                            <button type="submit" class="btn-danger" id="btn-delete-businesses">Eliminar todos los negocios</button>
-                        </form>
-                        <form method="POST" action="/admin/b2b/businesses/reset" style="margin:0;" onsubmit="return confirm('REINICIAR A CERO: borra negocios, papelera, scrapes y trabajos en cola. No se puede deshacer. ¿Seguro?');">
-                            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                            <button type="submit" class="btn-danger" id="btn-reset-leads">Reiniciar a cero</button>
-                        </form>
-                    </div>
-                    {{end}}
                     <div class="map-stage" id="map-stage">
                     <div id="map"></div>
                     <button type="button" class="btn-map-full" id="btn-map-full" title="Pantalla completa">⛶ Pantalla completa</button>
@@ -723,7 +715,8 @@
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
                 advisor: (document.getElementById("f-advisor") || {value: ""}).value,
-                category: (document.getElementById("f-category") || {value: ""}).value
+                category: (document.getElementById("f-category") || {value: ""}).value,
+                rating: (document.getElementById("f-rating") || {value: ""}).value
             });
             fetch("/admin/b2b/businesses?" + params.toString(), { credentials: "same-origin" })
                 .then(r => {

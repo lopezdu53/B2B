@@ -134,6 +134,7 @@ FROM (
       AND ($3 = 0 OR advisor_id = $3)
       AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%' OR specialty ILIKE '%' || $4 || '%')
       AND ($7 = 0 OR category_id = $7)
+      AND ($11 = 0 OR (rating >= $11 AND rating < $12))
     ORDER BY bkey, added_at DESC
 ) t
 ORDER BY
@@ -177,7 +178,7 @@ func (s *store) ListBusinesses(ctx context.Context, tenantID int64, f admin.Busi
 		sort = "name"
 	}
 
-	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset, sort, f.Hidden)
+	rows, err := s.db.Query(ctx, listBusinessesQuery, f.City, f.Status, advisorID, f.Search, limit, tenantID, categoryID, offset, sort, f.Hidden, f.RatingMin, f.RatingMaxExcl)
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +217,7 @@ SELECT COUNT(*) FROM (
             COALESCE(elem->'complete_address'->>'state', '') AS state,
             COALESCE(elem->'complete_address'->>'borough', '') AS borough,
             COALESCE(NULLIF(crm.specialty, ''), elem->>'category', '') AS specialty,
+            COALESCE(NULLIF(elem->>'review_rating', '')::float8, 0) AS rating,
             COALESCE(crm.status, 'prospect') AS status,
             crm.advisor_id,
             crm.category_id
@@ -235,6 +237,7 @@ SELECT COUNT(*) FROM (
       AND ($3 = 0 OR advisor_id = $3)
       AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR category ILIKE '%' || $4 || '%' OR address ILIKE '%' || $4 || '%' OR COALESCE(specialty, '') ILIKE '%' || $4 || '%')
       AND ($5 = 0 OR category_id = $5)
+      AND ($8 = 0 OR (rating >= $8 AND rating < $9))
 ) c`
 
 // CountBusinesses returns how many businesses match the filter (for paging).
@@ -251,7 +254,7 @@ func (s *store) CountBusinesses(ctx context.Context, tenantID int64, f admin.Bus
 
 	var n int
 	err := s.db.QueryRow(ctx, countBusinessesQuery,
-		f.City, f.Status, advisorID, f.Search, categoryID, tenantID, f.Hidden).Scan(&n)
+		f.City, f.Status, advisorID, f.Search, categoryID, tenantID, f.Hidden, f.RatingMin, f.RatingMaxExcl).Scan(&n)
 
 	return n, err
 }

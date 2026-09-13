@@ -77,4 +77,12 @@ func TestScrapeQueriesTolerateNonArrayResults(t *testing.T) {
 	if !strings.Contains(adminLeadQualitySQL, "~ '^[0-9]+$'") {
 		t.Error("review_count cast should reject non-integers")
 	}
+
+	if !strings.Contains(listBusinessesQuery, "rating >= $11") {
+		t.Error("list query should filter star rating")
+	}
+
+	if !strings.Contains(countBusinessesQuery, "rating >= $8") {
+		t.Error("count query should filter star rating")
+	}
 }

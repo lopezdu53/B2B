@@ -124,17 +124,60 @@ func (m MapBusiness) EmailURL() string {
 	return "mailto:" + email
 }
 
+// Star rating bands offered in the negocios / map filters.
+const (
+	RatingBand23 = "2-3"
+	RatingBand34 = "3-4"
+	RatingBand45 = "4-5"
+)
+
 // BusinessFilter narrows down the businesses returned for the map.
 type BusinessFilter struct {
-	City       string
-	Status     string
-	AdvisorID  *int64
-	CategoryID *int64
-	Search     string // free-text match on title / category / address
-	Sort       string // "name" (default) | "category" | "added"
-	Hidden     bool   // true = only trashed businesses (Papelera)
-	Limit      int
-	Offset     int
+	City          string
+	Status        string
+	AdvisorID     *int64
+	CategoryID    *int64
+	Search        string // free-text match on title / category / address
+	Sort          string // "name" (default) | "category" | "added"
+	Hidden        bool   // true = only trashed businesses (Papelera)
+	RatingMin     float64
+	RatingMaxExcl float64 // exclusive upper bound; 0 with RatingMin 0 means no rating filter
+	RatingBand    string
+	Limit         int
+	Offset        int
+}
+
+// SetRatingBand sets inclusive star ranges: 2–3, 3–4, 4–5.
+func (f *BusinessFilter) SetRatingBand(raw string) {
+	if f == nil {
+		return
+	}
+
+	min, maxExcl, band, ok := RatingBandBounds(raw)
+	if !ok {
+		f.RatingBand = ""
+		f.RatingMin = 0
+		f.RatingMaxExcl = 0
+		return
+	}
+
+	f.RatingBand = band
+	f.RatingMin = min
+	f.RatingMaxExcl = maxExcl
+}
+
+// RatingBandBounds maps a UI band to [min, maxExclusive).
+func RatingBandBounds(raw string) (min, maxExcl float64, band string, ok bool) {
+	switch strings.TrimSpace(raw) {
+	case RatingBand23:
+		return 2, 3, RatingBand23, true
+	case RatingBand34:
+		return 3, 4, RatingBand34, true
+	case RatingBand45:
+		return 4, 5.01, RatingBand45, true
+	default:
+		return 0, 0, "", false
+	}
 }
 
 // ResetLeadsResult is how many rows a full lead reset removed.

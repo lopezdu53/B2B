@@ -112,6 +112,7 @@ func EmbedBusinessesHandler(appState *AppState) http.HandlerFunc {
 			Status: q.Get("status"),
 			Search: strings.TrimSpace(q.Get("q")),
 		}
+		f.SetRatingBand(q.Get("rating"))
 
 		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
 			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
