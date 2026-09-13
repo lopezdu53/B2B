@@ -236,7 +236,7 @@ func (cw *CentralWriter) markCompletedFromResult(result scrapemate.Result, count
 // pgSave returns a SaveFunc that writes to the scrape_results table.
 func pgSave(db *pgxpool.Pool) SaveFunc {
 	return func(ctx context.Context, riverJobID int64, keyword string, entries []*gmaps.Entry) error {
-		resultsJSON, err := json.Marshal(entries)
+		resultsJSON, err := marshalScrapeResults(entries)
 		if err != nil {
 			return err
 		}
@@ -251,4 +251,15 @@ func pgSave(db *pgxpool.Pool) SaveFunc {
 
 		return err
 	}
+}
+
+// marshalScrapeResults encodes entries as a JSON array. A nil slice must
+// become [] and not null: jsonb_array_elements('null') errors and takes
+// down every map/list query that flattens scrape_results.
+func marshalScrapeResults(entries []*gmaps.Entry) ([]byte, error) {
+	if entries == nil {
+		entries = []*gmaps.Entry{}
+	}
+
+	return json.Marshal(entries)
 }

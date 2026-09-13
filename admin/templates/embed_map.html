@@ -291,6 +291,30 @@
             renderLegend();
         }
 
+        function paintEmbedPriceSmart() {
+            var city = document.getElementById("f-city").value;
+            var key = String(city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            var pois = (!key || key === "all" || key === "todas")
+                ? PRICE_SMART.slice()
+                : PRICE_SMART.filter(function (p) {
+                    return String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === key;
+                });
+            if (mapApi && mapApi.setPOIs) {
+                mapApi.setPOIs(pois, function (poi, marker) {
+                    mapApi.openInfo(marker, popupHtml({
+                        title: poi.name,
+                        specialty: "PriceSmart",
+                        address: poi.address,
+                        phone: poi.phone,
+                        website: poi.website,
+                        maps_url: poi.maps_url,
+                        status: "featured"
+                    }));
+                });
+            }
+            if (mapApi && mapApi.fitOverview) mapApi.fitOverview(pois);
+        }
+
         function load() {
             if (!mapApi) return;
             const count = document.getElementById("count");
@@ -303,36 +327,24 @@
                 category: document.getElementById("f-category").value
             });
             fetch("/embed/businesses?" + params.toString())
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error("load failed");
+                    return r.json();
+                })
                 .then(list => {
+                    if (!Array.isArray(list)) throw new Error("bad payload");
                     mapApi.setMarkers(list, colorFor, function (b, marker) {
                         mapApi.openInfo(marker, popupHtml(b));
                     });
-                    var city = document.getElementById("f-city").value;
-                    var key = String(city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                    var pois = (!key || key === "all" || key === "todas")
-                        ? PRICE_SMART.slice()
-                        : PRICE_SMART.filter(function (p) {
-                            return String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === key;
-                        });
-                    if (mapApi.setPOIs) {
-                        mapApi.setPOIs(pois, function (poi, marker) {
-                            mapApi.openInfo(marker, popupHtml({
-                                title: poi.name,
-                                specialty: "PriceSmart",
-                                address: poi.address,
-                                phone: poi.phone,
-                                website: poi.website,
-                                maps_url: poi.maps_url,
-                                status: "featured"
-                            }));
-                        });
-                    }
-                    if (mapApi.fitOverview) mapApi.fitOverview(pois);
+                    paintEmbedPriceSmart();
                     count.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
                 })
-                .catch(() => { count.textContent = "Error al cargar"; });
+                .catch(() => {
+                    count.textContent = "Error al cargar";
+                    if (mapApi.setMarkers) mapApi.setMarkers([], colorFor, function () {});
+                    paintEmbedPriceSmart();
+                });
         }
 
         // Filters: apply + mobile toggle.

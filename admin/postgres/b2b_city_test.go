@@ -61,3 +61,20 @@ func TestBogotaAliasKeysCoverUrbanLocalidades(t *testing.T) {
 		t.Fatal("missing usaquen alias")
 	}
 }
+
+func TestScrapeQueriesTolerateNonArrayResults(t *testing.T) {
+	t.Parallel()
+
+	for _, q := range []string{listBusinessesQuery, countBusinessesQuery, businessTotalQuery} {
+		if !strings.Contains(q, scrapeResultsArraySQL) {
+			t.Errorf("query missing non-array guard: %s", q[:80])
+		}
+		if strings.Contains(q, "jsonb_array_elements(sr.results)") {
+			t.Error("raw jsonb_array_elements(sr.results) still present")
+		}
+	}
+
+	if !strings.Contains(adminLeadQualitySQL, "~ '^[0-9]+$'") {
+		t.Error("review_count cast should reject non-integers")
+	}
+}

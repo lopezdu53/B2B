@@ -21,6 +21,10 @@ func jsonbOrNil(raw json.RawMessage) any {
 // browser stays responsive even with very large scrape datasets.
 const defaultBusinessLimit = 5000
 
+// scrapeResultsArraySQL yields a JSON array even when a job flushed null or
+// a scalar. jsonb_array_elements('null') errors and blanked the whole map.
+const scrapeResultsArraySQL = `CASE WHEN jsonb_typeof(sr.results) = 'array' THEN sr.results ELSE '[]'::jsonb END`
+
 // sqlFoldCity normalizes a SQL text expression the same way admin.cityKey does.
 func sqlFoldCity(expr string) string {
 	return `trim(both ' ' from regexp_replace(translate(lower(regexp_replace(COALESCE(` + expr + `, ''), '[^A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), '\s+', ' ', 'g'))`
@@ -114,7 +118,7 @@ FROM (
             COALESCE(crm.notes, '') AS notes,
             sr.created_at AS added_at
         FROM scrape_results sr
-        CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+        CROSS JOIN LATERAL jsonb_array_elements(` + scrapeResultsArraySQL + `) AS elem
         LEFT JOIN b2b_business_crm crm
             ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
            AND crm.tenant_id = $6
@@ -140,7 +144,10 @@ LIMIT $5 OFFSET $8`
 
 // adminLeadQualitySQL is the shared review/chain filter (kept next to the queries).
 const adminLeadQualitySQL = `
-          AND COALESCE(NULLIF(elem->>'review_count', '')::int, 0) > 50
+          AND COALESCE(CASE
+                WHEN (elem->>'review_count') ~ '^[0-9]+$' THEN (elem->>'review_count')::int
+                ELSE 0
+              END, 0) > 50
           AND NOT ((' ' || translate(lower(regexp_replace(COALESCE(elem->>'title', ''), '[^A-Za-z0-9ÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN') || ' ') ~ ' (exito|olimpica|d1|ara|carulla|oxxo|falabella|isimo|homecenter|easy|justo y bueno|justo bueno) ')`
 
 // ListBusinesses returns scraped businesses with the tenant's CRM overlay.
@@ -213,7 +220,7 @@ SELECT COUNT(*) FROM (
             crm.advisor_id,
             crm.category_id
         FROM scrape_results sr
-        CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+        CROSS JOIN LATERAL jsonb_array_elements(` + scrapeResultsArraySQL + `) AS elem
         LEFT JOIN b2b_business_crm crm
             ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
            AND crm.tenant_id = $6
@@ -288,7 +295,7 @@ const businessTotalQuery = `
 SELECT COUNT(*) FROM (
     SELECT DISTINCT COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey
     FROM scrape_results sr
-    CROSS JOIN LATERAL jsonb_array_elements(sr.results) AS elem
+    CROSS JOIN LATERAL jsonb_array_elements(` + scrapeResultsArraySQL + `) AS elem
     LEFT JOIN b2b_business_crm crm
         ON crm.place_id = COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', ''))
        AND crm.tenant_id = $1
