@@ -34,10 +34,24 @@ func TestSearchRubrosHasThreeParents(t *testing.T) {
 	}
 }
 
+func TestResolveSearchTermsDefaultIsGeneral(t *testing.T) {
+	t.Parallel()
+
+	terms, label, ok := ResolveSearchTerms("hoteles", "")
+	if !ok || label != "Hoteles" || len(terms) != 1 || terms[0] != "hoteles" {
+		t.Fatalf("default hoteles: %v %q %v", terms, label, ok)
+	}
+
+	terms, label, ok = ResolveSearchTerms("restaurantes", "")
+	if !ok || label != "Restaurantes" || len(terms) != 1 || terms[0] != "restaurantes" {
+		t.Fatalf("default restaurantes: %v %q %v", terms, label, ok)
+	}
+}
+
 func TestResolveSearchTermsFanOut(t *testing.T) {
 	t.Parallel()
 
-	terms, label, ok := ResolveSearchTerms("restaurantes", "")
+	terms, label, ok := ResolveSearchTerms("restaurantes", "all")
 	if !ok || label != "Restaurantes" {
 		t.Fatalf("ok=%v label=%q", ok, label)
 	}

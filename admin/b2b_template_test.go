@@ -195,6 +195,8 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`name="category"`,
 		`name="specialty"`,
 		`Todas las especialidades`,
+		`Por defecto busca el rubro general`,
+		`value="all"`,
 		`Restaurantes`,
 		`SúperMercados`,
 		`Hoteles`,

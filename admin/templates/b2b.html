@@ -270,7 +270,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Elige el rubro y una especialidad, o <strong>Todas las especialidades</strong> (una búsqueda por cada tipo: tarda con un solo worker). Rápida 50, Normal 100, Amplia 250. Puedes limitar por estrellas (2 a 3, 3 a 4 o 4 a 5). El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Por defecto busca el rubro general (un job). <strong>Todas las especialidades</strong> lanza una búsqueda por cada tipo y el worker las hace una por una. Rápida 50, Normal 100, Amplia 250. Puedes limitar por estrellas (2 a 3, 3 a 4 o 4 a 5). El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -282,8 +282,8 @@
                 <div>
                     <label for="s-specialty">Especialidad</label>
                     <select id="s-specialty" name="specialty">
-                        <option value="">Todas las especialidades</option>
-                        {{if .SearchRubros}}{{with index .SearchRubros 0}}{{range .Specialties}}<option value="{{.Keyword}}">{{.Label}}</option>{{end}}{{end}}{{end}}
+                        <option value="all">Todas las especialidades</option>
+                        {{if .SearchRubros}}{{with index .SearchRubros 0}}{{range $i, $s := .Specialties}}<option value="{{$s.Keyword}}" {{if eq $i 0}}selected{{end}}>{{$s.Label}}</option>{{end}}{{end}}{{end}}
                     </select>
                 </div>
                 <div>
@@ -1054,8 +1054,9 @@
         if (searchForm) {
             searchForm.addEventListener("submit", function (e) {
                 const spec = document.getElementById("s-specialty");
-                if (spec && !spec.value) {
-                    if (!confirm("Vas a lanzar una búsqueda por cada especialidad. Con un worker tardan, una detrás de otra. ¿Continuar?")) {
+                if (spec && spec.value === "all") {
+                    const n = spec.options.length > 1 ? spec.options.length - 1 : 0;
+                    if (!confirm("Vas a lanzar una búsqueda por cada especialidad (" + n + " jobs). Un solo worker las hace una por una y puede tardar más de una hora. ¿Continuar?")) {
                         e.preventDefault();
                     }
                 }
@@ -1096,7 +1097,7 @@
                 var list = rubro.specialties || [];
                 specSel.innerHTML = "";
                 var all = document.createElement("option");
-                all.value = "";
+                all.value = "all";
                 all.textContent = "Todas las especialidades (" + list.length + ")";
                 specSel.appendChild(all);
 
@@ -1121,6 +1122,9 @@
                     });
                     specSel.appendChild(og);
                 });
+                if (list.length) {
+                    specSel.value = list[0].keyword;
+                }
             }
 
             catSel.addEventListener("change", fillSpecialties);

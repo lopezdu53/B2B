@@ -456,7 +456,7 @@ func NewClient(dbPool *pgxpool.Pool, encryptionKey []byte) (*Client, error) {
 		Workers:              workers,
 		PeriodicJobs:         periodicJobs,
 		Logger:               logger,
-		RescueStuckJobsAfter: 20 * time.Minute,
+		RescueStuckJobsAfter: 10 * time.Minute,
 	})
 	if err != nil {
 		return nil, err
@@ -487,7 +487,7 @@ func NewWorkerClient(dbPool *pgxpool.Pool, manager ScrapeManager) (*Client, erro
 		Workers:              workers,
 		Logger:               logger,
 		JobTimeout:           maxScrapeTimeout + 2*time.Minute,
-		RescueStuckJobsAfter: 20 * time.Minute,
+		RescueStuckJobsAfter: 10 * time.Minute,
 	})
 	if err != nil {
 		return nil, err
