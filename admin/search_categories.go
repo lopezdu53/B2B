@@ -27,7 +27,8 @@ func sp(group, label, keyword string) SearchSpecialty {
 }
 
 // SearchRubros is the curated list shown in "Qué buscar".
-// "Todas las especialidades" fans out to every keyword in Specialties.
+// The first specialty of each rubro is the default one-job search.
+// "Todas las especialidades" (keyword "all") fans out to every specialty.
 func SearchRubros() []SearchRubro {
 	return []SearchRubro{
 		{
@@ -199,16 +200,23 @@ func FindSearchRubro(id string) *SearchRubro {
 }
 
 // ResolveSearchTerms maps the form fields to one or more Google Maps keywords.
-// Empty specialty / "all" fans out to every specialty of the rubro.
+// Empty specialty uses the rubro's general keyword (one job). "all" / "todas"
+// fans out to every specialty — that can be 15–80 sequential worker jobs.
 func ResolveSearchTerms(rubroID, specialtyKeyword string) ([]string, string, bool) {
 	rubro := FindSearchRubro(rubroID)
 	if rubro == nil {
 		return nil, "", false
 	}
 
+	if len(rubro.Specialties) == 0 {
+		return nil, rubro.Label, false
+	}
+
 	specialtyKeyword = strings.TrimSpace(specialtyKeyword)
 	switch strings.ToLower(specialtyKeyword) {
-	case "", "all", "todas", "*":
+	case "":
+		return []string{rubro.Specialties[0].Keyword}, rubro.Label, true
+	case "all", "todas", "*":
 		out := make([]string, 0, len(rubro.Specialties))
 		seen := make(map[string]struct{}, len(rubro.Specialties))
 		for _, s := range rubro.Specialties {

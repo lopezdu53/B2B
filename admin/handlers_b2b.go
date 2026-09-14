@@ -168,8 +168,7 @@ func B2BSummaryHandler(appState *AppState) http.HandlerFunc {
 }
 
 // b2bRecentJobsLimit is how many scrape jobs the map dashboard lists.
-// "Todas las especialidades" can enqueue ~100 keywords; the old cap of 8
-// made it look like only the first query ran.
+// An explicit "Todas las especialidades" can still enqueue many keywords.
 const b2bRecentJobsLimit = 120
 
 // b2bJobView is the compact job status returned to the dashboard for live
@@ -409,7 +408,7 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 				Keyword:       keyword,
 				Lang:          "es",
 				MaxDepth:      maxDepth,
-				Email:         true,
+				Email:         false, // website crawls eat the 5-minute budget and stall the single worker
 				RatingMin:     ratingMin,
 				RatingMaxExcl: ratingMaxExcl,
 				RatingBand:    ratingBand,
