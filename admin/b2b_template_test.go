@@ -329,8 +329,20 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		t.Error("zonas.html should show drawn badge")
 	}
 
+	for _, needle := range []string{
+		`id="btn-draw-zone"`,
+		`Dibujar zona`,
+		`id="draw-zone-modal"`,
+		`/admin/b2b/zones/draw`,
+		`id="map"`,
+	} {
+		if !strings.Contains(zonas, needle) {
+			t.Errorf("zonas.html missing draw control %q", needle)
+		}
+	}
+
 	if strings.Contains(zonas, "/admin/b2b#dibujar") {
-		t.Error("zonas.html should not send users to map drawing")
+		t.Error("zonas.html should draw on this page, not send users to the map")
 	}
 }
 

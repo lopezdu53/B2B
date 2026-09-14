@@ -602,7 +602,7 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 		city := strings.TrimSpace(r.FormValue("city"))
 
 		if name == "" || city == "" {
-			b2bRedirectBack(w, r, "/admin/b2b", "error", "Nombre+y+ciudad+de+la+zona+son+obligatorios")
+			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", "Nombre+y+ciudad+de+la+zona+son+obligatorios")
 			return
 		}
 
@@ -617,18 +617,18 @@ func CreateZoneHandler(appState *AppState) http.HandlerFunc {
 
 		geom, gerr := NormalizeZoneGeometry(r.FormValue("geometry"))
 		if gerr != nil {
-			b2bRedirectBack(w, r, "/admin/b2b", "error", url.QueryEscape(gerr.Error()))
+			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", url.QueryEscape(gerr.Error()))
 			return
 		}
 
 		if _, err := appState.Store.CreateZone(r.Context(), tid, name, city, advisorID, strings.TrimSpace(r.FormValue("color")), geom); err != nil {
 			log.Error("b2b: create zone", "error", err)
-			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+crear+la+zona")
+			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", "No+se+pudo+crear+la+zona")
 
 			return
 		}
 
-		b2bRedirectBack(w, r, "/admin/b2b", "success", "Zona+creada")
+		b2bRedirectBack(w, r, "/admin/b2b/zonas", "success", "Zona+creada")
 	}
 }
 
@@ -641,10 +641,11 @@ func DrawZoneHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		var req struct {
-			Name     string          `json:"name"`
-			City     string          `json:"city"`
-			Color    string          `json:"color"`
-			Geometry json.RawMessage `json:"geometry"`
+			Name      string          `json:"name"`
+			City      string          `json:"city"`
+			Color     string          `json:"color"`
+			AdvisorID *int64          `json:"advisor_id"`
+			Geometry  json.RawMessage `json:"geometry"`
 		}
 
 		if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
@@ -657,6 +658,12 @@ func DrawZoneHandler(appState *AppState) http.HandlerFunc {
 			req.City = r.FormValue("city")
 			req.Color = r.FormValue("color")
 			req.Geometry = json.RawMessage(r.FormValue("geometry"))
+
+			if a := strings.TrimSpace(r.FormValue("advisor_id")); a != "" {
+				if id, perr := strconv.ParseInt(a, 10, 64); perr == nil {
+					req.AdvisorID = &id
+				}
+			}
 		}
 
 		name := strings.TrimSpace(req.Name)
@@ -684,7 +691,7 @@ func DrawZoneHandler(appState *AppState) http.HandlerFunc {
 
 		tid, _ := effectiveTenant(appState, r)
 
-		zone, err := appState.Store.CreateZone(r.Context(), tid, name, city, nil, strings.TrimSpace(req.Color), geom)
+		zone, err := appState.Store.CreateZone(r.Context(), tid, name, city, req.AdvisorID, strings.TrimSpace(req.Color), geom)
 		if err != nil {
 			log.Error("b2b: draw zone", "error", err)
 			http.Error(w, "No se pudo guardar la zona", http.StatusInternalServerError)
@@ -827,7 +834,7 @@ func DeleteZoneHandler(appState *AppState) http.HandlerFunc {
 
 		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 		if err != nil {
-			b2bRedirectBack(w, r, "/admin/b2b", "error", "ID+invalido")
+			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", "ID+invalido")
 			return
 		}
 
@@ -835,12 +842,12 @@ func DeleteZoneHandler(appState *AppState) http.HandlerFunc {
 
 		if err := appState.Store.DeleteZone(r.Context(), tid, id); err != nil {
 			log.Error("b2b: delete zone", "error", err, "id", id)
-			b2bRedirectBack(w, r, "/admin/b2b", "error", "No+se+pudo+eliminar+la+zona")
+			b2bRedirectBack(w, r, "/admin/b2b/zonas", "error", "No+se+pudo+eliminar+la+zona")
 
 			return
 		}
 
-		b2bRedirectBack(w, r, "/admin/b2b", "success", "Zona+eliminada")
+		b2bRedirectBack(w, r, "/admin/b2b/zonas", "success", "Zona+eliminada")
 	}
 }
 

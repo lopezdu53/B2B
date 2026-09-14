@@ -557,10 +557,12 @@ func ZonasPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		data := map[string]any{
-			"Rows":     rows,
-			"Advisors": advisors,
-			"Success":  r.URL.Query().Get("success"),
-			"Error":    r.URL.Query().Get("error"),
+			"Rows":      rows,
+			"Advisors":  advisors,
+			"Cities":    CityList(),
+			"ZonesData": asJSON(zones),
+			"Success":   r.URL.Query().Get("success"),
+			"Error":     r.URL.Query().Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "zonas.html", data)

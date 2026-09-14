@@ -3,7 +3,32 @@
 <html lang="es">
 <head>
     {{template "head" .}}
+    <link rel="stylesheet" href="/admin/static/leaflet.css">
     <title>Zonas - Maps Scraper</title>
+    <style>
+        .map-stage { position: relative; }
+        .map-stage:fullscreen,
+        .map-stage:-webkit-full-screen,
+        .map-stage.is-full { width: 100vw; height: 100vh; background: #fff; padding: 0; }
+        .map-stage.is-full { position: fixed; inset: 0; z-index: 4000; }
+        .map-stage:fullscreen #map,
+        .map-stage:-webkit-full-screen #map,
+        .map-stage.is-full #map { height: 100vh; min-height: 0; border-radius: 0; }
+        .btn-map-full {
+            position: absolute; top: 12px; right: 12px; z-index: 5;
+            border: 1px solid var(--border-color, #eceef2); background: #fff; color: var(--text-primary, #0f172a);
+            border-radius: 9px; padding: .45rem .7rem; font-weight: 700; font-size: .82rem;
+            cursor: pointer; box-shadow: 0 1px 2px rgba(16,24,40,.05);
+        }
+        .btn-map-full:hover { background: #f8fafc; }
+        #map { height: 62vh; min-height: 420px; border-radius: 14px; border: 1px solid var(--border-color, #eceef2); z-index: 0; }
+        #map.is-drawing { cursor: crosshair; box-shadow: 0 0 0 3px rgba(8,145,178,.35); }
+        .map-toolbar { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin: 0 0 .7rem; }
+        .map-toolbar .btn-secondary, .map-toolbar .btn-primary { border-radius: 9px; padding: .55rem 1rem; font-weight: 600; }
+        #draw-hint { margin: 0; flex: 1 1 240px; }
+        html.dark #map { border-color: #232c3d; }
+        html.dark .btn-map-full { background: #131c2e; color: #e8edf5; border-color: #2a3446; }
+    </style>
 </head>
 <body>
     {{template "navbar" .}}
@@ -14,11 +39,28 @@
 
         <div class="page-header">
             <h1>Zonas</h1>
-            <p>Define zonas por nombre y asígnalas a un asesor para repartir el territorio.</p>
+            <p>Dibuja el territorio en el mapa o créalo por nombre y asígnalo a un asesor.</p>
         </div>
 
         <div class="card">
-            <h2 class="sec-title"><span class="ico">➕</span> Agregar zona</h2>
+            <h2 class="sec-title"><span class="ico">✏️</span> Dibujar zona</h2>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Haz clic cerca de una calle o carrera. El borde sigue su curva. Con 3 o más puntos cierra el polígono y ponle nombre.</p>
+            <div class="map-toolbar">
+                <button type="button" class="btn-primary" id="btn-draw-zone">Dibujar zona</button>
+                <button type="button" class="btn-secondary" id="btn-draw-undo" style="display:none;">Deshacer punto</button>
+                <button type="button" class="btn-primary" id="btn-draw-finish" style="display:none;">Cerrar polígono</button>
+                <button type="button" class="btn-secondary" id="btn-draw-cancel" style="display:none;">Cancelar</button>
+                <p class="empty-hint" id="draw-hint" style="display:none;"></p>
+            </div>
+            <div class="map-stage" id="map-stage">
+                <div id="map"></div>
+                <button type="button" class="btn-map-full" id="btn-map-full" title="Pantalla completa">⛶ Pantalla completa</button>
+            </div>
+            <p class="empty-hint" id="map-engine-hint" style="margin:.55rem 0 0;"></p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">➕</span> Agregar zona por nombre</h2>
             <form method="POST" action="/admin/b2b/zones" class="filters-bar">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div><label>Nombre *</label><input type="text" name="name" placeholder="Ej. Usaquén" required></div>
@@ -69,7 +111,7 @@
             {{else}}
             <div class="empty-state">
                 <div class="big">📍</div>
-                <p>Aún no hay zonas. Créala por nombre y ciudad.</p>
+                <p>Aún no hay zonas. Dibújala en el mapa o créala por nombre y ciudad.</p>
             </div>
             {{end}}
         </div>
@@ -96,6 +138,45 @@
         </form>
     </div>
 
+    <div class="modal-overlay" id="draw-zone-modal">
+        <form class="modal" id="draw-zone-form" onsubmit="return false;">
+            <h3>Guardar zona dibujada</h3>
+            <p class="empty-hint" style="margin:0 0 1rem;">El polígono ya quedó en el mapa. Ponle un nombre para guardarlo.</p>
+            <div class="field">
+                <label for="draw-zone-name">Nombre *</label>
+                <input type="text" id="draw-zone-name" name="name" placeholder="Ej. Norte de Chapinero" required>
+            </div>
+            <div class="field">
+                <label for="draw-zone-city">Ciudad</label>
+                <select id="draw-zone-city" name="city">
+                    {{range .Cities}}<option value="{{.}}" {{if eq . "Bogotá"}}selected{{end}}>{{.}}</option>{{end}}
+                    {{if not .Cities}}<option value="Bogotá" selected>Bogotá</option>{{end}}
+                </select>
+            </div>
+            <div class="field">
+                <label for="draw-zone-advisor">Asesor</label>
+                <select id="draw-zone-advisor" name="advisor_id">
+                    <option value="">Sin asignar</option>
+                    {{range .Advisors}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </div>
+            <div class="field">
+                <label for="draw-zone-color">Color</label>
+                <input type="color" id="draw-zone-color" name="color" value="#0891b2" style="width:60px;height:40px;padding:2px;">
+            </div>
+            <p class="empty-hint" id="draw-zone-error" style="color:#b91c1c;"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="draw-zone-discard">Descartar</button>
+                <button type="submit" class="btn-primary" id="draw-zone-save">Guardar zona</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="/admin/static/leaflet.js"></script>
+    <script src="/admin/static/b2b-map.js?v={{.AssetVersion}}"></script>
+    {{if .GoogleMapsAPIKey}}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{.GoogleMapsAPIKey}}&amp;v=weekly&amp;language=es&amp;region=CO&amp;libraries=drawing"></script>
+    {{end}}
     <script>
     function filterRows(inputId, tableId) {
         var q = document.getElementById(inputId).value.toLowerCase();
@@ -115,6 +196,172 @@
     document.getElementById("edit-modal").addEventListener("click", function (e) {
         if (e.target === this) closeModal("edit-modal");
     });
+
+    (function () {
+        var CSRF = "{{.CSRFToken}}";
+        var GOOGLE_KEY = "{{.GoogleMapsAPIKey}}";
+        var ZONES_LIST = {{if .ZonesData}}{{.ZonesData}}{{else}}[]{{end}};
+        var mapApi = null;
+        var pendingGeom = null;
+
+        function setDrawChrome(mode, verts, meta) {
+            var btnDraw = document.getElementById("btn-draw-zone");
+            var btnFinish = document.getElementById("btn-draw-finish");
+            var btnUndo = document.getElementById("btn-draw-undo");
+            var btnCancel = document.getElementById("btn-draw-cancel");
+            var hint = document.getElementById("draw-hint");
+            if (!btnDraw) return;
+            var drawing = mode === "click" || mode === "google";
+            var routing = !!(meta && meta.routing);
+            btnDraw.style.display = drawing ? "none" : "";
+            if (btnUndo) {
+                btnUndo.style.display = drawing ? "" : "none";
+                btnUndo.disabled = routing || !verts;
+            }
+            if (btnFinish) {
+                btnFinish.style.display = drawing ? "" : "none";
+                btnFinish.disabled = routing || !verts || verts < 3;
+            }
+            if (btnCancel) btnCancel.style.display = drawing ? "" : "none";
+            if (hint) {
+                hint.style.display = drawing ? "" : "none";
+                if (routing) {
+                    hint.textContent = "Siguiendo la calle o carrera…";
+                } else {
+                    hint.textContent = "Haz clic cerca de una calle o carrera. El borde sigue su curva. Con 3 o más puntos, cierra el polígono.";
+                }
+            }
+        }
+
+        function openDrawModal(geom) {
+            pendingGeom = geom;
+            var nameEl = document.getElementById("draw-zone-name");
+            var colorEl = document.getElementById("draw-zone-color");
+            var errEl = document.getElementById("draw-zone-error");
+            if (nameEl) nameEl.value = "";
+            if (colorEl) colorEl.value = "#0891b2";
+            if (errEl) errEl.textContent = "";
+            document.getElementById("draw-zone-modal").classList.add("open");
+            if (nameEl) nameEl.focus();
+        }
+
+        function closeDrawModal(discard) {
+            var modal = document.getElementById("draw-zone-modal");
+            if (modal) modal.classList.remove("open");
+            if (discard && mapApi) mapApi.cancelDraw();
+            pendingGeom = null;
+            setDrawChrome("idle");
+        }
+
+        function saveDrawnZone() {
+            var nameEl = document.getElementById("draw-zone-name");
+            var errEl = document.getElementById("draw-zone-error");
+            var name = nameEl ? nameEl.value.trim() : "";
+            if (!name) {
+                if (errEl) errEl.textContent = "El nombre de la zona es obligatorio";
+                return;
+            }
+            if (!pendingGeom) {
+                if (errEl) errEl.textContent = "No hay un polígono para guardar";
+                return;
+            }
+            if (errEl) errEl.textContent = "";
+            var payload = {
+                name: name,
+                city: document.getElementById("draw-zone-city").value,
+                color: document.getElementById("draw-zone-color").value,
+                geometry: pendingGeom
+            };
+            var adv = document.getElementById("draw-zone-advisor");
+            if (adv && adv.value) payload.advisor_id = parseInt(adv.value, 10);
+            fetch("/admin/b2b/zones/draw", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF },
+                body: JSON.stringify(payload)
+            }).then(function (r) {
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t || "No se pudo guardar"); });
+                return r.json();
+            }).then(function () {
+                window.location = "/admin/b2b/zonas?success=" + encodeURIComponent("Zona dibujada");
+            }).catch(function (e) {
+                if (errEl) errEl.textContent = e.message || "No se pudo guardar";
+            });
+        }
+
+        function beginDraw() {
+            if (!mapApi) return;
+            document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
+            mapApi.startDraw({
+                color: "#0891b2",
+                onVertex: function (n, meta) { setDrawChrome("click", n, meta); },
+                onComplete: function (geom) {
+                    setDrawChrome("idle");
+                    openDrawModal(geom);
+                }
+            });
+            setDrawChrome("click", 0);
+        }
+
+        document.getElementById("btn-draw-zone").addEventListener("click", beginDraw);
+        document.getElementById("btn-draw-undo").addEventListener("click", function () {
+            if (mapApi) mapApi.undoDraw();
+        });
+        document.getElementById("btn-draw-finish").addEventListener("click", function () {
+            if (mapApi) mapApi.finishDraw();
+        });
+        document.getElementById("btn-draw-cancel").addEventListener("click", function () {
+            if (mapApi) mapApi.cancelDraw();
+            setDrawChrome("idle");
+        });
+        document.getElementById("draw-zone-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            saveDrawnZone();
+        });
+        document.getElementById("draw-zone-discard").addEventListener("click", function () { closeDrawModal(true); });
+        document.getElementById("draw-zone-modal").addEventListener("click", function (e) {
+            if (e.target === this) closeDrawModal(true);
+        });
+
+        if (!window.B2BMap) {
+            document.getElementById("map-engine-hint").textContent = "No se pudo cargar el mapa.";
+            return;
+        }
+
+        B2BMap.create({
+            el: document.getElementById("map"),
+            apiKey: GOOGLE_KEY,
+            showBarrios: false
+        }).then(function (api) {
+            mapApi = api;
+            api.setZones(ZONES_LIST);
+            var hint = document.getElementById("map-engine-hint");
+            if (api.usesGoogle()) {
+                hint.textContent = "Al dibujar una zona las demás quedan visibles para no cruzarlas. El borde sigue la calle.";
+            } else {
+                hint.textContent = "Mapa de respaldo (OpenStreetMap). Para Google Maps, configura GOOGLE_MAPS_API_KEY en EasyPanel (servicio web) o en Ajustes.";
+            }
+            var fullBtn = document.getElementById("btn-map-full");
+            var stage = document.getElementById("map-stage");
+            function syncFullLabel() {
+                var on = !!(document.fullscreenElement || document.webkitFullscreenElement || (stage && stage.classList.contains("is-full")));
+                if (fullBtn) fullBtn.textContent = on ? "✕ Salir" : "⛶ Pantalla completa";
+                if (mapApi.resize) mapApi.resize();
+            }
+            if (fullBtn) {
+                fullBtn.addEventListener("click", function () {
+                    mapApi.toggleFullscreen(stage);
+                    setTimeout(syncFullLabel, 220);
+                });
+                ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) {
+                    document.addEventListener(ev, syncFullLabel);
+                });
+            }
+            if (location.hash === "#dibujar") beginDraw();
+        }).catch(function () {
+            document.getElementById("map-engine-hint").textContent = "Error cargando el mapa de Bogotá";
+        });
+    })();
     </script>
 </body>
 </html>
