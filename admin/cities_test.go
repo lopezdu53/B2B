@@ -85,6 +85,20 @@ func TestBuildSearchWhere(t *testing.T) {
 	}
 }
 
+func TestClaudeSearchKeyword(t *testing.T) {
+	t.Parallel()
+
+	got := ClaudeSearchKeyword("restaurantes", "Usaquén, Bogotá")
+	if got != "restaurantes en Usaquén, Bogotá" {
+		t.Fatalf("got %q", got)
+	}
+
+	got = ClaudeSearchKeyword("hoteles", "")
+	if got != "hoteles" {
+		t.Fatalf("no where: %q", got)
+	}
+}
+
 func TestSearchKeyword(t *testing.T) {
 	t.Parallel()
 

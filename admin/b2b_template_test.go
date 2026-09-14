@@ -192,48 +192,33 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 
 	html := buf.String()
 	for _, needle := range []string{
-		`name="category"`,
-		`name="specialty"`,
-		`Todas las especialidades`,
-		`Todas las localidades`,
-		`una búsqueda por cada localidad`,
-		`value="all"`,
-		`Restaurantes`,
-		`SúperMercados`,
-		`Hoteles`,
-		`taquerías`,
-		`areperías`,
-		`cevicherías`,
-		`comida peruana`,
-		`heladerías`,
-		`name="city"`,
-		`name="localidad"`,
-		`name="barrio"`,
-		`id="s-city"`,
-		`id="s-localidad"`,
-		`id="s-barrio"`,
-		`Todos los barrios`,
-		`Bogotá`,
-		`Usaquén`,
-		`Chapinero`,
-		`Kennedy`,
-		`Suba`,
-		`name="max_results"`,
-		`Rápida (100 negocios)`,
-		`Normal (500 negocios)`,
-		`Amplia (1000 negocios)`,
-		`id="s-rating"`,
-		`name="rating"`,
-		`limitar por estrellas`,
-		`más de 10 reseñas`,
+		`name="what"`,
+		`id="s-what"`,
+		`name="where"`,
+		`id="s-where"`,
+		`name="max_depth"`,
+		`Usaquén, Bogotá`,
+		`Rápida (~pocos)`,
+		`value="10" selected`,
+		`Amplia (~muchos)`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("search form missing %q", needle)
 		}
 	}
 
-	if strings.Contains(html, `name="where"`) {
-		t.Error("legacy free-text where field should be gone from search form")
+	for _, gone := range []string{
+		`name="specialty"`,
+		`id="s-category"`,
+		`id="s-localidad"`,
+		`id="s-barrio"`,
+		`name="max_results"`,
+		`Todas las especialidades`,
+		`una búsqueda por cada localidad`,
+	} {
+		if strings.Contains(html, gone) {
+			t.Errorf("search form should not include %q", gone)
+		}
 	}
 }
 
@@ -385,7 +370,6 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 	html := buf.String()
 	for _, needle := range []string{
 		`id="zone-stats"`,
-		`id="s-rating"`,
 		`id="f-rating"`,
 		`id="btn-map-full"`,
 		`Pantalla completa`,

@@ -371,87 +371,72 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		rubroID := strings.TrimSpace(r.FormValue("category"))
-		terms, rubroLabel, ok := ResolveSearchTerms(rubroID, r.FormValue("specialty"))
-		if !ok || len(terms) == 0 {
-			if what := strings.TrimSpace(r.FormValue("what")); what != "" {
-				terms = []string{what}
-				rubroLabel = what
-			}
-		}
+		what := strings.TrimSpace(r.FormValue("what"))
+		where := strings.TrimSpace(r.FormValue("where"))
 
-		if len(terms) == 0 {
-			http.Redirect(w, r, "/admin/b2b?error=Elige+que+buscar+(Restaurantes,+SuperMercados+o+Hoteles)", http.StatusSeeOther)
+		if what == "" {
+			http.Redirect(w, r, "/admin/b2b?error=Escribe+que+buscar+(ej.+restaurantes)", http.StatusSeeOther)
 			return
 		}
 
-		size := SearchSizeNormal
-		if n, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_results"))); err == nil && n > 0 {
-			size = n
+		keyword := ClaudeSearchKeyword(what, where)
+
+		maxDepth := 10
+		if d, err := strconv.Atoi(strings.TrimSpace(r.FormValue("max_depth"))); err == nil && d > 0 {
+			maxDepth = d
 		}
 
-		if size > SearchSizeWide {
-			size = SearchSizeWide
+		if maxDepth > 20 {
+			maxDepth = 20
 		}
 
-		maxDepth := SearchDepthForSize(size)
-
-		city := r.FormValue("city")
-		localidad := r.FormValue("localidad")
-		barrio := r.FormValue("barrio")
-		where := r.FormValue("where")
-		ratingMin, ratingMaxExcl, ratingBand, _ := RatingBandBounds(r.FormValue("rating"))
-
-		plan := ExpandSearchJobs(rubroID, terms, city, localidad, barrio, where)
-		if len(plan.Jobs) == 0 {
-			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+armar+la+busqueda", http.StatusSeeOther)
+		jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
+			Keyword:  keyword,
+			Lang:     "es",
+			MaxDepth: maxDepth,
+		})
+		if err != nil {
+			log.Error("b2b: enqueue search", "error", err, "keyword", keyword)
+			http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+encolar+la+busqueda", http.StatusSeeOther)
 
 			return
 		}
 
-		queued := make([]string, 0, len(plan.Jobs))
-		keywords := make([]string, 0, len(plan.Jobs))
-		tid, _ := effectiveTenant(appState, r)
+		if riverID, derr := rqueue.DecodeJobID(jobID); derr == nil {
+			tid, _ := effectiveTenant(appState, r)
+			canon := InferFixedCategory(what)
+			rubroID := rubroIDForCategory(canon)
 
-		for i := range plan.Jobs {
-			spec := plan.Jobs[i]
-			jobID, err := appState.RQueueClient.InsertJob(r.Context(), rqueue.ScrapeJobArgs{
-				Keyword:        spec.Keyword,
-				Lang:           "es",
-				MaxDepth:       maxDepth,
-				Email:          false, // website crawls eat the 5-minute budget and stall the single worker
-				GeoCoordinates: spec.Geo,
-				Zoom:           spec.Zoom,
-				RatingMin:      ratingMin,
-				RatingMaxExcl:  ratingMaxExcl,
-				RatingBand:     ratingBand,
-			})
-			if err != nil {
-				log.Error("b2b: enqueue search", "error", err, "keyword", spec.Keyword)
-
-				if len(queued) == 0 {
-					http.Redirect(w, r, "/admin/b2b?error=No+se+pudo+encolar+la+busqueda", http.StatusSeeOther)
-
-					return
-				}
-
-				break
-			}
-
-			queued = append(queued, jobID)
-			keywords = append(keywords, spec.Keyword)
-
-			if riverID, derr := rqueue.DecodeJobID(jobID); derr == nil {
-				if rerr := appState.Store.RecordSearchJob(r.Context(), riverID, tid, rubroID, spec.Specialty, ratingBand); rerr != nil {
-					log.Error("b2b: record search job", "error", rerr, "job_id", jobID)
-				}
+			if rerr := appState.Store.RecordSearchJob(r.Context(), riverID, tid, rubroID, what, ""); rerr != nil {
+				log.Error("b2b: record search job", "error", rerr, "job_id", jobID)
 			}
 		}
 
-		whereLabel := BuildSearchWhere(city, localidad, barrio)
-		msg := searchQueuedMessage(queued, keywords, rubroLabel, whereLabel, plan)
-
+		msg := url.QueryEscape("Búsqueda encolada: \"" + keyword + "\" (job " + jobID + "). Necesitas un worker activo para procesarla; los negocios aparecerán en el mapa al terminar.")
 		http.Redirect(w, r, "/admin/b2b?success="+msg, http.StatusSeeOther)
+	}
+}
+
+// ClaudeSearchKeyword is the original one-job query: "restaurantes en Usaquén, Bogotá".
+func ClaudeSearchKeyword(what, where string) string {
+	what = strings.TrimSpace(what)
+	where = strings.TrimSpace(where)
+
+	if where == "" {
+		return what
+	}
+
+	return what + " en " + where
+}
+
+func rubroIDForCategory(canon string) string {
+	switch canon {
+	case "Hoteles":
+		return RubroHoteles
+	case "SúperMercados":
+		return RubroSupermercados
+	default:
+		return RubroRestaurantes
 	}
 }
 
