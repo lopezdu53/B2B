@@ -1,3 +1,4 @@
+//nolint:testpackage // tests unexported progress helpers
 package scraper
 
 import (
@@ -28,6 +29,7 @@ func TestShouldWriteProgress(t *testing.T) {
 
 func TestWriteJobProgressNilDB(t *testing.T) {
 	fn := WriteJobProgress(nil)
+
 	require.NotPanics(t, func() { fn(1, 3) })
 }
 
@@ -38,6 +40,7 @@ func TestCentralWriter_OnProgressReportsCounts(t *testing.T) {
 
 	cw.OnProgress = func(riverJobID int64, count int) {
 		require.Equal(t, int64(100), riverJobID)
+
 		got = append(got, count)
 	}
 

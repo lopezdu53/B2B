@@ -241,6 +241,7 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 				if j.Status == "completed" {
 					view.Note = JobMapCountNote()
 				}
+
 				out = append(out, view)
 			}
 		}

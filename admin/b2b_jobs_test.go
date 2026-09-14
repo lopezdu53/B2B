@@ -1,3 +1,4 @@
+//nolint:testpackage // tests unexported dismiss helpers
 package admin
 
 import (
