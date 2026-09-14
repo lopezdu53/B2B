@@ -45,6 +45,9 @@ func (w *JobDeleteWorker) Work(ctx context.Context, job *river.Job[JobDeleteArgs
 		"attempt", job.Attempt,
 	)
 
+	_, _ = w.dbPool.Exec(ctx, "DELETE FROM scrape_job_progress WHERE job_id = $1", jobID)
+	_, _ = w.dbPool.Exec(ctx, "DELETE FROM b2b_dismissed_jobs WHERE job_id = $1", jobID)
+
 	// 1. Delete results from scrape_results table
 	result, err := w.dbPool.Exec(ctx,
 		"DELETE FROM scrape_results WHERE job_id = $1", jobID)

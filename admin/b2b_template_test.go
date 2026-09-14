@@ -265,6 +265,19 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		}
 	}
 
+	for _, needle := range []string{
+		`id="draw-toolbar"`,
+		`id="btn-draw-finish"`,
+		`id="btn-draw-undo"`,
+		`id="btn-draw-cancel"`,
+		`class="job-remove"`,
+		`/admin/b2b/jobs/`,
+	} {
+		if !strings.Contains(html, needle) {
+			t.Errorf("b2b.html missing %q", needle)
+		}
+	}
+
 	for _, gone := range []string{
 		`id="btn-draw-zone"`,
 		`id="btn-delete-businesses"`,
@@ -292,7 +305,8 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		t.Fatalf("execute advisor: %v", err)
 	}
 
-	if strings.Contains(buf.String(), `id="btn-draw-zone"`) {
+	advisorHTML := buf.String()
+	if strings.Contains(advisorHTML, `id="btn-draw-zone"`) || strings.Contains(advisorHTML, `id="draw-toolbar"`) {
 		t.Error("advisor view should not offer zone drawing")
 	}
 
@@ -314,8 +328,12 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		t.Error("zonas.html should show drawn badge")
 	}
 
-	if strings.Contains(zonas, "/admin/b2b#dibujar") {
-		t.Error("zonas.html should not send users to map drawing")
+	if !strings.Contains(zonas, "/admin/b2b#dibujar") {
+		t.Error("zonas.html should send users to map drawing")
+	}
+
+	if !strings.Contains(zonas, `id="btn-draw-zone"`) {
+		t.Error("zonas.html should include the draw-zone button")
 	}
 }
 
