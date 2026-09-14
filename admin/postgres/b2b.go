@@ -74,12 +74,35 @@ func cityMatchSQL() string {
 		notSatelliteAddr += ` AND ` + sqlFoldCity("address") + ` NOT LIKE '%` + sat + `%'`
 	}
 
+	cundiParts := []string{
+		sqlFoldCity("city") + ` IN (` + aliases + `)`,
+		sqlFoldCity("city") + ` LIKE 'bogota %'`,
+		sqlFoldCity("state") + ` LIKE 'bogota%'`,
+		sqlFoldCity("state") + ` LIKE 'cundinamarca%'`,
+		sqlFoldCity("city") + ` LIKE 'cundinamarca%'`,
+		sqlFoldCity("borough") + ` IN (` + aliases + `)`,
+		sqlFoldCity("address") + ` LIKE '%cundinamarca%'`,
+		sqlFirstCityToken("city") + ` IN (` + satellites + `)`,
+		sqlFoldCity("city") + ` IN (` + satellites + `)`,
+	}
+	for _, sat := range admin.BogotaSatelliteTownKeys() {
+		cundiParts = append(cundiParts,
+			sqlFoldCity("city")+` LIKE '`+sat+` %'`,
+			sqlFoldCity("borough")+` = '`+sat+`'`,
+			sqlFoldCity("address")+` LIKE '%`+sat+`%'`,
+		)
+	}
+
 	return `(` +
 		sqlFirstCityToken("city") + ` = ` + sqlFirstCityToken("$1") +
 		` OR ` + sqlFoldCity("city") + ` = ` + foldFilter +
 		` OR ` + sqlFoldCity("city") + ` LIKE ` + foldFilter + ` || ' %'` +
 		` OR (` +
-		sqlFirstCityToken("$1") + ` <> 'bogota'` +
+		foldFilter + ` = 'cundinamarca'` +
+		` AND (` + strings.Join(cundiParts, " OR ") + `)` +
+		`)` +
+		` OR (` +
+		sqlFirstCityToken("$1") + ` <> 'bogota' AND ` + foldFilter + ` <> 'cundinamarca'` +
 		` AND (` +
 		sqlFoldCity("borough") + ` = ` + foldFilter +
 		` OR ` + sqlFoldCity("borough") + ` LIKE ` + foldFilter + ` || ' %'` +

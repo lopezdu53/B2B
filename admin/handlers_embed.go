@@ -73,7 +73,7 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 			"Zones":             zones,
 			"Categories":        categories,
 			"Cities":            cities,
-			"CityVal":           DefaultCity,
+			"CityVal":           CundinamarcaRegion,
 			"BogotaLocalidades": BogotaUrbanLocalidades(),
 			"AdvisorsData":      asJSON(advisors),
 			"ZonesData":         asJSON(zones),

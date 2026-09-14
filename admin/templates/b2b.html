@@ -287,7 +287,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Chía</strong> o <strong>La Calera</strong>.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. El filtro <strong>Cundinamarca</strong> muestra Bogotá, Chía, La Calera y los municipios vecinos.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -296,7 +296,7 @@
                 </div>
                 <div>
                     <label for="s-where">Zona o ciudad</label>
-                    <input type="text" id="s-where" name="where" placeholder="Chía, La Calera, Usaquén, Bogotá" list="zone-list">
+                    <input type="text" id="s-where" name="where" placeholder="Cundinamarca, Chía, La Calera, Usaquén, Bogotá" list="zone-list">
                     <datalist id="zone-list">
                         {{range .Zones}}<option value="{{.Name}}, {{.City}}"></option>{{end}}
                         {{range .Cities}}<option value="{{.}}"></option>{{end}}
@@ -664,7 +664,7 @@
                 var ck = cityKeyJS(p.city);
                 if (ck === key) return true;
                 // Chía / La Calera sit just north-east of Bogotá — show clubs with that metro view.
-                var metro = (key === "bogota" || key === "chia" || key === "la calera");
+                var metro = (key === "bogota" || key === "chia" || key === "la calera" || key === "cundinamarca");
                 return metro && (ck === "bogota" || ck === "chia");
             });
         }
@@ -743,6 +743,10 @@
             });
             if (!best && loc.indexOf("calera") >= 0) best = "La Calera";
             if (!best && loc.indexOf("chia") >= 0) best = "Chía";
+            var k = cityKeyJS(best);
+            if (k === "bogota" || k === "chia" || k === "la calera" || k === "cundinamarca" || loc.indexOf("cundinamarca") >= 0 || loc.indexOf("usaquen") >= 0) {
+                return "Cundinamarca";
+            }
             return best;
         }
 

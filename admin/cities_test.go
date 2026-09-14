@@ -48,7 +48,7 @@ func TestResolveCityFilter(t *testing.T) {
 	t.Parallel()
 
 	city, all := ResolveCityFilter("")
-	if all || city != DefaultCity {
+	if all || city != CundinamarcaRegion {
 		t.Fatalf("empty: city=%q all=%v", city, all)
 	}
 
@@ -176,6 +176,26 @@ func TestMatchesCityFilterBogotaLocalidad(t *testing.T) {
 		t.Fatal("La Calera must not match Bogotá")
 	}
 
+	if !MatchesCityFilter("Cundinamarca", "Bogotá", "", "", "") {
+		t.Fatal("Bogotá should match Cundinamarca")
+	}
+
+	if !MatchesCityFilter("Cundinamarca", "Chía", "Cundinamarca", "", "") {
+		t.Fatal("Chía should match Cundinamarca")
+	}
+
+	if !MatchesCityFilter("Cundinamarca", "La Calera", "Cundinamarca", "", "") {
+		t.Fatal("La Calera should match Cundinamarca")
+	}
+
+	if !MatchesCityFilter("Cundinamarca", "Usaquén", "", "", "Cra 7") {
+		t.Fatal("Usaquén should match Cundinamarca")
+	}
+
+	if MatchesCityFilter("Cundinamarca", "Medellín", "Antioquia", "", "") {
+		t.Fatal("Medellín must not match Cundinamarca")
+	}
+
 	if !MatchesCityFilter("Chía", "Chía", "Cundinamarca", "", "") {
 		t.Fatal("Chía should match Chía")
 	}
@@ -233,8 +253,8 @@ func TestCityListStartsWithBogota(t *testing.T) {
 	t.Parallel()
 
 	list := CityList()
-	if len(list) < 2 || list[0] != DefaultCity {
-		t.Fatalf("first city = %v", list)
+	if len(list) < 3 || list[0] != CundinamarcaRegion || list[1] != DefaultCity {
+		t.Fatalf("first cities = %v", list)
 	}
 
 	seen := map[string]struct{}{}
@@ -245,7 +265,7 @@ func TestCityListStartsWithBogota(t *testing.T) {
 		seen[c] = struct{}{}
 	}
 
-	for _, need := range []string{"Chía", "La Calera", "Cajicá", "Cota"} {
+	for _, need := range []string{"Cundinamarca", "Bogotá", "Chía", "La Calera", "Cajicá", "Cota"} {
 		if _, ok := seen[need]; !ok {
 			t.Fatalf("city list missing %q", need)
 		}
@@ -256,14 +276,15 @@ func TestInferCityFromSearch(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct{ what, where, want string }{
-		{"restaurantes", "chia", "Chía"},
-		{"restaurantes", "Chía", "Chía"},
-		{"restaurantes en chia", "", "Chía"},
-		{"restaurantes", "La Calera", "La Calera"},
-		{"hoteles en la calera", "", "La Calera"},
-		{"restaurantes", "Usaquén, Bogotá", "Bogotá"},
-		{"restaurantes", "calera", "La Calera"},
-		{"restaurantes, hoteles", "Cajicá", "Cajicá"},
+		{"restaurantes", "chia", "Cundinamarca"},
+		{"restaurantes", "Chía", "Cundinamarca"},
+		{"restaurantes en chia", "", "Cundinamarca"},
+		{"restaurantes", "La Calera", "Cundinamarca"},
+		{"hoteles en la calera", "", "Cundinamarca"},
+		{"restaurantes", "Usaquén, Bogotá", "Cundinamarca"},
+		{"restaurantes", "calera", "Cundinamarca"},
+		{"restaurantes, hoteles", "Cajicá", "Cundinamarca"},
+		{"hoteles", "Medellín", "Medellín"},
 	}
 
 	for _, tc := range cases {
@@ -277,8 +298,13 @@ func TestCityFilterFromInputsRemembersSearch(t *testing.T) {
 	t.Parallel()
 
 	city, all, val := CityFilterFromInputs("", "Chía")
-	if all || city != "Chía" || val != "Chía" {
-		t.Fatalf("remembered Chía: city=%q all=%v val=%q", city, all, val)
+	if all || city != CundinamarcaRegion || val != CundinamarcaRegion {
+		t.Fatalf("remembered Chía widens: city=%q all=%v val=%q", city, all, val)
+	}
+
+	city, all, val = CityFilterFromInputs("", "")
+	if all || city != CundinamarcaRegion || val != CundinamarcaRegion {
+		t.Fatalf("default: city=%q all=%v val=%q", city, all, val)
 	}
 
 	city, all, val = CityFilterFromInputs("La Calera", "Chía")

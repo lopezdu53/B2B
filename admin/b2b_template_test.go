@@ -200,6 +200,7 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`Usaquén, Bogotá`,
 		`Chía`,
 		`La Calera`,
+		`Cundinamarca`,
 		`persistCity`,
 		`maybeAdoptSearchCity`,
 		`cityFromKeyword`,
