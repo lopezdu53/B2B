@@ -32,7 +32,9 @@ func (s *store) IngestPendingSearchJobs(ctx context.Context) error {
 SELECT j.job_id
 FROM b2b_search_jobs j
 INNER JOIN scrape_results sr ON sr.job_id = j.job_id
-WHERE NOT j.ingested`
+WHERE NOT j.ingested OR j.created_at > NOW() - INTERVAL '14 days'
+ORDER BY j.ingested ASC, j.created_at DESC
+LIMIT 200`
 
 	rows, err := s.db.Query(ctx, q)
 	if err != nil {
@@ -88,9 +90,7 @@ func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 		return nil // no tagged job — nothing to file
 	}
 
-	if ingested {
-		return nil
-	}
+	_ = ingested
 
 	var raw []byte
 	err = s.db.QueryRow(ctx, `SELECT results FROM scrape_results WHERE job_id = $1`, jobID).Scan(&raw)
@@ -137,10 +137,7 @@ func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 		titles = append(titles, e.Title)
 	}
 
-	canon := admin.InferFixedCategory(rubro)
-	if canon == "" {
-		canon = admin.InferFixedCategory(specialty)
-	}
+	canon := admin.ParentCategoryName(rubro, specialty)
 
 	var categoryID *int64
 
