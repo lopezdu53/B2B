@@ -259,6 +259,7 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		`id="f-rating"`,
 		`2 a 3`,
 		`4 a 5`,
+		`libraries=marker`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("b2b.html missing %q", needle)
