@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gosom/google-maps-scraper/admin"
@@ -19,7 +20,7 @@ func jsonbOrNil(raw json.RawMessage) any {
 
 // defaultBusinessLimit caps how many businesses we return for the map so the
 // browser stays responsive even with very large scrape datasets.
-const defaultBusinessLimit = 5000
+const defaultBusinessLimit = 20000
 
 // scrapeResultsArraySQL yields a JSON array even when a job flushed null or
 // a scalar. jsonb_array_elements('null') errors and blanked the whole map.
@@ -144,11 +145,11 @@ ORDER BY
 LIMIT $5 OFFSET $8`
 
 // adminLeadQualitySQL is the shared review/chain filter (kept next to the queries).
-const adminLeadQualitySQL = `
+var adminLeadQualitySQL = `
           AND COALESCE(CASE
                 WHEN (elem->>'review_count') ~ '^[0-9]+$' THEN (elem->>'review_count')::int
                 ELSE 0
-              END, 0) > 50
+              END, 0) > ` + strconv.Itoa(admin.MinLeadReviews) + `
           AND NOT ((' ' || translate(lower(regexp_replace(COALESCE(elem->>'title', ''), '[^A-Za-z0-9ÁÉÍÓÚáéíóúÜüÑñ]+', ' ', 'g')), 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN') || ' ') ~ ' (exito|olimpica|d1|ara|carulla|oxxo|falabella|isimo|homecenter|easy|justo y bueno|justo bueno) ')`
 
 // ListBusinesses returns scraped businesses with the tenant's CRM overlay.
@@ -294,7 +295,7 @@ ON CONFLICT (place_id, tenant_id) DO UPDATE SET
 
 // businessTotalQuery counts distinct scraped businesses that have coordinates,
 // excluding the ones the tenant sent to the trash (hidden). $1 is the tenant id.
-const businessTotalQuery = `
+var businessTotalQuery = `
 SELECT COUNT(*) FROM (
     SELECT DISTINCT COALESCE(NULLIF(elem->>'place_id', ''), NULLIF(elem->>'cid', '')) AS bkey
     FROM scrape_results sr

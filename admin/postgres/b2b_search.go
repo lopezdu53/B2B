@@ -181,7 +181,7 @@ func (s *store) HideAllVisibleBusinesses(ctx context.Context, tenantID int64) (i
 		return 0, fmt.Errorf("missing tenant")
 	}
 
-	const q = `
+	q := `
 INSERT INTO b2b_business_crm (place_id, tenant_id, hidden, title, updated_at)
 SELECT bkey, $1, TRUE, title, NOW()
 FROM (
