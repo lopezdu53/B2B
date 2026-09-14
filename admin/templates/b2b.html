@@ -270,56 +270,27 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">En Bogotá, <strong>Todas las localidades</strong> lanza una búsqueda por cada localidad (Usaquén, Chapinero, Kennedy…) para superar el tope de ~120 resultados de Google Maps. <strong>Todas las especialidades</strong> lanza una búsqueda por cada tipo; si pides ambas, se priorizan las 19 localidades con el rubro general. Rápida {{or .SearchSizeFast 100}}, Normal {{or .SearchSizeNormal 500}}, Amplia {{or .SearchSizeWide 1000}}. Puedes limitar por estrellas (2 a 3, 3 a 4 o 4 a 5). El mapa solo muestra negocios con más de {{or .MinLeadReviews 10}} reseñas, sin cadenas y que no estén en papelera.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
-                    <label for="s-category">Qué buscar</label>
-                    <select id="s-category" name="category">
-                        {{range .SearchRubros}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
-                    </select>
+                    <label for="s-what">Qué buscar</label>
+                    <input type="text" id="s-what" name="what" placeholder="restaurantes, hoteles, supermercados…" required>
                 </div>
                 <div>
-                    <label for="s-specialty">Especialidad</label>
-                    <select id="s-specialty" name="specialty">
-                        <option value="all">Todas las especialidades</option>
-                        {{if .SearchRubros}}{{with index .SearchRubros 0}}{{range $i, $s := .Specialties}}<option value="{{$s.Keyword}}" {{if eq $i 0}}selected{{end}}>{{$s.Label}}</option>{{end}}{{end}}{{end}}
-                    </select>
-                </div>
-                <div>
-                    <label for="s-city">Ciudad</label>
-                    <select id="s-city" name="city">
-                        {{range .Cities}}<option value="{{.}}" {{if eq . "Bogotá"}}selected{{end}}>{{.}}</option>{{end}}
-                    </select>
-                </div>
-                <div>
-                    <label for="s-localidad">Localidad</label>
-                    <select id="s-localidad" name="localidad">
-                        <option value="">Todas las localidades</option>
-                        {{range .BogotaLocalidades}}<option value="{{.Nombre}}">{{.Nombre}}</option>{{end}}
-                    </select>
-                </div>
-                <div>
-                    <label for="s-barrio">Barrio</label>
-                    <select id="s-barrio" name="barrio" disabled>
-                        <option value="">Todos los barrios</option>
-                    </select>
+                    <label for="s-where">Zona o ciudad</label>
+                    <input type="text" id="s-where" name="where" placeholder="Usaquén, Bogotá" list="zone-list">
+                    <datalist id="zone-list">
+                        {{range .Zones}}<option value="{{.Name}}, {{.City}}"></option>{{end}}
+                        {{range .Cities}}<option value="{{.}}"></option>{{end}}
+                    </datalist>
                 </div>
                 <div>
                     <label for="s-depth">Cantidad</label>
-                    <select id="s-depth" name="max_results">
-                        <option value="{{or .SearchSizeFast 100}}">Rápida ({{or .SearchSizeFast 100}} negocios)</option>
-                        <option value="{{or .SearchSizeNormal 500}}" selected>Normal ({{or .SearchSizeNormal 500}} negocios)</option>
-                        <option value="{{or .SearchSizeWide 1000}}">Amplia ({{or .SearchSizeWide 1000}} negocios)</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="s-rating">Estrellas</label>
-                    <select id="s-rating" name="rating">
-                        <option value="">Todas</option>
-                        <option value="2-3">2 a 3</option>
-                        <option value="3-4">3 a 4</option>
-                        <option value="4-5">4 a 5</option>
+                    <select id="s-depth" name="max_depth">
+                        <option value="5">Rápida (~pocos)</option>
+                        <option value="10" selected>Normal</option>
+                        <option value="20">Amplia (~muchos)</option>
                     </select>
                 </div>
                 <div>
@@ -1051,19 +1022,6 @@
                 .catch(() => { jobsTimer = setTimeout(pollJobs, 8000); });
         }
 
-        const searchForm = document.getElementById("search-form");
-        if (searchForm) {
-            searchForm.addEventListener("submit", function (e) {
-                const spec = document.getElementById("s-specialty");
-                if (spec && spec.value === "all") {
-                    const n = spec.options.length > 1 ? spec.options.length - 1 : 0;
-                    if (!confirm("Vas a lanzar una búsqueda por cada especialidad (" + n + " jobs). Un solo worker las hace una por una y puede tardar más de una hora. ¿Continuar?")) {
-                        e.preventDefault();
-                    }
-                }
-            });
-        }
-
         // --- Embed / PowerPoint modal ---
         const EMBED_TOKEN = "{{.EmbedToken}}";
         const embedBtn = document.getElementById("btn-embed");
@@ -1087,107 +1045,6 @@
                 else { document.execCommand("copy"); done(); }
             });
         }
-
-        (function bindSearchSpecialties() {
-            var catSel = document.getElementById("s-category");
-            var specSel = document.getElementById("s-specialty");
-            if (!catSel || !specSel || !SEARCH_RUBROS || !SEARCH_RUBROS.length) return;
-
-            function fillSpecialties() {
-                var rubro = SEARCH_RUBROS.find(function (r) { return r.id === catSel.value; }) || SEARCH_RUBROS[0];
-                var list = rubro.specialties || [];
-                specSel.innerHTML = "";
-                var all = document.createElement("option");
-                all.value = "all";
-                all.textContent = "Todas las especialidades (" + list.length + ")";
-                specSel.appendChild(all);
-
-                var order = [];
-                var byGroup = {};
-                list.forEach(function (s) {
-                    var g = s.group || "Otras";
-                    if (!byGroup[g]) {
-                        byGroup[g] = [];
-                        order.push(g);
-                    }
-                    byGroup[g].push(s);
-                });
-                order.forEach(function (g) {
-                    var og = document.createElement("optgroup");
-                    og.label = g;
-                    byGroup[g].forEach(function (s) {
-                        var opt = document.createElement("option");
-                        opt.value = s.keyword;
-                        opt.textContent = s.label;
-                        og.appendChild(opt);
-                    });
-                    specSel.appendChild(og);
-                });
-                if (list.length) {
-                    specSel.value = list[0].keyword;
-                }
-            }
-
-            catSel.addEventListener("change", fillSpecialties);
-            fillSpecialties();
-        })();
-
-        (function bindSearchLocation() {
-            var citySel = document.getElementById("s-city");
-            var locSel = document.getElementById("s-localidad");
-            var barSel = document.getElementById("s-barrio");
-            if (!citySel || !locSel || !barSel) return;
-
-            function isBogota(name) {
-                return String(name || "").toLowerCase().replace(/á/g, "a").indexOf("bogota") === 0;
-            }
-
-            function fillLocs() {
-                locSel.innerHTML = '<option value="">Todas las localidades</option>';
-                var list = (BOGOTA_INDEX && BOGOTA_INDEX.localidades) || [];
-                list.forEach(function (loc) {
-                    if (loc.codigo === "20") return;
-                    var opt = document.createElement("option");
-                    opt.value = loc.nombre;
-                    opt.textContent = loc.nombre;
-                    locSel.appendChild(opt);
-                });
-            }
-
-            function fillBars(locName) {
-                barSel.innerHTML = '<option value="">Todos los barrios</option>';
-                var loc = ((BOGOTA_INDEX && BOGOTA_INDEX.localidades) || []).find(function (l) {
-                    return l.nombre === locName;
-                });
-                var names = loc ? loc.barrios || [] : [];
-                barSel.disabled = !locName || names.length === 0;
-                names.forEach(function (name) {
-                    var opt = document.createElement("option");
-                    opt.value = name;
-                    opt.textContent = name;
-                    barSel.appendChild(opt);
-                });
-            }
-
-            function applyCity() {
-                if (!isBogota(citySel.value)) {
-                    locSel.innerHTML = '<option value="">No hay localidades</option>';
-                    locSel.disabled = true;
-                    barSel.innerHTML = '<option value="">Todos los barrios</option>';
-                    barSel.disabled = true;
-                    return;
-                }
-                locSel.disabled = false;
-                if (BOGOTA_INDEX && BOGOTA_INDEX.localidades && BOGOTA_INDEX.localidades.length) {
-                    fillLocs();
-                }
-                fillBars(locSel.value);
-            }
-
-            locSel.addEventListener("change", function () { fillBars(locSel.value); });
-            citySel.addEventListener("change", applyCity);
-            applyCity();
-        })();
 
         B2BMap.create({
             el: document.getElementById("map"),
