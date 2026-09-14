@@ -16,11 +16,11 @@ func TestB2BMapUsesLocatorPins(t *testing.T) {
 
 	js := string(raw)
 	for _, needle := range []string{
-		"function locatorSVG",
-		"googleSymbolPin",
+		"function pinDropHTML",
+		"b2b-gpin-drop",
 		"placeGooglePin",
 		"leafletLocatorIcon",
-		`MAPS_PIN_PATH`,
+		"OverlayView",
 		`PS_PIN_COLOR`,
 	} {
 		if !strings.Contains(js, needle) {
@@ -32,6 +32,8 @@ func TestB2BMapUsesLocatorPins(t *testing.T) {
 		"AdvancedMarkerElement",
 		"DEMO_MAP_ID",
 		"googleLocatorIcon",
+		"googleSymbolPin",
+		"MAPS_PIN_PATH",
 		"google.maps.marker",
 	} {
 		if strings.Contains(js, gone) {

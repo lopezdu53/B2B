@@ -20,8 +20,16 @@
         var st = document.createElement("style");
         st.id = "b2b-pin-style";
         st.textContent =
-            ".b2b-pin.leaflet-marker-icon,.b2b-pin.leaflet-div-icon{background:transparent!important;border:none!important;box-shadow:none!important;}" +
-            ".b2b-pin-wrap{width:28px;height:42px;line-height:0;}";
+            ".b2b-pin.leaflet-marker-icon,.b2b-pin.leaflet-div-icon," +
+            ".b2b-gpin,.b2b-pin-wrap{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;}" +
+            ".b2b-gpin{width:24px;height:36px;position:absolute;cursor:pointer;line-height:0;}" +
+            ".b2b-gpin-drop,.b2b-pin .b2b-gpin-drop{position:absolute;left:3px;top:1px;width:18px;height:18px;" +
+            "border:2px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);" +
+            "box-shadow:0 2px 5px rgba(15,23,42,.35);}" +
+            ".b2b-gpin-dot,.b2b-pin .b2b-gpin-dot{position:absolute;left:9px;top:7px;width:6px;height:6px;" +
+            "border-radius:50%;background:#fff;}" +
+            ".b2b-gpin-label,.b2b-pin .b2b-gpin-label{position:absolute;left:0;top:2px;width:24px;text-align:center;" +
+            "color:#fff;font:700 8px/18px Arial,Helvetica,sans-serif;pointer-events:none;}";
         document.head.appendChild(st);
     }
 
@@ -30,68 +38,94 @@
         return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c) ? c : "#2563eb";
     }
 
-    // Google Maps-style teardrop locator (same SVG on Google + Leaflet).
-    function locatorSVG(color, label) {
+    function pinDropHTML(color, label) {
         color = safePinColor(color);
         var inner = label
-            ? '<text x="12" y="15" text-anchor="middle" font-size="8.2" font-weight="700" fill="#fff" font-family="Arial,Helvetica,sans-serif">' +
-                escapeHtml(label) + "</text>"
-            : '<circle cx="12" cy="11.2" r="3.8" fill="#fff"/>';
-        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="28" height="42">' +
-            '<path d="M12 2C7.03 2 3 6.03 3 11c0 7.2 8.15 16.35 8.55 16.8a.7.7 0 0 0 .9 0C12.85 27.35 21 18.2 21 11 21 6.03 16.97 2 12 2z" fill="' +
-            color + '" stroke="#fff" stroke-width="1.45"/>' + inner + "</svg>";
-    }
-
-    function locatorHTML(color, label) {
-        return '<div class="b2b-pin-wrap">' + locatorSVG(color, label) + "</div>";
-    }
-
-    // Vector teardrop drawn by the Maps JS API. Do not use the advanced
-    // marker library: its default content is a blue square with a pin glyph.
-    var MAPS_PIN_PATH = "M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z";
-
-    function googleSymbolPin(color) {
-        return {
-            path: MAPS_PIN_PATH,
-            fillColor: safePinColor(color),
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 1.6,
-            scale: 1.15,
-            anchor: new google.maps.Point(0, 0)
-        };
+            ? '<span class="b2b-gpin-label">' + escapeHtml(label) + "</span>"
+            : '<span class="b2b-gpin-dot"></span>';
+        return '<span class="b2b-gpin-drop" style="background:' + color + '"></span>' + inner;
     }
 
     function leafletLocatorIcon(color, label) {
         ensurePinStyle();
         return L.divIcon({
             className: "b2b-pin",
-            html: locatorHTML(color, label),
-            iconSize: [28, 42],
-            iconAnchor: [14, 40]
+            html: pinDropHTML(color, label),
+            iconSize: [24, 36],
+            iconAnchor: [12, 34]
         });
     }
 
     var PS_PIN_COLOR = "#1d4ed8";
+    var GoogleHTMLPin = null;
+
+    function ensureGoogleHTMLPin() {
+        if (GoogleHTMLPin) return GoogleHTMLPin;
+
+        function Ctor(map, opts, onClick) {
+            this.latLng = new google.maps.LatLng(opts.lat, opts.lng);
+            this.color = opts.color;
+            this.label = opts.label || "";
+            this.title = opts.title || "";
+            this.z = opts.zIndex || 1000;
+            this.onClick = onClick;
+            this.div = null;
+            this._visible = true;
+            this.setMap(map);
+        }
+
+        Ctor.prototype = new google.maps.OverlayView();
+        Ctor.prototype.onAdd = function () {
+            ensurePinStyle();
+            var div = document.createElement("div");
+            div.className = "b2b-gpin";
+            div.title = this.title;
+            div.style.zIndex = String(this.z);
+            div.innerHTML = pinDropHTML(this.color, this.label);
+            var self = this;
+            div.addEventListener("click", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (self.onClick) self.onClick(self);
+            });
+            this.div = div;
+            this.getPanes().overlayMouseTarget.appendChild(div);
+        };
+        Ctor.prototype.draw = function () {
+            if (!this.div) return;
+            var pos = this.getProjection().fromLatLngToDivPixel(this.latLng);
+            if (!pos) return;
+            this.div.style.left = (pos.x - 12) + "px";
+            this.div.style.top = (pos.y - 34) + "px";
+            this.div.style.display = this._visible ? "block" : "none";
+        };
+        Ctor.prototype.onRemove = function () {
+            if (this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div);
+            this.div = null;
+        };
+        Ctor.prototype.setVisible = function (on) {
+            this._visible = !!on;
+            if (this.div) this.div.style.display = on ? "block" : "none";
+        };
+        Ctor.prototype.setPinColor = function (color) {
+            this.color = color;
+            if (this.div) this.div.innerHTML = pinDropHTML(color, this.label);
+        };
+        Ctor.prototype.getPosition = function () {
+            return this.latLng;
+        };
+
+        GoogleHTMLPin = Ctor;
+        return Ctor;
+    }
 
     function placeGooglePin(map, opts, onClick) {
-        var marker = new google.maps.Marker({
-            position: { lat: opts.lat, lng: opts.lng },
-            map: map,
-            title: opts.title || "",
-            zIndex: opts.zIndex || 1000,
-            clickable: true,
-            optimized: true,
-            icon: googleSymbolPin(opts.color)
-        });
-        marker.addListener("click", onClick);
-        return marker;
+        var Pin = ensureGoogleHTMLPin();
+        return new Pin(map, opts, onClick);
     }
 
     function restyleGooglePin(marker, color) {
-        if (marker && typeof marker.setIcon === "function") {
-            marker.setIcon(googleSymbolPin(color));
-        }
+        if (marker && marker.setPinColor) marker.setPinColor(color);
     }
 
     function pointInRing(lat, lng, ring) {
@@ -708,6 +742,11 @@
             },
             openInfo: function (marker, html) {
                 info.setContent(html);
+                if (marker && typeof marker.getPosition === "function") {
+                    info.setPosition(marker.getPosition());
+                    info.open(map);
+                    return;
+                }
                 info.open({ map: map, anchor: marker });
             }
         };
