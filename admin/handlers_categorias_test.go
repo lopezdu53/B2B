@@ -1,3 +1,4 @@
+//nolint:testpackage // bulkTrashSuccess is unexported on the admin package
 package admin
 
 import "testing"
