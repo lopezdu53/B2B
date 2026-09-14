@@ -87,7 +87,11 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		ctx := r.Context()
 		q := r.URL.Query()
 
-		city, allCities := ResolveCityFilter(q.Get("city"))
+		city, _, cityVal := CityFilterFromInputs(q.Get("city"), b2bCityCookieValue(r))
+		if q.Get("city") != "" {
+			setB2BCityCookie(w, cityVal)
+		}
+
 		f := BusinessFilter{
 			City:   city,
 			Status: q.Get("status"),
@@ -95,11 +99,6 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 			Sort:   q.Get("sort"),
 		}
 		f.SetRatingBand(q.Get("rating"))
-
-		cityVal := city
-		if allCities {
-			cityVal = "all"
-		}
 
 		if a := strings.TrimSpace(q.Get("advisor")); a != "" {
 			if id, err := strconv.ParseInt(a, 10, 64); err == nil {
@@ -252,7 +251,7 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 		ctx := r.Context()
 		q := r.URL.Query()
 
-		city, _ := ResolveCityFilter(q.Get("city"))
+		city, _, _ := CityFilterFromInputs(q.Get("city"), b2bCityCookieValue(r))
 		f := BusinessFilter{City: city, Status: q.Get("status"), Search: strings.TrimSpace(q.Get("q"))}
 		f.SetRatingBand(q.Get("rating"))
 

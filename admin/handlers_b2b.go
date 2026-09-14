@@ -44,6 +44,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 		cities := CityList()
 		bogotaLocs := BogotaUrbanLocalidades()
 		bogotaIdx, _ := LoadBogotaIndex()
+		_, _, cityVal := CityFilterFromInputs(r.URL.Query().Get("city"), b2bCityCookieValue(r))
 
 		summary, err := appState.Store.B2BSummary(ctx, tid, advisorScope(r))
 		if err != nil {
@@ -56,7 +57,7 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"Zones":             zones,
 			"Categories":        categories,
 			"Cities":            cities,
-			"CityVal":           DefaultCity,
+			"CityVal":           cityVal,
 			"BogotaLocalidades": bogotaLocs,
 			"BogotaIndexData":   asJSON(bogotaIdx),
 			"SearchRubros":      SearchRubros(),
@@ -495,7 +496,13 @@ func B2BSearchHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		msg := url.QueryEscape("Búsqueda encolada: \"" + keyword + "\" (job " + jobID + "). Necesitas un worker activo para procesarla; los negocios aparecerán en el mapa al terminar.")
-		http.Redirect(w, r, "/admin/b2b?success="+msg, http.StatusSeeOther)
+		dest := "/admin/b2b?success=" + msg
+		if city := InferCityFromSearch(what, where); city != "" {
+			setB2BCityCookie(w, city)
+			dest += "&city=" + url.QueryEscape(city)
+		}
+
+		http.Redirect(w, r, dest, http.StatusSeeOther)
 	}
 }
 
@@ -509,6 +516,35 @@ func ClaudeSearchKeyword(what, where string) string {
 	}
 
 	return what + " en " + where
+}
+
+func b2bCityCookieValue(r *http.Request) string {
+	c, err := r.Cookie(b2bCityCookie)
+	if err != nil || c == nil {
+		return ""
+	}
+
+	val, err := url.QueryUnescape(c.Value)
+	if err != nil {
+		return strings.TrimSpace(c.Value)
+	}
+
+	return strings.TrimSpace(val)
+}
+
+func setB2BCityCookie(w http.ResponseWriter, city string) {
+	city = strings.TrimSpace(city)
+	if city == "" {
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     b2bCityCookie,
+		Value:    url.QueryEscape(city),
+		Path:     "/admin",
+		MaxAge:   60 * 60 * 24 * 30,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func rubroIDForCategory(canon string) string {

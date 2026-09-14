@@ -136,6 +136,14 @@ func TestCanonicalCityLocalidadIsBogota(t *testing.T) {
 		t.Fatalf("Chía must stay its own city, got %q", got)
 	}
 
+	if got := CanonicalCity("La Calera"); got != "La Calera" {
+		t.Fatalf("La Calera must stay its own city, got %q", got)
+	}
+
+	if got := CanonicalCity("calera"); got != "La Calera" {
+		t.Fatalf("calera alias, got %q", got)
+	}
+
 	if got := CanonicalCity("Soacha"); got != "Soacha" {
 		t.Fatalf("Soacha must stay its own city, got %q", got)
 	}
@@ -164,6 +172,26 @@ func TestMatchesCityFilterBogotaLocalidad(t *testing.T) {
 		t.Fatal("Chía must not match Bogotá")
 	}
 
+	if MatchesCityFilter("Bogotá", "La Calera", "Cundinamarca", "", "La Calera") {
+		t.Fatal("La Calera must not match Bogotá")
+	}
+
+	if !MatchesCityFilter("Chía", "Chía", "Cundinamarca", "", "") {
+		t.Fatal("Chía should match Chía")
+	}
+
+	if !MatchesCityFilter("Chía", "Cundinamarca", "", "Chía", "Calle 12") {
+		t.Fatal("Chía borough should match Chía filter")
+	}
+
+	if !MatchesCityFilter("La Calera", "La Calera", "", "", "") {
+		t.Fatal("La Calera should match itself")
+	}
+
+	if !MatchesCityFilter("La Calera", "Cundinamarca", "", "", "Vereda El Hato, La Calera") {
+		t.Fatal("La Calera address should match La Calera filter")
+	}
+
 	if MatchesCityFilter("Medellín", "Usaquén", "", "", "") {
 		t.Fatal("Usaquén must not match Medellín")
 	}
@@ -188,6 +216,14 @@ func TestIsBogotaPlace(t *testing.T) {
 		t.Fatal("Chía is not Bogotá")
 	}
 
+	if IsBogotaPlace("La Calera", "Cundinamarca", "", "") {
+		t.Fatal("La Calera is not Bogotá")
+	}
+
+	if IsBogotaPlace("", "", "", "Centro, La Calera cerca de Bogotá") {
+		t.Fatal("La Calera address must not count as Bogotá")
+	}
+
 	if !IsBogotaPlace("", "Bogotá", "", "Calle 100") {
 		t.Fatal("state Bogotá should count")
 	}
@@ -207,5 +243,51 @@ func TestCityListStartsWithBogota(t *testing.T) {
 			t.Fatalf("duplicate city %q", c)
 		}
 		seen[c] = struct{}{}
+	}
+
+	for _, need := range []string{"Chía", "La Calera", "Cajicá", "Cota"} {
+		if _, ok := seen[need]; !ok {
+			t.Fatalf("city list missing %q", need)
+		}
+	}
+}
+
+func TestInferCityFromSearch(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ what, where, want string }{
+		{"restaurantes", "chia", "Chía"},
+		{"restaurantes", "Chía", "Chía"},
+		{"restaurantes en chia", "", "Chía"},
+		{"restaurantes", "La Calera", "La Calera"},
+		{"hoteles en la calera", "", "La Calera"},
+		{"restaurantes", "Usaquén, Bogotá", "Bogotá"},
+		{"restaurantes", "calera", "La Calera"},
+		{"restaurantes, hoteles", "Cajicá", "Cajicá"},
+	}
+
+	for _, tc := range cases {
+		if got := InferCityFromSearch(tc.what, tc.where); got != tc.want {
+			t.Errorf("InferCityFromSearch(%q, %q)=%q want %q", tc.what, tc.where, got, tc.want)
+		}
+	}
+}
+
+func TestCityFilterFromInputsRemembersSearch(t *testing.T) {
+	t.Parallel()
+
+	city, all, val := CityFilterFromInputs("", "Chía")
+	if all || city != "Chía" || val != "Chía" {
+		t.Fatalf("remembered Chía: city=%q all=%v val=%q", city, all, val)
+	}
+
+	city, all, val = CityFilterFromInputs("La Calera", "Chía")
+	if all || city != "La Calera" || val != "La Calera" {
+		t.Fatalf("query wins: city=%q all=%v val=%q", city, all, val)
+	}
+
+	city, all, val = CityFilterFromInputs("all", "Chía")
+	if !all || city != "" || val != "all" {
+		t.Fatalf("all: city=%q all=%v val=%q", city, all, val)
 	}
 }

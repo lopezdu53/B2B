@@ -287,7 +287,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Usaquén, Bogotá</strong>.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. Ejemplo: <strong>restaurantes</strong> en <strong>Chía</strong> o <strong>La Calera</strong>.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -296,7 +296,7 @@
                 </div>
                 <div>
                     <label for="s-where">Zona o ciudad</label>
-                    <input type="text" id="s-where" name="where" placeholder="Usaquén, Bogotá" list="zone-list">
+                    <input type="text" id="s-where" name="where" placeholder="Chía, La Calera, Usaquén, Bogotá" list="zone-list">
                     <datalist id="zone-list">
                         {{range .Zones}}<option value="{{.Name}}, {{.City}}"></option>{{end}}
                         {{range .Cities}}<option value="{{.}}"></option>{{end}}
@@ -557,6 +557,8 @@
         const SEARCH_RUBROS = {{if .SearchRubrosData}}{{.SearchRubrosData}}{{else}}[]{{end}};
         const MIN_LEAD_REVIEWS = {{if .MinLeadReviews}}{{.MinLeadReviews}}{{else}}10{{end}};
         const PRICE_SMART = {{if .PriceSmartData}}{{.PriceSmartData}}{{else}}[]{{end}};
+        const CITY_OPTIONS = [{{range .Cities}}"{{.}}",{{end}}];
+        var cityLocked = false;
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
         const advisorMeta = {}; // id -> {name, color}
@@ -661,8 +663,9 @@
             return PRICE_SMART.filter(function (p) {
                 var ck = cityKeyJS(p.city);
                 if (ck === key) return true;
-                // Chía sits on the Autonorte just north of Bogotá — show it with the Bogotá map.
-                return (key === "bogota" || key === "chia") && (ck === "bogota" || ck === "chia");
+                // Chía / La Calera sit just north-east of Bogotá — show clubs with that metro view.
+                var metro = (key === "bogota" || key === "chia" || key === "la calera");
+                return metro && (ck === "bogota" || ck === "chia");
             });
         }
 
@@ -718,8 +721,51 @@
             return pois;
         }
 
+        function persistCity(city) {
+            if (!city) return;
+            try {
+                document.cookie = "b2b_city=" + encodeURIComponent(city) + "; path=/admin; max-age=2592000; samesite=lax";
+            } catch (e) {}
+        }
+
+        function cityFromKeyword(kw) {
+            var folded = cityKeyJS(kw).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+            var idx = folded.lastIndexOf(" en ");
+            var loc = idx >= 0 ? folded.slice(idx + 4).trim() : folded;
+            if (!loc) return "";
+            var best = "";
+            (CITY_OPTIONS || []).forEach(function (name) {
+                var k = cityKeyJS(name).trim();
+                if (!k) return;
+                if (loc === k || loc.indexOf(k + " ") === 0 || loc.indexOf(" " + k + " ") >= 0 || loc.slice(-((k).length + 1)) === " " + k) {
+                    if (k.length >= cityKeyJS(best).length) best = name;
+                }
+            });
+            if (!best && loc.indexOf("calera") >= 0) best = "La Calera";
+            if (!best && loc.indexOf("chia") >= 0) best = "Chía";
+            return best;
+        }
+
+        function maybeAdoptSearchCity(jobs) {
+            if (cityLocked || !jobs || !jobs.length) return;
+            var sel = document.getElementById("f-city");
+            if (!sel) return;
+            for (var i = 0; i < jobs.length; i++) {
+                var city = cityFromKeyword(jobs[i].keyword || "");
+                if (!city || sel.value === city) {
+                    if (city) return;
+                    continue;
+                }
+                sel.value = city;
+                persistCity(city);
+                loadBusinesses();
+                return;
+            }
+        }
+
         function loadBusinesses() {
             if (!mapApi) return;
+            persistCity(document.getElementById("f-city").value);
             const hint = document.getElementById("loading-hint");
             hint.textContent = "Cargando…";
             const params = new URLSearchParams({
@@ -798,7 +844,14 @@
                 .catch(() => { hint.textContent = "Error al guardar"; });
         }
 
-        document.getElementById("btn-apply").addEventListener("click", loadBusinesses);
+        document.getElementById("btn-apply").addEventListener("click", function () {
+            cityLocked = true;
+            loadBusinesses();
+        });
+        document.getElementById("f-city").addEventListener("change", function () {
+            cityLocked = true;
+            persistCity(this.value);
+        });
         document.getElementById("biz-save").addEventListener("click", saveSelected);
         document.getElementById("f-colorby").addEventListener("change", function () {
             colorMode = this.value;
@@ -1053,6 +1106,8 @@
                     '<div class="job-bar ' + barClass + '"><span></span></div>' +
                     countHtml + '</div>';
             }).join("");
+
+            maybeAdoptSearchCity(jobs);
 
             const live = jobs.some(j => j.status === "pending" || j.status === "running");
             if (live && !jobsTick) {
