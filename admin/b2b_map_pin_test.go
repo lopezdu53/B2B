@@ -17,9 +17,12 @@ func TestB2BMapUsesLocatorPins(t *testing.T) {
 	js := string(raw)
 	for _, needle := range []string{
 		"function locatorSVG",
-		"googleLocatorIcon",
+		"googleSymbolPin",
+		"placeGooglePin",
 		"leafletLocatorIcon",
+		`MAPS_PIN_PATH`,
 		`PS_PIN_COLOR`,
+		`DEMO_MAP_ID`,
 	} {
 		if !strings.Contains(js, needle) {
 			t.Errorf("b2b-map.js missing %q", needle)
