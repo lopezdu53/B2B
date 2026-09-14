@@ -46,8 +46,8 @@
         return '<div class="b2b-pin-wrap">' + locatorSVG(color, label) + "</div>";
     }
 
-    // Classic Maps teardrop (tip at 0,0). Used when PinElement is unavailable.
-    // SVG data-URL icons render as blue squares in the Maps JS API.
+    // Vector teardrop drawn by the Maps JS API. Do not use the advanced
+    // marker library: its default content is a blue square with a pin glyph.
     var MAPS_PIN_PATH = "M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z";
 
     function googleSymbolPin(color) {
@@ -62,23 +62,6 @@
         };
     }
 
-    function googlePinLib() {
-        return (global.google && google.maps && google.maps.marker) || null;
-    }
-
-    function googlePinElement(color, label) {
-        var lib = googlePinLib();
-        if (!lib || !lib.PinElement) return null;
-        var opts = {
-            background: safePinColor(color),
-            borderColor: "#ffffff",
-            glyphColor: "#ffffff",
-            scale: 1.05
-        };
-        if (label) opts.glyph = String(label);
-        return new lib.PinElement(opts).element;
-    }
-
     function leafletLocatorIcon(color, label) {
         ensurePinStyle();
         return L.divIcon({
@@ -91,60 +74,22 @@
 
     var PS_PIN_COLOR = "#1d4ed8";
 
-    function hideGoogleOverlay(marker) {
-        if (!marker) return;
-        if (typeof marker.setMap === "function") marker.setMap(null);
-        else marker.map = null;
-    }
-
-    function setGoogleOverlayVisible(map, marker, on) {
-        if (!marker) return;
-        if (typeof marker.setVisible === "function") {
-            marker.setVisible(!!on);
-            return;
-        }
-        marker.map = on ? map : null;
-    }
-
     function placeGooglePin(map, opts, onClick) {
-        var lib = googlePinLib();
-        var pinEl = googlePinElement(opts.color, opts.label);
-        var marker;
-
-        if (lib && lib.AdvancedMarkerElement && pinEl) {
-            marker = new lib.AdvancedMarkerElement({
-                map: map,
-                position: { lat: opts.lat, lng: opts.lng },
-                title: opts.title || "",
-                content: pinEl,
-                zIndex: opts.zIndex || 1000
-            });
-            marker.addListener("click", onClick);
-        } else {
-            marker = new google.maps.Marker({
-                position: { lat: opts.lat, lng: opts.lng },
-                map: map,
-                title: opts.title || "",
-                zIndex: opts.zIndex || 1000,
-                icon: googleSymbolPin(opts.color)
-            });
-            marker.addListener("click", onClick);
-        }
-
-        marker._pinColor = opts.color;
-        marker._pinLabel = opts.label || "";
+        var marker = new google.maps.Marker({
+            position: { lat: opts.lat, lng: opts.lng },
+            map: map,
+            title: opts.title || "",
+            zIndex: opts.zIndex || 1000,
+            clickable: true,
+            optimized: true,
+            icon: googleSymbolPin(opts.color)
+        });
+        marker.addListener("click", onClick);
         return marker;
     }
 
     function restyleGooglePin(marker, color) {
-        if (!marker) return;
-        marker._pinColor = color;
-        var pinEl = googlePinElement(color, marker._pinLabel);
-        if (pinEl && marker.content !== undefined) {
-            marker.content = pinEl;
-            return;
-        }
-        if (typeof marker.setIcon === "function") {
+        if (marker && typeof marker.setIcon === "function") {
             marker.setIcon(googleSymbolPin(color));
         }
     }
@@ -630,9 +575,7 @@
             fullscreenControl: false,
             mapTypeControl: true,
             clickableIcons: false,
-            gestureHandling: "greedy",
-            // Required for AdvancedMarkerElement / PinElement (official Maps locator).
-            mapId: "DEMO_MAP_ID"
+            gestureHandling: "greedy"
         });
         var locLayer = new google.maps.Data({ map: map });
         var barLayer = new google.maps.Data({ map: map });
@@ -706,11 +649,11 @@
                 applyZoneHitStyle();
             },
             clearMarkers: function () {
-                markers.forEach(hideGoogleOverlay);
+                markers.forEach(function (m) { m.setMap(null); });
                 markers = [];
             },
             clearPOIs: function () {
-                poiMarkers.forEach(hideGoogleOverlay);
+                poiMarkers.forEach(function (m) { m.setMap(null); });
                 poiMarkers = [];
             },
             addPOI: function (poi, onClick) {
@@ -739,9 +682,7 @@
             styleMarker: function (marker, color) {
                 restyleGooglePin(marker, color);
             },
-            setMarkerVisible: function (marker, on) {
-                setGoogleOverlayVisible(map, marker, on);
-            },
+            setMarkerVisible: function (marker, on) { marker.setVisible(!!on); },
             fitBounds: function (pts, maxZoom) {
                 if (!pts.length) {
                     map.setCenter(URBAN);
