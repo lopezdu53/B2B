@@ -67,12 +67,29 @@ func sqlQuotedList(keys []string) string {
 func cityMatchSQL() string {
 	aliases := sqlQuotedList(admin.BogotaCityAliasKeys())
 	satellites := sqlQuotedList(admin.BogotaSatelliteTownKeys())
+	foldFilter := sqlFoldCity("$1")
+	notSatelliteAddr := ""
+
+	for _, sat := range admin.BogotaSatelliteTownKeys() {
+		notSatelliteAddr += ` AND ` + sqlFoldCity("address") + ` NOT LIKE '%` + sat + `%'`
+	}
 
 	return `(` +
 		sqlFirstCityToken("city") + ` = ` + sqlFirstCityToken("$1") +
+		` OR ` + sqlFoldCity("city") + ` = ` + foldFilter +
+		` OR ` + sqlFoldCity("city") + ` LIKE ` + foldFilter + ` || ' %'` +
+		` OR (` +
+		sqlFirstCityToken("$1") + ` <> 'bogota'` +
+		` AND (` +
+		sqlFoldCity("borough") + ` = ` + foldFilter +
+		` OR ` + sqlFoldCity("borough") + ` LIKE ` + foldFilter + ` || ' %'` +
+		` OR ` + sqlFoldCity("address") + ` LIKE '%' || ` + foldFilter + ` || '%'` +
+		`)` +
+		`)` +
 		` OR (` +
 		sqlFirstCityToken("$1") + ` = 'bogota'` +
 		` AND ` + sqlFirstCityToken("city") + ` NOT IN (` + satellites + `)` +
+		notSatelliteAddr +
 		` AND (` +
 		sqlFoldCity("city") + ` IN (` + aliases + `)` +
 		` OR ` + sqlFoldCity("city") + ` LIKE 'bogota %'` +

@@ -22,6 +22,7 @@ func TestCityMatchSQLAcceptsBogotaLocalidades(t *testing.T) {
 		"kennedy",
 		"chia",
 		"soacha",
+		"la calera",
 		"bogota",
 	} {
 		if !strings.Contains(sql, "'"+needle+"'") {

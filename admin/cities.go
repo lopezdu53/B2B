@@ -33,6 +33,9 @@ var PredefinedCities = []string{
 	"Tunja",
 	"Soacha",
 	"Chía",
+	"La Calera",
+	"Cajicá",
+	"Cota",
 	"Zipaquirá",
 	"Facatativá",
 	"Fusagasugá",
@@ -59,6 +62,9 @@ func init() {
 	} {
 		cityByKey[cityKey(alias)] = DefaultCity
 	}
+
+	cityByKey[cityKey("calera")] = "La Calera"
+	cityByKey[cityKey("la calera cundinamarca")] = "La Calera"
 
 	// Google often stores the locality (Usaquén, Chapinero…) as "city".
 	// Those still belong to Bogotá for the map/list filter.
@@ -246,17 +252,19 @@ func BogotaSatelliteTownKeys() []string {
 	return []string{
 		"chia", "soacha", "zipaquira", "facatativa", "cajica",
 		"cota", "mosquera", "funza", "madrid", "girardot",
+		"la calera", "calera",
 	}
 }
 
 func isSatelliteTown(s string) bool {
-	tok := firstToken(cityKey(s))
-	if tok == "" {
+	k := cityKey(s)
+	if k == "" {
 		return false
 	}
 
+	padded := " " + k + " "
 	for _, sat := range BogotaSatelliteTownKeys() {
-		if tok == sat {
+		if k == sat || firstToken(k) == sat || strings.HasPrefix(k, sat+" ") || strings.Contains(padded, " "+sat+" ") {
 			return true
 		}
 	}
@@ -267,7 +275,7 @@ func isSatelliteTown(s string) bool {
 // IsBogotaPlace reports whether a scraped address belongs to Bogotá.
 // Google frequently puts the localidad in the city field ("Usaquén").
 func IsBogotaPlace(city, state, borough, address string) bool {
-	if isSatelliteTown(city) {
+	if isSatelliteTown(city) || isSatelliteTown(borough) || isSatelliteTown(address) {
 		return false
 	}
 
@@ -298,13 +306,119 @@ func MatchesCityFilter(filter, city, state, borough, address string) bool {
 		return true
 	}
 
-	if tok := firstToken(cityKey(city)); tok != "" && tok == firstToken(cityKey(filter)) {
+	if cityFieldMatchesFilter(filter, city) {
 		return true
 	}
 
-	if firstToken(cityKey(filter)) != "bogota" && CanonicalCity(filter) != DefaultCity {
+	wantBogota := firstToken(cityKey(filter)) == "bogota" || CanonicalCity(filter) == DefaultCity
+	if wantBogota {
+		return IsBogotaPlace(city, state, borough, address)
+	}
+
+	if cityFieldMatchesFilter(filter, borough) {
+		return true
+	}
+
+	fk := cityKey(filter)
+	if canon := CanonicalCity(filter); canon != "" {
+		fk = cityKey(canon)
+	}
+
+	return fk != "" && strings.Contains(cityKey(address), fk)
+}
+
+func cityFieldMatchesFilter(filter, scraped string) bool {
+	fk := cityKey(filter)
+	if canon := CanonicalCity(filter); canon != "" {
+		fk = cityKey(canon)
+	}
+
+	ck := cityKey(scraped)
+	if fk == "" || ck == "" {
 		return false
 	}
 
-	return IsBogotaPlace(city, state, borough, address)
+	if ck == fk || strings.HasPrefix(ck, fk+" ") {
+		return true
+	}
+
+	if canon := CanonicalCity(scraped); canon != "" && cityKey(canon) == fk {
+		return true
+	}
+
+	return false
+}
+
+// InferCityFromSearch picks the city dropdown for a dashboard search so
+// results in Chía or La Calera are not hidden behind the default Bogotá filter.
+func InferCityFromSearch(what, where string) string {
+	if c := inferCityFromText(where); c != "" {
+		return c
+	}
+
+	return inferCityFromText(what)
+}
+
+func inferCityFromText(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(s)
+	if i := strings.LastIndex(lower, " en "); i >= 0 {
+		if c := inferCityFromText(s[i+4:]); c != "" {
+			return c
+		}
+	}
+
+	if c := CanonicalCity(s); c != "" {
+		return c
+	}
+
+	parts := strings.Split(s, ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if c := CanonicalCity(strings.TrimSpace(parts[i])); c != "" {
+			return c
+		}
+	}
+
+	tokens := strings.Fields(cityKey(s))
+	for n := len(tokens); n >= 1; n-- {
+		if name, ok := cityByKey[strings.Join(tokens[:n], " ")]; ok {
+			return name
+		}
+	}
+
+	for n := 0; n < len(tokens); n++ {
+		if name, ok := cityByKey[strings.Join(tokens[n:], " ")]; ok {
+			return name
+		}
+	}
+
+	return ""
+}
+
+const b2bCityCookie = "b2b_city"
+
+// CityFilterFromInputs resolves the city dropdown. An explicit query string
+// wins; otherwise the last search city is reused so Chía/La Calera leads stay
+// visible when opening Negocios after a search.
+func CityFilterFromInputs(queryCity, remembered string) (city string, all bool, cityVal string) {
+	raw := strings.TrimSpace(queryCity)
+	if raw == "" {
+		raw = strings.TrimSpace(remembered)
+	}
+
+	city, all = ResolveCityFilter(raw)
+	cityVal = city
+	if all {
+		cityVal = "all"
+	}
+
+	if cityVal == "" && !all {
+		cityVal = DefaultCity
+	}
+
+	return city, all, cityVal
 }

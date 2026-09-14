@@ -19,7 +19,7 @@ const priceSmartSite = "https://www.pricesmart.com/en-co/clubs-and-locations"
 // Chía (Yerbabuena / Autonorte) is part of that metro view.
 func PriceSmartMetroBogota(city string) bool {
 	switch CanonicalCity(city) {
-	case "Bogotá", "Chía":
+	case "Bogotá", "Chía", "La Calera":
 		return true
 	default:
 		return false
