@@ -1,13 +1,15 @@
 package admin
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
 
 // MinLeadReviews is the minimum Google Maps review count a business must
-// have before it is shown or ingested as a B2B lead.
-const MinLeadReviews = 50
+// have before it is shown or ingested as a B2B lead. Values at this
+// threshold are still hidden; the business needs strictly more reviews.
+const MinLeadReviews = 10
 
 var excludedChainTokens = []string{
 	"exito",
@@ -57,5 +59,5 @@ func QualifiesAsLead(title string, reviewCount int) bool {
 
 // JobMapCountNote explains why job "extraídos" is larger than map pins.
 func JobMapCountNote() string {
-	return "Esos extraídos se suman entre búsquedas (Usaquén, Cedritos, un barrio…). El mapa junta el mismo place_id una sola vez. Solo se ocultan los que tienen 50 reseñas o menos o son cadena."
+	return fmt.Sprintf("Esos extraídos se suman entre búsquedas (Usaquén, Cedritos, un barrio…). El mapa junta el mismo place_id una sola vez. Solo se ocultan los que tienen %d reseñas o menos o son cadena.", MinLeadReviews)
 }

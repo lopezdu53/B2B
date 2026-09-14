@@ -106,6 +106,35 @@ func TestBogotaUrbanLocalidades(t *testing.T) {
 	}
 }
 
+func TestLocalidadSearchHintUsaquen(t *testing.T) {
+	hint, ok := LocalidadSearchHint("Usaquén")
+	if !ok {
+		t.Fatal("missing Usaquén hint")
+	}
+
+	if hint.Lat < 4.65 || hint.Lat > 4.82 || hint.Lon > -74.00 || hint.Lon < -74.08 {
+		t.Fatalf("Usaquén centroid out of range: %+v", hint)
+	}
+
+	if hint.Zoom < 12 || hint.Zoom > 15 {
+		t.Fatalf("zoom=%d", hint.Zoom)
+	}
+}
+
+func TestLocalidadSearchHintAllUrban(t *testing.T) {
+	for _, loc := range BogotaUrbanLocalidades() {
+		hint, ok := LocalidadSearchHint(loc.Nombre)
+		if !ok {
+			t.Errorf("missing hint for %q", loc.Nombre)
+			continue
+		}
+
+		if hint.Lat < 4.2 || hint.Lat > 4.9 || hint.Lon > -73.9 || hint.Lon < -74.3 {
+			t.Errorf("%s centroid out of Bogotá: %+v", loc.Nombre, hint)
+		}
+	}
+}
+
 func TestResolveGoogleMapsAPIKeyPrefersEnv(t *testing.T) {
 	st := &AppState{GoogleMapsAPIKey: "  env-key  "}
 	if got := resolveGoogleMapsAPIKey(st, nil); got != "env-key" {

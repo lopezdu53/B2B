@@ -270,7 +270,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Por defecto busca el rubro general (un job). <strong>Todas las especialidades</strong> lanza una búsqueda por cada tipo y el worker las hace una por una. Rápida 50, Normal 100, Amplia 250. Puedes limitar por estrellas (2 a 3, 3 a 4 o 4 a 5). El mapa solo muestra negocios con más de 50 reseñas, sin cadenas y que no estén en papelera.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">En Bogotá, <strong>Todas las localidades</strong> lanza una búsqueda por cada localidad (Usaquén, Chapinero, Kennedy…) para superar el tope de ~120 resultados de Google Maps. <strong>Todas las especialidades</strong> lanza una búsqueda por cada tipo; si pides ambas, se priorizan las 19 localidades con el rubro general. Rápida {{or .SearchSizeFast 100}}, Normal {{or .SearchSizeNormal 500}}, Amplia {{or .SearchSizeWide 1000}}. Puedes limitar por estrellas (2 a 3, 3 a 4 o 4 a 5). El mapa solo muestra negocios con más de {{or .MinLeadReviews 10}} reseñas, sin cadenas y que no estén en papelera.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -308,9 +308,9 @@
                 <div>
                     <label for="s-depth">Cantidad</label>
                     <select id="s-depth" name="max_results">
-                        <option value="50">Rápida (50 negocios)</option>
-                        <option value="100" selected>Normal (100 negocios)</option>
-                        <option value="250">Amplia (250 negocios)</option>
+                        <option value="{{or .SearchSizeFast 100}}">Rápida ({{or .SearchSizeFast 100}} negocios)</option>
+                        <option value="{{or .SearchSizeNormal 500}}" selected>Normal ({{or .SearchSizeNormal 500}} negocios)</option>
+                        <option value="{{or .SearchSizeWide 1000}}">Amplia ({{or .SearchSizeWide 1000}} negocios)</option>
                     </select>
                 </div>
                 <div>
@@ -559,6 +559,7 @@
         const CATEGORIES_LIST = {{.CategoriesData}} || [];
         const BOGOTA_INDEX = {{if .BogotaIndexData}}{{.BogotaIndexData}}{{else}}null{{end}};
         const SEARCH_RUBROS = {{if .SearchRubrosData}}{{.SearchRubrosData}}{{else}}[]{{end}};
+        const MIN_LEAD_REVIEWS = {{if .MinLeadReviews}}{{.MinLeadReviews}}{{else}}10{{end}};
         const PRICE_SMART = {{if .PriceSmartData}}{{.PriceSmartData}}{{else}}[]{{end}};
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
@@ -993,7 +994,7 @@
                     title.insertAdjacentElement("afterend", sum);
                 }
                 if (extracted > 0) {
-                    sum.textContent = extracted + " fichas extraídas en total. El mapa muestra menos porque el mismo restaurante sale en varias búsquedas; solo se ocultan los de 50 reseñas o menos.";
+                    sum.textContent = extracted + " fichas extraídas en total. El mapa muestra menos porque el mismo restaurante sale en varias búsquedas; solo se ocultan los de " + MIN_LEAD_REVIEWS + " reseñas o menos.";
                 } else {
                     sum.textContent = "";
                 }

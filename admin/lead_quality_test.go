@@ -48,12 +48,12 @@ func TestIsExcludedChain(t *testing.T) {
 func TestQualifiesAsLead(t *testing.T) {
 	t.Parallel()
 
-	if QualifiesAsLead("Restaurante Andino", 50) {
-		t.Fatal("50 reviews is not enough")
+	if QualifiesAsLead("Restaurante Andino", MinLeadReviews) {
+		t.Fatalf("%d reviews is not enough", MinLeadReviews)
 	}
 
-	if !QualifiesAsLead("Restaurante Andino", 51) {
-		t.Fatal("51 reviews should qualify")
+	if !QualifiesAsLead("Restaurante Andino", MinLeadReviews+1) {
+		t.Fatalf("%d reviews should qualify", MinLeadReviews+1)
 	}
 
 	if QualifiesAsLead("Éxito", 900) {

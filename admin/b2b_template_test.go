@@ -195,7 +195,8 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`name="category"`,
 		`name="specialty"`,
 		`Todas las especialidades`,
-		`Por defecto busca el rubro general`,
+		`Todas las localidades`,
+		`una búsqueda por cada localidad`,
 		`value="all"`,
 		`Restaurantes`,
 		`SúperMercados`,
@@ -218,13 +219,13 @@ func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 		`Kennedy`,
 		`Suba`,
 		`name="max_results"`,
-		`Rápida (50 negocios)`,
-		`Normal (100 negocios)`,
-		`Amplia (250 negocios)`,
+		`Rápida (100 negocios)`,
+		`Normal (500 negocios)`,
+		`Amplia (1000 negocios)`,
 		`id="s-rating"`,
 		`name="rating"`,
 		`limitar por estrellas`,
-		`más de 50 reseñas`,
+		`más de 10 reseñas`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Errorf("search form missing %q", needle)

@@ -102,11 +102,12 @@ const (
 const (
 	MinPasswordLength      = 8
 	DefaultSearchDepth     = 5
-	MaxSearchDepth         = 15
-	SearchSizeFast         = 50
-	SearchSizeNormal       = 100
-	SearchSizeWide         = 250
+	MaxSearchDepth         = 50
+	SearchSizeFast         = 100
+	SearchSizeNormal       = 500
+	SearchSizeWide         = 1000
 	searchResultsPerScroll = 20
+	maxB2BSearchJobs       = 120
 )
 
 // SearchDepthForSize maps a target business count to Google Maps scroll depth.
