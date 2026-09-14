@@ -51,7 +51,7 @@ func TestPriceSmartLocations(t *testing.T) {
 		t.Fatalf("Chía club city = %q", chia.City)
 	}
 
-	if !PriceSmartMetroBogota("Bogotá") || !PriceSmartMetroBogota("Chía") || !PriceSmartMetroBogota("La Calera") {
+	if !PriceSmartMetroBogota("Bogotá") || !PriceSmartMetroBogota("Chía") || !PriceSmartMetroBogota("La Calera") || !PriceSmartMetroBogota("Cundinamarca") {
 		t.Fatal("Bogotá map should include the Chía club")
 	}
 

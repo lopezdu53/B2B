@@ -5,8 +5,12 @@ import (
 	"unicode"
 )
 
-// DefaultCity is the city selected on first load of map and list views.
+// DefaultCity is the urban capital used for Bogotá localidad matching.
 const DefaultCity = "Bogotá"
+
+// CundinamarcaRegion is the default map/list filter: Bogotá D.C. plus the
+// surrounding municipalities (Chía, La Calera, Cajicá, Soacha, …).
+const CundinamarcaRegion = "Cundinamarca"
 
 // PredefinedCities is the filter list. Bogotá is first; the rest are major
 // Colombian cities so the dropdown does not depend on whatever a scrape stored.
@@ -65,6 +69,8 @@ func init() {
 
 	cityByKey[cityKey("calera")] = "La Calera"
 	cityByKey[cityKey("la calera cundinamarca")] = "La Calera"
+	cityByKey[cityKey(CundinamarcaRegion)] = CundinamarcaRegion
+	cityByKey[cityKey("cundinamarca colombia")] = CundinamarcaRegion
 
 	// Google often stores the locality (Usaquén, Chapinero…) as "city".
 	// Those still belong to Bogotá for the map/list filter.
@@ -77,10 +83,12 @@ func init() {
 	}
 }
 
-// CityList returns a copy of the predefined city dropdown (Bogotá first).
+// CityList returns the city dropdown with Cundinamarca first (the default
+// regional view), then Bogotá and the rest of the predefined cities.
 func CityList() []string {
-	out := make([]string, len(PredefinedCities))
-	copy(out, PredefinedCities)
+	out := make([]string, 0, len(PredefinedCities)+1)
+	out = append(out, CundinamarcaRegion)
+	out = append(out, PredefinedCities...)
 
 	return out
 }
@@ -160,14 +168,14 @@ func SearchKeyword(what, city, localidad, barrio, where string) string {
 }
 
 // ResolveCityFilter interprets a city query parameter.
-// "all" / "todas" / "*" means no city filter. Empty defaults to Bogotá.
+// "all" / "todas" / "*" means no city filter. Empty defaults to Cundinamarca.
 func ResolveCityFilter(raw string) (city string, all bool) {
 	raw = strings.TrimSpace(raw)
 	switch strings.ToLower(raw) {
 	case "all", "todas", "*":
 		return "", true
 	case "":
-		return DefaultCity, false
+		return CundinamarcaRegion, false
 	}
 
 	if c := CanonicalCity(raw); c != "" {
@@ -252,7 +260,8 @@ func BogotaSatelliteTownKeys() []string {
 	return []string{
 		"chia", "soacha", "zipaquira", "facatativa", "cajica",
 		"cota", "mosquera", "funza", "madrid", "girardot",
-		"la calera", "calera",
+		"la calera", "calera", "fusagasuga", "sopo", "tabio",
+		"tenjo", "sibate", "tocancipa", "gachancipa", "cogua",
 	}
 }
 
@@ -298,12 +307,66 @@ func IsBogotaPlace(city, state, borough, address string) bool {
 	return false
 }
 
+// InCundinamarcaRegion reports whether a city name belongs to the default
+// Cundinamarca map (Bogotá D.C. and neighboring municipalities).
+func InCundinamarcaRegion(name string) bool {
+	k := cityKey(name)
+	if k == "" {
+		return false
+	}
+
+	if k == "cundinamarca" || strings.Contains(k, "cundinamarca") {
+		return true
+	}
+
+	canon := CanonicalCity(name)
+	if canon == DefaultCity || canon == CundinamarcaRegion {
+		return true
+	}
+
+	return isSatelliteTown(name)
+}
+
+func isCundinamarcaFilter(filter string) bool {
+	k := cityKey(filter)
+	if canon := CanonicalCity(filter); canon != "" {
+		k = cityKey(canon)
+	}
+
+	return k == "cundinamarca"
+}
+
+// IsCundinamarcaPlace reports whether a scraped address is in Bogotá D.C. or
+// Cundinamarca (Chía, La Calera, Cajicá, Soacha, …).
+func IsCundinamarcaPlace(city, state, borough, address string) bool {
+	if IsBogotaPlace(city, state, borough, address) {
+		return true
+	}
+
+	if isSatelliteTown(city) || isSatelliteTown(borough) || isSatelliteTown(address) {
+		return true
+	}
+
+	if InCundinamarcaRegion(city) || InCundinamarcaRegion(borough) || InCundinamarcaRegion(state) {
+		return true
+	}
+
+	blob := cityKey(strings.Join([]string{city, state, borough, address}, " "))
+
+	return strings.Contains(blob, "cundinamarca")
+}
+
 // MatchesCityFilter is the Go equivalent of the map/list city SQL.
-// An empty filter matches everything. "Bogotá" also matches urban localidades.
+// An empty filter matches everything. "Cundinamarca" is Bogotá plus nearby
+// towns. "Bogotá" stays urban-only (no Chía / La Calera).
 func MatchesCityFilter(filter, city, state, borough, address string) bool {
 	filter = strings.TrimSpace(filter)
 	if filter == "" {
 		return true
+	}
+
+	if isCundinamarcaFilter(filter) {
+		return IsCundinamarcaPlace(city, state, borough, address)
 	}
 
 	if cityFieldMatchesFilter(filter, city) {
@@ -349,14 +412,20 @@ func cityFieldMatchesFilter(filter, scraped string) bool {
 	return false
 }
 
-// InferCityFromSearch picks the city dropdown for a dashboard search so
-// results in Chía or La Calera are not hidden behind the default Bogotá filter.
+// InferCityFromSearch picks the city dropdown for a dashboard search.
+// Searches in Bogotá, Chía or La Calera keep the Cundinamarca regional view
+// so one town does not hide the rest of the department.
 func InferCityFromSearch(what, where string) string {
-	if c := inferCityFromText(where); c != "" {
-		return c
+	c := inferCityFromText(where)
+	if c == "" {
+		c = inferCityFromText(what)
 	}
 
-	return inferCityFromText(what)
+	if InCundinamarcaRegion(c) {
+		return CundinamarcaRegion
+	}
+
+	return c
 }
 
 func inferCityFromText(s string) string {
@@ -402,12 +471,16 @@ func inferCityFromText(s string) string {
 const b2bCityCookie = "b2b_city"
 
 // CityFilterFromInputs resolves the city dropdown. An explicit query string
-// wins; otherwise the last search city is reused so Chía/La Calera leads stay
-// visible when opening Negocios after a search.
+// wins. A remembered Chía/Bogotá/La Calera cookie is widened to Cundinamarca
+// so the map shows the whole department instead of a single town.
 func CityFilterFromInputs(queryCity, remembered string) (city string, all bool, cityVal string) {
-	raw := strings.TrimSpace(queryCity)
+	explicit := strings.TrimSpace(queryCity)
+	raw := explicit
 	if raw == "" {
 		raw = strings.TrimSpace(remembered)
+		if raw == "" || InCundinamarcaRegion(raw) {
+			raw = CundinamarcaRegion
+		}
 	}
 
 	city, all = ResolveCityFilter(raw)
@@ -417,7 +490,7 @@ func CityFilterFromInputs(queryCity, remembered string) (city string, all bool, 
 	}
 
 	if cityVal == "" && !all {
-		cityVal = DefaultCity
+		cityVal = CundinamarcaRegion
 	}
 
 	return city, all, cityVal
