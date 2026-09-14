@@ -46,4 +46,16 @@ func TestPriceSmartLocations(t *testing.T) {
 	if chia.Lat < 4.88 {
 		t.Fatalf("Chía should be in Yerbabuena north of La Caro, got %v", chia.Lat)
 	}
+
+	if chia.City != "Chía" {
+		t.Fatalf("Chía club city = %q", chia.City)
+	}
+
+	if !PriceSmartMetroBogota("Bogotá") || !PriceSmartMetroBogota("Chía") {
+		t.Fatal("Bogotá map should include the Chía club")
+	}
+
+	if PriceSmartMetroBogota("Medellín") {
+		t.Fatal("Medellín should not pull Bogotá-metro PriceSmart")
+	}
 }
