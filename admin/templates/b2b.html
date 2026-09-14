@@ -658,7 +658,12 @@
         function priceSmartForCity(city) {
             var key = cityKeyJS(city);
             if (!key || key === "all" || key === "todas") return PRICE_SMART.slice();
-            return PRICE_SMART.filter(function (p) { return cityKeyJS(p.city) === key; });
+            return PRICE_SMART.filter(function (p) {
+                var ck = cityKeyJS(p.city);
+                if (ck === key) return true;
+                // Chía sits on the Autonorte just north of Bogotá — show it with the Bogotá map.
+                return (key === "bogota" || key === "chia") && (ck === "bogota" || ck === "chia");
+            });
         }
 
         function renderZoneStats(list) {

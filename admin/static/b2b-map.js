@@ -15,54 +15,60 @@
         });
     }
 
-    function ensurePSStyle() {
-        if (document.getElementById("b2b-ps-style")) return;
+    function ensurePinStyle() {
+        if (document.getElementById("b2b-pin-style")) return;
         var st = document.createElement("style");
-        st.id = "b2b-ps-style";
+        st.id = "b2b-pin-style";
         st.textContent =
-            ".ps-marker.leaflet-marker-icon,.ps-marker.leaflet-div-icon{background:transparent!important;border:none!important;box-shadow:none!important;}" +
-            ".ps-pin{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;" +
-            "background:linear-gradient(135deg,#1d4ed8 0%,#dc2626 100%);color:#fff;font:700 13px/1 Arial,Helvetica,sans-serif;" +
-            "border:1.5px solid #0b1220;box-shadow:0 2px 8px rgba(15,23,42,.4);position:relative;}" +
-            ".ps-pin::after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-7px;border:7px solid transparent;border-top-color:#b91c1c;}";
+            ".b2b-pin.leaflet-marker-icon,.b2b-pin.leaflet-div-icon{background:transparent!important;border:none!important;box-shadow:none!important;}" +
+            ".b2b-pin-wrap{width:28px;height:42px;line-height:0;}";
         document.head.appendChild(st);
     }
 
-    function createGooglePSOverlay(map, poi, onClick) {
-        ensurePSStyle();
-        function Overlay() { this.div = null; }
-        Overlay.prototype = new google.maps.OverlayView();
-        Overlay.prototype.onAdd = function () {
-            var div = document.createElement("div");
-            div.className = "ps-marker";
-            div.innerHTML = '<div class="ps-pin">PS</div>';
-            div.style.position = "absolute";
-            div.style.cursor = "pointer";
-            div.style.width = "36px";
-            div.style.height = "44px";
-            div.title = poi.name || "PriceSmart";
-            div.addEventListener("click", function (e) {
-                e.stopPropagation();
-                onClick(poi, overlay);
-            });
-            this.div = div;
-            this.getPanes().overlayMouseTarget.appendChild(div);
-        };
-        Overlay.prototype.draw = function () {
-            if (!this.div) return;
-            var pos = this.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(poi.lat, poi.lng));
-            if (!pos) return;
-            this.div.style.left = (pos.x - 18) + "px";
-            this.div.style.top = (pos.y - 44) + "px";
-        };
-        Overlay.prototype.onRemove = function () {
-            if (this.div && this.div.parentNode) this.div.parentNode.removeChild(this.div);
-            this.div = null;
-        };
-        var overlay = new Overlay();
-        overlay.setMap(map);
-        return overlay;
+    function safePinColor(c) {
+        c = String(c || "#2563eb");
+        return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c) ? c : "#2563eb";
     }
+
+    // Google Maps-style teardrop locator (same SVG on Google + Leaflet).
+    function locatorSVG(color, label) {
+        color = safePinColor(color);
+        var inner = label
+            ? '<text x="12" y="15" text-anchor="middle" font-size="8.2" font-weight="700" fill="#fff" font-family="Arial,Helvetica,sans-serif">' +
+                escapeHtml(label) + "</text>"
+            : '<circle cx="12" cy="11.2" r="3.8" fill="#fff"/>';
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="28" height="42">' +
+            '<path d="M12 2C7.03 2 3 6.03 3 11c0 7.2 8.15 16.35 8.55 16.8a.7.7 0 0 0 .9 0C12.85 27.35 21 18.2 21 11 21 6.03 16.97 2 12 2z" fill="' +
+            color + '" stroke="#fff" stroke-width="1.45"/>' + inner + "</svg>";
+    }
+
+    function locatorDataURL(color, label) {
+        return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(locatorSVG(color, label));
+    }
+
+    function locatorHTML(color, label) {
+        return '<div class="b2b-pin-wrap">' + locatorSVG(color, label) + "</div>";
+    }
+
+    function googleLocatorIcon(color, label) {
+        return {
+            url: locatorDataURL(color, label),
+            scaledSize: new google.maps.Size(28, 42),
+            anchor: new google.maps.Point(14, 40)
+        };
+    }
+
+    function leafletLocatorIcon(color, label) {
+        ensurePinStyle();
+        return L.divIcon({
+            className: "b2b-pin",
+            html: locatorHTML(color, label),
+            iconSize: [28, 42],
+            iconAnchor: [14, 40]
+        });
+    }
+
+    var PS_PIN_COLOR = "#1d4ed8";
 
     function pointInRing(lat, lng, ring) {
         var inside = false;
@@ -627,9 +633,17 @@
                 poiMarkers = [];
             },
             addPOI: function (poi, onClick) {
-                var overlay = createGooglePSOverlay(map, poi, onClick);
-                poiMarkers.push(overlay);
-                return overlay;
+                var marker = new google.maps.Marker({
+                    position: { lat: poi.lat, lng: poi.lng },
+                    map: map,
+                    title: poi.name || "PriceSmart",
+                    zIndex: 1200,
+                    optimized: false,
+                    icon: googleLocatorIcon(PS_PIN_COLOR, "PS")
+                });
+                marker.addListener("click", function () { onClick(poi, marker); });
+                poiMarkers.push(marker);
+                return marker;
             },
             addMarker: function (biz, color, onClick) {
                 var marker = new google.maps.Marker({
@@ -637,28 +651,15 @@
                     map: map,
                     title: biz.title || "",
                     zIndex: 1000,
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        fillColor: color,
-                        fillOpacity: 0.92,
-                        strokeColor: "#0b1220",
-                        strokeWeight: 1,
-                        scale: 8
-                    }
+                    optimized: false,
+                    icon: googleLocatorIcon(color)
                 });
                 marker.addListener("click", function () { onClick(biz, marker); });
                 markers.push(marker);
                 return marker;
             },
             styleMarker: function (marker, color) {
-                marker.setIcon({
-                    path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: color,
-                    fillOpacity: 0.92,
-                    strokeColor: "#0b1220",
-                    strokeWeight: 1,
-                    scale: 8
-                });
+                marker.setIcon(googleLocatorIcon(color));
             },
             setMarkerVisible: function (marker, on) { marker.setVisible(!!on); },
             fitBounds: function (pts, maxZoom) {
@@ -824,14 +825,11 @@
                 poiMarkers = [];
             },
             addPOI: function (poi, onClick) {
-                ensurePSStyle();
-                var icon = L.divIcon({
-                    className: "ps-marker",
-                    html: '<div class="ps-pin">PS</div>',
-                    iconSize: [36, 44],
-                    iconAnchor: [18, 44]
+                var marker = L.marker([poi.lat, poi.lng], {
+                    icon: leafletLocatorIcon(PS_PIN_COLOR, "PS"),
+                    pane: "poiPane",
+                    zIndexOffset: 800
                 });
-                var marker = L.marker([poi.lat, poi.lng], { icon: icon, pane: "poiPane", zIndexOffset: 800 });
                 marker.bindTooltip(escapeHtml(poi.name || poi.title || "PriceSmart"));
                 marker.on("click", function () { onClick(poi, marker); });
                 marker.addTo(poiLayer);
@@ -839,10 +837,10 @@
                 return marker;
             },
             addMarker: function (biz, color, onClick) {
-                var marker = L.circleMarker([biz.lat, biz.lng], {
-                    radius: 7, fillColor: color, color: "#0b1220",
-                    weight: 1, opacity: 1, fillOpacity: 0.9,
-                    pane: "bizPane", interactive: true
+                var marker = L.marker([biz.lat, biz.lng], {
+                    icon: leafletLocatorIcon(color),
+                    pane: "bizPane",
+                    interactive: true
                 });
                 marker.bindTooltip(escapeHtml(biz.title || "(sin nombre)"));
                 marker.on("click", function () { onClick(biz, marker); });
@@ -851,7 +849,7 @@
                 return marker;
             },
             styleMarker: function (marker, color) {
-                marker.setStyle({ fillColor: color });
+                marker.setIcon(leafletLocatorIcon(color));
             },
             setMarkerVisible: function (marker, on) {
                 var el = marker.getElement && marker.getElement();

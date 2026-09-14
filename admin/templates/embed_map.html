@@ -306,7 +306,9 @@
             var pois = (!key || key === "all" || key === "todas")
                 ? PRICE_SMART.slice()
                 : PRICE_SMART.filter(function (p) {
-                    return String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === key;
+                    var ck = String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    if (ck === key) return true;
+                    return (key === "bogota" || key === "chia") && (ck === "bogota" || ck === "chia");
                 });
             if (mapApi && mapApi.setPOIs) {
                 mapApi.setPOIs(pois, function (poi, marker) {

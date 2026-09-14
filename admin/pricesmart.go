@@ -15,6 +15,17 @@ type PriceSmartPOI struct {
 
 const priceSmartSite = "https://www.pricesmart.com/en-co/clubs-and-locations"
 
+// PriceSmartMetroBogota is true when a club should appear on the Bogotá map.
+// Chía (Yerbabuena / Autonorte) is part of that metro view.
+func PriceSmartMetroBogota(city string) bool {
+	switch CanonicalCity(city) {
+	case "Bogotá", "Chía":
+		return true
+	default:
+		return false
+	}
+}
+
 // PriceSmartLocations is Bogotá (Salitre + Usaquén) and Chía.
 // Coordinates match the OpenStreetMap footprints of each club.
 func PriceSmartLocations() []PriceSmartPOI {
@@ -45,7 +56,7 @@ func PriceSmartLocations() []PriceSmartPOI {
 			ID:      "ps-chia",
 			Name:    "PriceSmart Chía",
 			City:    "Chía",
-			Address: "Vía Simandoy, Yerbabuena Bajo, Autopista Norte, Chía",
+			Address: "Autopista Norte km 10.3, Yerbabuena Baja, Chía",
 			Lat:     4.8873559,
 			Lng:     -74.0110709,
 			Phone:   "+57 601 7424114",
