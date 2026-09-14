@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -178,12 +179,15 @@ const b2bRecentJobsLimit = 120
 // b2bJobView is the compact job status returned to the dashboard for live
 // progress of scrape searches.
 type b2bJobView struct {
-	JobID       string `json:"job_id"`
-	Keyword     string `json:"keyword"`
-	Status      string `json:"status"`
-	ResultCount int    `json:"result_count"`
-	Error       string `json:"error"`
-	Note        string `json:"note,omitempty"`
+	JobID       string     `json:"job_id"`
+	Keyword     string     `json:"keyword"`
+	Status      string     `json:"status"`
+	ResultCount int        `json:"result_count"`
+	Error       string     `json:"error"`
+	Note        string     `json:"note,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 // B2BJobsHandler returns the most recent scrape jobs as JSON so the dashboard
@@ -207,6 +211,8 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 			log.Error("b2b: ingest pending jobs", "error", err)
 		}
 
+		dismissed := dismissedJobSet(appState, r)
+
 		if appState.RQueueClient != nil {
 			result, err := appState.RQueueClient.ListJobs(r.Context(), "", b2bRecentJobsLimit, "")
 			if err != nil {
@@ -218,12 +224,19 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 
 			for i := range result.Jobs {
 				j := &result.Jobs[i]
+				if jobIsDismissed(j.JobID, dismissed) {
+					continue
+				}
+
 				view := b2bJobView{
 					JobID:       j.JobID,
 					Keyword:     j.Keyword,
 					Status:      j.Status,
 					ResultCount: j.ResultCount,
 					Error:       j.Error,
+					CreatedAt:   j.CreatedAt,
+					StartedAt:   j.StartedAt,
+					CompletedAt: j.CompletedAt,
 				}
 				if j.Status == "completed" {
 					view.Note = JobMapCountNote()
@@ -234,6 +247,74 @@ func B2BJobsHandler(appState *AppState) http.HandlerFunc {
 
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+// B2BDismissJobHandler hides a recent search from the map dashboard list.
+// Extracted businesses stay on the map. A still-running scrape is cancelled.
+func B2BDismissJobHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		jobID := chi.URLParam(r, "job_id")
+
+		riverID, err := rqueue.DecodeJobID(jobID)
+		if err != nil {
+			http.Error(w, "invalid job id", http.StatusBadRequest)
+			return
+		}
+
+		if err := appState.Store.DismissSearchJob(r.Context(), riverID); err != nil {
+			log.Error("b2b: dismiss job", "error", err, "job_id", jobID)
+			http.Error(w, "no se pudo quitar la búsqueda", http.StatusInternalServerError)
+
+			return
+		}
+
+		if appState.RQueueClient != nil {
+			if err := appState.RQueueClient.RemoveJobFromQueue(r.Context(), jobID); err != nil {
+				log.Error("b2b: remove job from queue", "error", err, "job_id", jobID)
+			}
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+func dismissedJobSet(appState *AppState, r *http.Request) map[int64]struct{} {
+	out := map[int64]struct{}{}
+	if appState == nil || appState.Store == nil {
+		return out
+	}
+
+	ids, err := appState.Store.ListDismissedJobIDs(r.Context())
+	if err != nil {
+		log.Error("b2b: list dismissed jobs", "error", err)
+		return out
+	}
+
+	for _, id := range ids {
+		out[id] = struct{}{}
+	}
+
+	return out
+}
+
+func jobIsDismissed(encodedJobID string, dismissed map[int64]struct{}) bool {
+	if len(dismissed) == 0 {
+		return false
+	}
+
+	id, err := rqueue.DecodeJobID(encodedJobID)
+	if err != nil {
+		return false
+	}
+
+	_, ok := dismissed[id]
+
+	return ok
 }
 
 // b2bStatusRequest is the JSON payload for updating a business CRM overlay.

@@ -26,6 +26,44 @@ ON CONFLICT (job_id) DO NOTHING`
 	return err
 }
 
+// DismissSearchJob hides a scrape from the B2B recent-searches list.
+func (s *store) DismissSearchJob(ctx context.Context, jobID int64) error {
+	if jobID == 0 {
+		return fmt.Errorf("missing job")
+	}
+
+	const q = `
+INSERT INTO b2b_dismissed_jobs (job_id, dismissed_at)
+VALUES ($1, NOW())
+ON CONFLICT (job_id) DO NOTHING`
+
+	_, err := s.db.Exec(ctx, q, jobID)
+
+	return err
+}
+
+// ListDismissedJobIDs returns River job ids hidden from the recent list.
+func (s *store) ListDismissedJobIDs(ctx context.Context) ([]int64, error) {
+	rows, err := s.db.Query(ctx, `SELECT job_id FROM b2b_dismissed_jobs`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []int64
+
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, rows.Err()
+}
+
 // IngestPendingSearchJobs files completed scrapes that still need a CRM overlay.
 func (s *store) IngestPendingSearchJobs(ctx context.Context) error {
 	const q = `

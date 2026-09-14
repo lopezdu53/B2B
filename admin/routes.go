@@ -66,6 +66,7 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 				r.Post("/b2b/categorias/{id}/update", UpdateCategoryHandler(appState))
 				r.Post("/b2b/categorias/{id}/delete", DeleteCategoryHandler(appState))
 				r.Post("/b2b/search", B2BSearchHandler(appState))
+				r.Post("/b2b/jobs/{job_id}/dismiss", B2BDismissJobHandler(appState))
 				r.Post("/b2b/businesses/delete-all", HideAllBusinessesHandler(appState))
 				r.Post("/b2b/businesses/reset", ResetLeadsHandler(appState))
 				r.Post("/b2b/advisors", CreateAdvisorHandler(appState))

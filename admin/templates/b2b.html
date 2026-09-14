@@ -144,6 +144,20 @@
         .job-bar.active > span { width:40%; background:var(--c-progress); animation: job-indet 1.1s ease-in-out infinite; }
         @keyframes job-indet { 0%{margin-left:-40%;} 100%{margin-left:100%;} }
         .job-count { font-size:.8rem; color: var(--muted); margin-top:.35rem; }
+        .job-actions { display:flex; align-items:center; gap:.4rem; flex-shrink:0; }
+        .job-remove {
+            background:none; border:1px solid #fecaca; color:#b91c1c; border-radius:8px;
+            font-size:.72rem; font-weight:600; padding:.18rem .5rem; cursor:pointer;
+        }
+        .job-remove:hover { background:#fef2f2; }
+        .job-timer { font-variant-numeric: tabular-nums; }
+        .draw-toolbar {
+            position:absolute; top:12px; left:12px; right:72px; z-index:6;
+            display:none; flex-wrap:wrap; gap:.5rem; align-items:center;
+            background:rgba(255,255,255,.96); border:1px solid var(--line);
+            border-radius:12px; padding:.55rem .7rem; box-shadow: var(--shadow-md);
+        }
+        .draw-toolbar .empty-hint { margin:0; flex:1 1 220px; }
 
         /* ---- Legend chips ---- */
         .legend { display: flex; flex-wrap: wrap; gap: .5rem; font-size: .8rem; margin: .8rem 0 0; }
@@ -211,6 +225,9 @@
         .dark .b2b-page .job-row { background: #0f1728; border-color: #232c3d; }
         .dark .b2b-page .job-kw { color: #e8edf5; }
         .dark .b2b-page .job-bar { background: #232c3d; }
+        .dark .b2b-page .job-remove { border-color:#7f1d1d; color:#fca5a5; }
+        .dark .b2b-page .job-remove:hover { background:#2a1416; }
+        .dark .b2b-page .draw-toolbar { background:rgba(15,23,40,.96); border-color:#232c3d; }
         .dark .b2b-page .list-table td { border-color: #232c3d; }
         .dark .b2b-page .list-table th { border-color: #2a3446; }
         .dark .b2b-page details.mgmt { border-color: #232c3d; }
@@ -389,6 +406,14 @@
             <div class="b2b-wrap">
                 <div>
                     <div class="map-stage" id="map-stage">
+                    {{if .CanManage}}
+                    <div id="draw-toolbar" class="draw-toolbar">
+                        <p id="draw-hint" class="empty-hint"></p>
+                        <button type="button" class="btn-secondary" id="btn-draw-undo">Deshacer</button>
+                        <button type="button" class="btn-primary" id="btn-draw-finish">Cerrar zona</button>
+                        <button type="button" class="btn-secondary" id="btn-draw-cancel">Cancelar</button>
+                    </div>
+                    {{end}}
                     <div id="map"></div>
                     <button type="button" class="btn-map-full" id="btn-map-full" title="Pantalla completa">⛶ Pantalla completa</button>
                     </div>
@@ -793,26 +818,18 @@
         let pendingGeom = null;
 
         function setDrawChrome(mode, verts, meta) {
-            const btnDraw = document.getElementById("btn-draw-zone");
+            const toolbar = document.getElementById("draw-toolbar");
             const btnFinish = document.getElementById("btn-draw-finish");
             const btnUndo = document.getElementById("btn-draw-undo");
             const btnCancel = document.getElementById("btn-draw-cancel");
             const hint = document.getElementById("draw-hint");
-            if (!btnDraw) return;
             const drawing = mode === "click" || mode === "google";
             const routing = !!(meta && meta.routing);
-            btnDraw.style.display = drawing ? "none" : "";
-            if (btnUndo) {
-                btnUndo.style.display = drawing ? "" : "none";
-                btnUndo.disabled = routing || !verts;
-            }
-            if (btnFinish) {
-                btnFinish.style.display = drawing ? "" : "none";
-                btnFinish.disabled = routing || !verts || verts < 3;
-            }
-            if (btnCancel) btnCancel.style.display = drawing ? "" : "none";
+            if (toolbar) toolbar.style.display = drawing ? "flex" : "none";
+            if (btnUndo) btnUndo.disabled = routing || !verts;
+            if (btnFinish) btnFinish.disabled = routing || !verts || verts < 3;
+            if (btnCancel) btnCancel.disabled = !!routing;
             if (hint) {
-                hint.style.display = drawing ? "" : "none";
                 if (routing) {
                     hint.textContent = "Siguiendo la calle o carrera…";
                 } else {
@@ -912,8 +929,6 @@
             setDrawChrome("click", 0);
         }
 
-        const btnDraw = document.getElementById("btn-draw-zone");
-        if (btnDraw) btnDraw.addEventListener("click", beginDraw);
         const btnUndo = document.getElementById("btn-draw-undo");
         if (btnUndo) btnUndo.addEventListener("click", function () {
             if (mapApi) mapApi.undoDraw();
@@ -942,14 +957,45 @@
         // --- Live progress of scrape searches ---
         const JOB_LABELS = { pending: "En cola", running: "Procesando", completed: "Completado", failed: "Error" };
         let jobsTimer = null;
+        let jobsTick = null;
         let lastActiveCount = 0;
+        let lastJobs = [];
+
+        function pad2(n) { return n < 10 ? "0" + n : String(n); }
+
+        function elapsedLabel(fromISO, toISO) {
+            if (!fromISO) return "";
+            const start = Date.parse(fromISO);
+            if (!start) return "";
+            const end = toISO ? Date.parse(toISO) : Date.now();
+            if (!end) return "";
+            const secs = Math.max(0, Math.floor((end - start) / 1000));
+            const h = Math.floor(secs / 3600);
+            const m = Math.floor((secs % 3600) / 60);
+            const s = secs % 60;
+            if (h > 0) return h + ":" + pad2(m) + ":" + pad2(s);
+            return m + ":" + pad2(s);
+        }
+
+        function jobClock(j) {
+            const st = j.status || "pending";
+            if (st === "running") return elapsedLabel(j.started_at || j.created_at);
+            if (st === "pending") return elapsedLabel(j.created_at);
+            if (st === "completed") return elapsedLabel(j.started_at || j.created_at, j.completed_at);
+            return "";
+        }
 
         function renderJobs(jobs) {
             const panel = document.getElementById("jobs-panel");
             const list = document.getElementById("jobs-list");
             const title = document.getElementById("jobs-title");
+            lastJobs = jobs || [];
 
-            if (!jobs || jobs.length === 0) { panel.style.display = "none"; return; }
+            if (!jobs || jobs.length === 0) {
+                panel.style.display = "none";
+                if (jobsTick) { clearInterval(jobsTick); jobsTick = null; }
+                return;
+            }
             panel.style.display = "block";
             if (title) {
                 const extracted = jobs.reduce((s, j) => s + (j.result_count || 0), 0);
@@ -974,11 +1020,13 @@
             list.innerHTML = jobs.map(j => {
                 const st = j.status || "pending";
                 const label = JOB_LABELS[st] || st;
+                const clock = jobClock(j);
+                const clockHtml = clock ? ' <span class="job-timer">· ' + clock + '</span>' : "";
                 let barClass = "active", countHtml = "";
                 if (st === "completed") {
                     barClass = "done";
                     const n = j.result_count || 0;
-                    countHtml = '<div class="job-count">✓ ' + n + ' extraídos de Google Maps</div>';
+                    countHtml = '<div class="job-count">✓ ' + n + ' extraídos de Google Maps' + clockHtml + '</div>';
                     if (j.note) {
                         countHtml += '<div class="job-count">' + escapeHtml(j.note) + '</div>';
                     }
@@ -986,17 +1034,63 @@
                     barClass = "err";
                     countHtml = '<div class="job-count">' + escapeHtml(j.error || "Falló la búsqueda") + '</div>';
                 } else if (st === "running") {
-                    countHtml = '<div class="job-count">Extrayendo de Google Maps…' +
-                        (j.result_count ? ' ' + j.result_count + ' hasta ahora' : '') + '</div>';
+                    const n = j.result_count || 0;
+                    countHtml = '<div class="job-count">Extrayendo de Google Maps… <strong>' + n +
+                        '</strong> ' + (n === 1 ? 'negocio' : 'negocios') + ' hasta ahora' + clockHtml + '</div>';
                 } else {
-                    countHtml = '<div class="job-count">Esperando un worker disponible…</div>';
+                    countHtml = '<div class="job-count">Esperando un worker disponible…' + clockHtml + '</div>';
                 }
-                return '<div class="job-row">' +
+                return '<div class="job-row" data-job="' + escapeHtml(j.job_id || "") + '">' +
                     '<div class="job-top"><span class="job-kw">' + escapeHtml(j.keyword || "(búsqueda)") + '</span>' +
-                    '<span class="job-badge ' + st + '">' + label + '</span></div>' +
+                    '<span class="job-actions"><span class="job-badge ' + st + '">' + label + '</span>' +
+                    '<button type="button" class="job-remove" data-id="' + escapeHtml(j.job_id || "") +
+                    '" title="Quitar de la lista">Quitar</button></span></div>' +
                     '<div class="job-bar ' + barClass + '"><span></span></div>' +
                     countHtml + '</div>';
             }).join("");
+
+            const live = jobs.some(j => j.status === "pending" || j.status === "running");
+            if (live && !jobsTick) {
+                jobsTick = setInterval(tickJobClocks, 1000);
+            } else if (!live && jobsTick) {
+                clearInterval(jobsTick);
+                jobsTick = null;
+            }
+        }
+
+        function tickJobClocks() {
+            lastJobs.forEach(function (j) {
+                const row = document.querySelector('.job-row[data-job="' + (j.job_id || "") + '"]');
+                if (!row) return;
+                const timer = row.querySelector(".job-timer");
+                const clock = jobClock(j);
+                if (timer && clock) timer.textContent = "· " + clock;
+            });
+        }
+
+        function dismissJob(id) {
+            if (!id) return;
+            if (!confirm("¿Quitar esta búsqueda de la lista? Los negocios ya extraídos se quedan en el mapa.")) return;
+            fetch("/admin/b2b/jobs/" + encodeURIComponent(id) + "/dismiss", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "X-CSRF-Token": CSRF }
+            }).then(function (r) {
+                if (!r.ok) throw new Error("dismiss");
+                lastJobs = lastJobs.filter(function (j) { return j.job_id !== id; });
+                renderJobs(lastJobs);
+                pollJobs();
+            }).catch(function () {
+                alert("No se pudo quitar la búsqueda");
+            });
+        }
+
+        const jobsList = document.getElementById("jobs-list");
+        if (jobsList) {
+            jobsList.addEventListener("click", function (e) {
+                const btn = e.target.closest(".job-remove");
+                if (btn) dismissJob(btn.getAttribute("data-id"));
+            });
         }
 
         function pollJobs() {
@@ -1014,7 +1108,7 @@
                     // Poll faster while work is in progress, slower when idle.
                     clearTimeout(jobsTimer);
                     if (active > 0) {
-                        jobsTimer = setTimeout(pollJobs, 3000);
+                        jobsTimer = setTimeout(pollJobs, 2500);
                     } else if (jobs.length > 0) {
                         jobsTimer = setTimeout(pollJobs, 15000);
                     }
@@ -1079,8 +1173,9 @@
                     document.addEventListener(ev, syncFullLabel);
                 });
             }
-            if (location.hash === "#dibujar" && document.getElementById("btn-draw-zone")) {
+            if (location.hash === "#dibujar" && document.getElementById("draw-toolbar")) {
                 beginDraw();
+                history.replaceState(null, "", location.pathname + location.search);
             }
         }).catch(function () {
             document.getElementById("loading-hint").textContent = "Error cargando el mapa de Bogotá";

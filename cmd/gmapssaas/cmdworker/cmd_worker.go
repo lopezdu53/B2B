@@ -130,6 +130,7 @@ var Command = &cli.Command{
 		manager := scraper.NewScraperManager(dbPool, concurrency, fastMode, debug, maxJobsPerCycle, proxies)
 		manager.OnJobComplete = IncrementJobsProcessed
 		manager.CentralWriter().OnResultsSaved = AddResultsCollected
+		manager.CentralWriter().OnProgress = scraper.WriteJobProgress(dbPool)
 
 		// Start health endpoint server
 		go runHealthServer(ctx, manager)

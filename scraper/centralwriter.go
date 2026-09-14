@@ -44,6 +44,9 @@ type CentralWriter struct {
 
 	save           SaveFunc
 	OnResultsSaved func(count int)
+	// OnProgress reports how many listings are buffered for the in-flight job
+	// so the dashboard can show a live count before flush.
+	OnProgress func(riverJobID int64, count int)
 }
 
 // NewCentralWriter creates a new CentralWriter.
@@ -87,13 +90,21 @@ func (cw *CentralWriter) RegisterJobFilter(jobID string, riverJobID int64, keywo
 // AddResult appends an entry for the currently tracked job.
 func (cw *CentralWriter) AddResult(jobID string, entry *gmaps.Entry) {
 	cw.mu.Lock()
-	defer cw.mu.Unlock()
 
 	if cw.current == nil || cw.current.jobID != jobID {
+		cw.mu.Unlock()
 		return
 	}
 
 	cw.current.entries = append(cw.current.entries, entry)
+	riverID := cw.current.riverJobID
+	count := len(cw.current.entries)
+	progress := cw.OnProgress
+	cw.mu.Unlock()
+
+	if progress != nil {
+		progress(riverID, count)
+	}
 }
 
 // MarkDone is called by the exit monitor when a job is complete.

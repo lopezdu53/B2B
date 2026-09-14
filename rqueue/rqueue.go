@@ -635,7 +635,7 @@ func (c *Client) ListJobs(ctx context.Context, state string, limit int, cursor s
 	jobIDs := make([]int64, 0, len(result.Jobs))
 
 	for _, job := range result.Jobs {
-		if job.State == rivertype.JobStateCompleted {
+		if job.State == rivertype.JobStateCompleted || job.State == rivertype.JobStateRunning {
 			jobIDs = append(jobIDs, job.ID)
 		}
 	}
@@ -667,6 +667,7 @@ func (c *Client) ListJobs(ctx context.Context, state string, limit int, cursor s
 		case rivertype.JobStateRunning:
 			item.Status = jobStatusRunning
 			item.StartedAt = job.AttemptedAt
+			item.ResultCount = resultCounts[job.ID]
 		case rivertype.JobStateCompleted:
 			item.Status = jobStatusCompleted
 			item.StartedAt = job.AttemptedAt
@@ -725,7 +726,35 @@ func (c *Client) getResultCounts(ctx context.Context, jobIDs []int64) (map[int64
 		counts[jobID] = count
 	}
 
-	return counts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Running jobs flush scrape_results only at the end. Mid-scrape counts
+	// live in scrape_job_progress and must not overwrite a finished row.
+	progressQ := `SELECT job_id, result_count FROM scrape_job_progress WHERE job_id = ANY($1)`
+
+	progRows, err := c.dbPool.Query(ctx, progressQ, jobIDs)
+	if err != nil {
+		return counts, nil
+	}
+
+	defer progRows.Close()
+
+	for progRows.Next() {
+		var jobID int64
+
+		var count int
+		if err := progRows.Scan(&jobID, &count); err != nil {
+			return counts, nil
+		}
+
+		if _, exists := counts[jobID]; !exists {
+			counts[jobID] = count
+		}
+	}
+
+	return counts, progRows.Err()
 }
 
 func (c *Client) InsertJob(ctx context.Context, args ScrapeJobArgs) (string, error) { //nolint:gocritic // hugeParam: ScrapeJobArgs is 96 bytes but is a River job argument and must be passed by value
@@ -923,6 +952,28 @@ func (c *Client) DeleteJob(ctx context.Context, encodedJobID string) error {
 	}
 
 	return nil
+}
+
+// RemoveJobFromQueue cancels a running scrape and deletes the River row so it
+// leaves the recent-jobs list. scrape_results are kept so map pins stay.
+func (c *Client) RemoveJobFromQueue(ctx context.Context, encodedJobID string) error {
+	jobID, err := decodeJobID(encodedJobID)
+	if err != nil {
+		return fmt.Errorf("invalid job id: %w", err)
+	}
+
+	job, err := c.riverClient.JobGet(ctx, jobID)
+	if err != nil {
+		return nil
+	}
+
+	if job.State == rivertype.JobStateRunning {
+		_, _ = c.riverClient.JobCancel(ctx, jobID)
+	}
+
+	_, err = c.dbPool.Exec(ctx, `DELETE FROM river_job WHERE id = $1 AND state <> 'running'`, jobID)
+
+	return err
 }
 
 // InsertWorkerProvisionJob queues a background job to provision a cloud worker.
