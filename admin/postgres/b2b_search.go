@@ -103,10 +103,19 @@ LIMIT 200`
 	return nil
 }
 
+// restoreTrashOnIngest reports whether ingest should pull matching CRM rows
+// out of the papelera. Only the first ingest of a job (a new search) does
+// that, so "Eliminar todos" + buscar de nuevo vuelve a mostrar resultados.
+// Reloading Negocios re-files jobs from the last 14 days and must not undo
+// an explicit "enviar a papelera".
+func restoreTrashOnIngest(alreadyIngested bool) bool {
+	return !alreadyIngested
+}
+
 // IngestSearchJob upserts qualifying leads from a finished scrape into the
 // tenant CRM, tagging category and specialty. Existing status / category /
-// specialty are left alone. A new search un-hides matching keys so
-// "Eliminar todos" + volver a buscar los trae de la papelera.
+// specialty are left alone. The first ingest of a job un-hides matching keys
+// so a brand-new search can refill the map; later re-ingests keep hidden.
 func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 	if jobID == 0 {
 		return nil
@@ -127,8 +136,6 @@ func (s *store) IngestSearchJob(ctx context.Context, jobID int64) error {
 	if err != nil {
 		return nil // no tagged job — nothing to file
 	}
-
-	_ = ingested
 
 	var raw []byte
 	err = s.db.QueryRow(ctx, `SELECT results FROM scrape_results WHERE job_id = $1`, jobID).Scan(&raw)
@@ -198,10 +205,10 @@ ON CONFLICT (place_id, tenant_id) DO UPDATE SET
     category_id = COALESCE(b2b_business_crm.category_id, EXCLUDED.category_id),
     specialty   = CASE WHEN COALESCE(b2b_business_crm.specialty, '') = '' THEN EXCLUDED.specialty ELSE b2b_business_crm.specialty END,
     title       = COALESCE(NULLIF(EXCLUDED.title, ''), b2b_business_crm.title),
-    hidden      = FALSE,
+    hidden      = CASE WHEN $7 THEN FALSE ELSE b2b_business_crm.hidden END,
     updated_at  = NOW()`
 
-		if _, err := s.db.Exec(ctx, upsert, keys, tenantID, admin.StatusProspect, categoryID, specialty, titles); err != nil {
+		if _, err := s.db.Exec(ctx, upsert, keys, tenantID, admin.StatusProspect, categoryID, specialty, titles, restoreTrashOnIngest(ingested)); err != nil {
 			return err
 		}
 	}
