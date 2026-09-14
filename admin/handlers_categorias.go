@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -190,6 +191,19 @@ func BulkBusinessHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		b2bRedirectBack(w, r, "/admin/b2b/negocios", "success", strconv.Itoa(len(keys))+"+negocios+actualizados")
+		msg := strconv.Itoa(len(keys)) + "+negocios+actualizados"
+		if action == "delete" {
+			msg = url.QueryEscape(bulkTrashSuccess(len(keys)))
+		}
+
+		b2bRedirectBack(w, r, "/admin/b2b/negocios", "success", msg)
 	}
+}
+
+func bulkTrashSuccess(n int) string {
+	if n == 1 {
+		return "1 negocio enviado a la papelera"
+	}
+
+	return strconv.Itoa(n) + " negocios enviados a la papelera"
 }

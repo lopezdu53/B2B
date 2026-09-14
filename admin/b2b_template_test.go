@@ -422,9 +422,19 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 		`4 a 5`,
 		`value="featured"`,
 		`target="_blank"`,
+		`id="bulk-form"`,
+		`novalidate`,
+		`trash-one`,
+		`Confirmar papelera`,
+		`Enviar a papelera`,
+		`valueSel.disabled = isDelete`,
 	} {
 		if !strings.Contains(neg, needle) {
 			t.Errorf("negocios.html missing %q", needle)
 		}
+	}
+
+	if strings.Contains(neg, `confirm("¿Eliminar`) {
+		t.Error("negocios.html must not block trash with window.confirm")
 	}
 }

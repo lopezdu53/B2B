@@ -103,7 +103,7 @@
 
         <div class="card">
             {{if .Rows}}
-            <form method="POST" action="/admin/b2b/negocios/bulk" id="bulk-form">
+            <form method="POST" action="/admin/b2b/negocios/bulk" id="bulk-form" novalidate>
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div class="bulk-bar" id="bulk-bar">
                     <span class="bulk-count" id="bulk-count">0 seleccionados</span>
@@ -149,12 +149,13 @@
                                 <td>{{if .CategoryName}}{{.CategoryName}}{{if .Specialty}} <span class="muted">· {{.Specialty}}</span>{{end}}{{else}}<span class="muted">—</span>{{end}}</td>
                                 <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
                                 <td>{{if .ZoneName}}{{.ZoneName}}{{else}}<span class="muted">—</span>{{end}}</td>
-                                <td style="text-align:right;">
+                                <td style="text-align:right; white-space:nowrap;">
                                     <button type="button" class="btn-edit"
                                         data-key="{{.Key}}" data-title="{{.Title}}" data-status="{{.Status}}"
                                         data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}" data-zone="{{if .ZoneID}}{{.ZoneID}}{{end}}"
                                         data-category="{{if .CategoryID}}{{.CategoryID}}{{end}}" data-notes="{{.Notes}}"
                                         onclick="editBiz(this)">Editar</button>
+                                    <button type="button" class="btn-link trash-one" data-key="{{.Key}}" style="color:#dc2626;">Papelera</button>
                                 </td>
                             </tr>
                         {{end}}
@@ -264,34 +265,66 @@
         var applyBtn = document.getElementById("bulk-apply");
         function fillValues() {
             var isDelete = actionSel.value === "delete";
+            valueSel.disabled = isDelete;
+            valueSel.removeAttribute("required");
             valueSel.style.display = isDelete ? "none" : "";
-            applyBtn.textContent = isDelete ? "🗑 Eliminar" : "Aplicar a la selección";
+            applyBtn.textContent = isDelete ? "Enviar a papelera" : "Aplicar a la selección";
             applyBtn.classList.toggle("btn-danger", isDelete);
-            var opts = BULK[actionSel.value] || [];
+            applyBtn.classList.toggle("btn-primary", true);
+            var opts = isDelete ? [["", "—"]] : (BULK[actionSel.value] || []);
             valueSel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join("");
+            form.dataset.ok = "";
+        }
+        function resetTrashConfirm() {
+            form.dataset.ok = "";
+            if (actionSel.value === "delete") {
+                applyBtn.textContent = "Enviar a papelera";
+            }
         }
         function updateCount() {
             var n = checks().filter(function (c) { return c.checked; }).length;
             countEl.textContent = n + " seleccionados";
             bar.classList.toggle("active", n > 0);
+            if (form.dataset.ok === "1" && actionSel.value === "delete") {
+                applyBtn.textContent = "Confirmar papelera (" + n + ")";
+            }
         }
 
         actionSel.addEventListener("change", fillValues);
         document.getElementById("check-all").addEventListener("change", function () {
             checks().forEach(function (c) { c.checked = this.checked; }, this);
+            resetTrashConfirm();
             updateCount();
         });
-        checks().forEach(function (c) { c.addEventListener("change", updateCount); });
+        checks().forEach(function (c) { c.addEventListener("change", function () {
+            resetTrashConfirm();
+            updateCount();
+        }); });
+        form.addEventListener("click", function (e) {
+            var btn = e.target.closest(".trash-one");
+            if (!btn) return;
+            var key = btn.getAttribute("data-key") || "";
+            if (!key) return;
+            checks().forEach(function (c) { c.checked = c.value === key; });
+            actionSel.value = "delete";
+            fillValues();
+            form.dataset.ok = "1";
+            updateCount();
+            applyBtn.focus();
+        });
         form.addEventListener("submit", function (e) {
             var n = checks().filter(function (c) { return c.checked; }).length;
             if (n === 0) {
                 e.preventDefault();
-                alert("Selecciona al menos un negocio.");
+                applyBtn.textContent = "Selecciona al menos un negocio";
                 return;
             }
-            if (actionSel.value === "delete" && !confirm("¿Eliminar " + n + " negocio(s) de tu lista? (No afecta a otros clientes)")) {
-                e.preventDefault();
-            }
+            if (actionSel.value !== "delete") return;
+            if (form.dataset.ok === "1") return;
+            e.preventDefault();
+            form.dataset.ok = "1";
+            applyBtn.textContent = "Confirmar papelera (" + n + ")";
+            applyBtn.classList.add("btn-danger");
         });
 
         fillValues();
