@@ -37,6 +37,23 @@ func TestAbsoluteHTTPURL(t *testing.T) {
 	}
 }
 
+func TestFillCategoryNameInfersSpecialty(t *testing.T) {
+	t.Parallel()
+
+	row := businessRow{MapBusiness: MapBusiness{Specialty: "Bed & breakfast"}}
+	fillCategoryName(&row, nil)
+	if row.CategoryName != "Hoteles" {
+		t.Fatalf("got %q", row.CategoryName)
+	}
+
+	hotelesID := int64(3)
+	row = businessRow{MapBusiness: MapBusiness{CategoryID: &hotelesID, Specialty: "Hostales"}}
+	fillCategoryName(&row, map[int64]string{3: "Hoteles"})
+	if row.CategoryName != "Hoteles" {
+		t.Fatalf("crm category: %q", row.CategoryName)
+	}
+}
+
 func TestRatingBandBounds(t *testing.T) {
 	t.Parallel()
 

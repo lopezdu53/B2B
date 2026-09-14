@@ -52,6 +52,30 @@ type businessRow struct {
 	CategoryName string
 }
 
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+
+	return ""
+}
+
+func fillCategoryName(row *businessRow, names map[int64]string) {
+	if row == nil {
+		return
+	}
+
+	if row.CategoryID != nil {
+		row.CategoryName = names[*row.CategoryID]
+	}
+
+	if row.CategoryName == "" {
+		row.CategoryName = InferFixedCategory(firstNonEmpty(row.Specialty, row.Category))
+	}
+}
+
 // NegociosPageHandler renders the searchable list of businesses.
 func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +130,10 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		f.Offset = (page - 1) * pageSize
 
 		tid, _ := effectiveTenant(appState, r)
+
+		if err := appState.Store.IngestPendingSearchJobs(ctx); err != nil {
+			log.Error("b2b: ingest pending jobs", "error", err)
+		}
 
 		total, _ := appState.Store.CountBusinesses(ctx, tid, f)
 
@@ -178,9 +206,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 				row.ZoneName = zoneNames[*b.ZoneID]
 			}
 
-			if b.CategoryID != nil {
-				row.CategoryName = categoryNames[*b.CategoryID]
-			}
+			fillCategoryName(&row, categoryNames)
 
 			rows = append(rows, row)
 		}
@@ -402,9 +428,7 @@ func PapeleraPageHandler(appState *AppState) http.HandlerFunc {
 				row.AdvisorName = advisorNames[*b.AdvisorID]
 			}
 
-			if b.CategoryID != nil {
-				row.CategoryName = categoryNames[*b.CategoryID]
-			}
+			fillCategoryName(&row, categoryNames)
 
 			rows = append(rows, row)
 		}

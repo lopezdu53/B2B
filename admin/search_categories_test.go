@@ -120,6 +120,26 @@ func TestSpecialtyLabelForKeyword(t *testing.T) {
 	}
 }
 
+func TestParentCategoryName(t *testing.T) {
+	t.Parallel()
+
+	if got := ParentCategoryName("hoteles", "bed and breakfast"); got != "Hoteles" {
+		t.Fatalf("hoteles: %q", got)
+	}
+
+	if got := ParentCategoryName("restaurantes", "taquerías"); got != "Restaurantes" {
+		t.Fatalf("restaurantes: %q", got)
+	}
+
+	if got := ParentCategoryName("supermercados", "fruver"); got != "SúperMercados" {
+		t.Fatalf("supermercados: %q", got)
+	}
+
+	if got := ParentCategoryName("", "hostales"); got != "Hoteles" {
+		t.Fatalf("specialty fallback: %q", got)
+	}
+}
+
 func TestResolveSearchTermsHotelesAndSupermercados(t *testing.T) {
 	t.Parallel()
 

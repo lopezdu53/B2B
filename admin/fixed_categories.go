@@ -37,15 +37,52 @@ func CanonicalFixedCategory(name string) string {
 	}
 }
 
+func foldCategoryKey(s string) string {
+	k := cityKey(s)
+	k = strings.ReplaceAll(k, " and ", " ")
+	k = strings.ReplaceAll(k, " y ", " ")
+
+	return strings.Join(strings.Fields(k), " ")
+}
+
+func parentNameForRubroID(id string) string {
+	switch strings.ToLower(strings.TrimSpace(id)) {
+	case RubroHoteles:
+		return "Hoteles"
+	case RubroSupermercados:
+		return "SúperMercados"
+	default:
+		return "Restaurantes"
+	}
+}
+
 // InferFixedCategory folds extra/legacy names (Pizzerías, Hostales, …)
-// into the matching locked category. Unknown food-like names become Restaurantes.
+// into the matching locked category. Search specialties (bed and breakfast,
+// taquerías, fruver…) map to their parent rubro. Unknown food-like names
+// become Restaurantes.
 func InferFixedCategory(name string) string {
 	if c := CanonicalFixedCategory(name); c != "" {
 		return c
 	}
 
+	want := foldCategoryKey(name)
+	if want != "" {
+		for _, rubro := range SearchRubros() {
+			parent := parentNameForRubroID(rubro.ID)
+			if foldCategoryKey(rubro.ID) == want || foldCategoryKey(rubro.Label) == want {
+				return parent
+			}
+
+			for _, spec := range rubro.Specialties {
+				if foldCategoryKey(spec.Keyword) == want || foldCategoryKey(spec.Label) == want {
+					return parent
+				}
+			}
+		}
+	}
+
 	k := cityKey(name)
-	for _, h := range []string{"hotel", "hostal", "hospedaje", "apartahotel", "glamping", "posada", "residencia"} {
+	for _, h := range []string{"hotel", "hostal", "hosteria", "hospedaje", "apartahotel", "apartamento", "glamping", "posada", "residencia", "breakfast", "boutique", "cabana", "motel", "hostel"} {
 		if strings.Contains(k, h) {
 			return "Hoteles"
 		}

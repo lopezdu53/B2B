@@ -186,6 +186,29 @@ func SearchRubros() []SearchRubro {
 	}
 }
 
+// ParentCategoryName returns the locked CRM category for a search rubro
+// (and, if the id is missing, for a specialty keyword/label).
+func ParentCategoryName(rubroID, specialty string) string {
+	switch strings.ToLower(strings.TrimSpace(rubroID)) {
+	case RubroHoteles:
+		return "Hoteles"
+	case RubroSupermercados:
+		return "SúperMercados"
+	case RubroRestaurantes:
+		return "Restaurantes"
+	}
+
+	if r := FindSearchRubro(rubroID); r != nil {
+		return ParentCategoryName(r.ID, "")
+	}
+
+	if spec := InferFixedCategory(specialty); spec != "" {
+		return spec
+	}
+
+	return InferFixedCategory(rubroID)
+}
+
 // FindSearchRubro returns the rubro by id, or nil.
 func FindSearchRubro(id string) *SearchRubro {
 	id = strings.ToLower(strings.TrimSpace(id))
