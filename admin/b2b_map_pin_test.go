@@ -22,10 +22,20 @@ func TestB2BMapUsesLocatorPins(t *testing.T) {
 		"leafletLocatorIcon",
 		`MAPS_PIN_PATH`,
 		`PS_PIN_COLOR`,
-		`DEMO_MAP_ID`,
 	} {
 		if !strings.Contains(js, needle) {
 			t.Errorf("b2b-map.js missing %q", needle)
+		}
+	}
+
+	for _, gone := range []string{
+		"AdvancedMarkerElement",
+		"DEMO_MAP_ID",
+		"googleLocatorIcon",
+		"google.maps.marker",
+	} {
+		if strings.Contains(js, gone) {
+			t.Errorf("b2b-map.js should not use %q", gone)
 		}
 	}
 
