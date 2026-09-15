@@ -1,0 +1,227 @@
+{{define "embed_zona.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#2563eb">
+    <link rel="stylesheet" href="/admin/static/leaflet.css">
+    <title>{{if .Zone}}{{.Zone.Name}}{{else}}Zona{{end}}</title>
+    <style>
+        :root {
+            --ink:#0f172a; --muted:#64748b; --line:#e6e9f0; --surface:#ffffff; --bg:#eef2f7;
+            --brand:#2563eb; --brand2:#0ea5e9;
+            --c-prospect:#2563eb; --c-progress:#f59e0b; --c-client:#16a34a; --c-discard:#94a3b8;
+            --shadow: 0 4px 20px -6px rgba(16,24,40,.18);
+            --shadow-sm: 0 1px 3px rgba(16,24,40,.10);
+            --radius: 12px;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ink:#e8edf5; --muted:#94a3b8; --line:#26304260; --surface:#131c2e; --bg:#0b1220;
+                --shadow: 0 4px 20px -6px rgba(0,0,0,.5);
+                --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+            }
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color: var(--ink); background: var(--bg);
+            display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+        }
+        .topbar {
+            display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+            padding: .55rem .8rem; background: var(--surface);
+            border-bottom: 1px solid var(--line); box-shadow: var(--shadow-sm);
+            position: relative; z-index: 800;
+        }
+        .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: .98rem; letter-spacing: -.01em; }
+        .brand .pin {
+            width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+            background: linear-gradient(135deg, var(--brand), var(--brand2)); color: #fff; font-size: 1rem;
+            box-shadow: 0 4px 10px -2px rgba(37,99,235,.5);
+        }
+        .brand .sub { font-weight: 500; font-size: .78rem; color: var(--muted); }
+        .count {
+            margin-left: auto; font-size: .76rem; font-weight: 600; color: var(--muted);
+            background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: .28rem .7rem; white-space: nowrap;
+        }
+        .stage { flex: 1; min-height: 0; position: relative; }
+        #map { position: absolute; inset: 0; z-index: 0; background: var(--bg); }
+        .leaflet-container { font-family: inherit; }
+        .legend-card {
+            position: absolute; left: 12px; bottom: 16px; z-index: 600; max-width: min(78%, 340px);
+            background: color-mix(in srgb, var(--surface) 92%, transparent);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
+        }
+        .legend-head {
+            display: flex; align-items: center; gap: .4rem; width: 100%; cursor: pointer; user-select: none;
+            padding: .5rem .7rem; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+            color: var(--muted); background: none; border: 0; font-family: inherit;
+        }
+        .legend-head .chev { margin-left: auto; transition: transform .2s; font-size: .8rem; }
+        .legend-card.collapsed .chev { transform: rotate(-90deg); }
+        .legend-body {
+            display: flex; flex-wrap: wrap; gap: .4rem; padding: 0 .7rem .6rem; max-height: 34vh; overflow-y: auto;
+        }
+        .legend-card.collapsed .legend-body { display: none; }
+        .legend-body span { display: inline-flex; align-items: center; gap: .38rem; font-size: .78rem; font-weight: 500; color: var(--ink); }
+        .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 80%, transparent); flex: none; }
+        .leaflet-popup-content-wrapper {
+            border-radius: 14px; box-shadow: var(--shadow);
+            background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+        }
+        .leaflet-popup-tip { background: var(--surface); box-shadow: var(--shadow); }
+        .leaflet-popup-content { margin: .85rem 1rem; }
+        .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+        .leaflet-container a.leaflet-popup-close-button:hover { color: var(--ink); }
+        .pop { font-family: inherit; min-width: 200px; max-width: 270px; }
+        .pop h4 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; line-height: 1.25; }
+        .pop .meta { font-size: .85rem; line-height: 1.6; color: var(--ink); }
+        .pop .meta > div { margin-bottom: .1rem; }
+        .pop .meta a { color: var(--brand); font-weight: 600; word-break: break-all; }
+        .pop .badge { display: inline-block; margin-top: .55rem; font-size: .72rem; font-weight: 700; padding: .18rem .65rem; border-radius: 999px; color: #fff; }
+        .muted { color: var(--muted); }
+        @media (max-width: 720px) {
+            .count { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
+            .brand .sub { display: none; }
+            .legend-card { left: 10px; right: 10px; bottom: 10px; max-width: none; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <span class="pin">📍</span>
+            <div>
+                <div>{{if .Zone}}{{.Zone.Name}}{{else}}Zona{{end}}</div>
+                <div class="sub">Solo esta zona y sus negocios</div>
+            </div>
+        </div>
+        <span class="count" id="count"></span>
+    </header>
+
+    <div class="stage">
+        <div id="map"></div>
+        <div class="legend-card" id="legend-card">
+            <button type="button" class="legend-head" id="legend-head">
+                <span>Leyenda</span><span class="chev">▾</span>
+            </button>
+            <div class="legend-body" id="legend"></div>
+        </div>
+    </div>
+
+    <script src="/admin/static/leaflet.js"></script>
+    <script src="/admin/static/b2b-map.js?v={{.AssetVersion}}"></script>
+    {{if .GoogleMapsAPIKey}}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{.GoogleMapsAPIKey}}&amp;v=weekly&amp;language=es&amp;region=CO"></script>
+    {{end}}
+    <script>
+    (function () {
+        const TOKEN = "{{.Token}}";
+        const GOOGLE_KEY = "{{.GoogleMapsAPIKey}}";
+        const STATUS_COLORS = { prospect:"#2563eb", in_progress:"#f59e0b", client:"#16a34a", featured:"#eab308", discarded:"#9ca3af" };
+        const STATUS_LABELS = { prospect:"Prospecto", in_progress:"En gestión", client:"Cliente", featured:"Destacado", discarded:"Descartado" };
+        const ZONES_LIST = {{.ZoneData}} || [];
+        const NEUTRAL = "#94a3b8";
+        const escapeHtml = window.B2BMap.escapeHtml;
+        let mapApi = null;
+
+        function colorFor(b) {
+            return STATUS_COLORS[b.status] || STATUS_COLORS.prospect;
+        }
+
+        function popupHtml(b) {
+            const parts = ['<div class="pop"><h4>' + escapeHtml(b.title || "(sin nombre)") + "</h4>", '<div class="meta">'];
+            function absURL(u) {
+                if (!u) return "";
+                if (/^(https?:|mailto:)/i.test(u)) return u;
+                return "https://" + u;
+            }
+            if (b.specialty) parts.push("<div><strong>" + escapeHtml(b.specialty) + "</strong></div>");
+            if (b.category) parts.push("<div>" + escapeHtml(b.category) + "</div>");
+            if (b.review_count > 0) parts.push("<div>⭐ " + Number(b.rating).toFixed(1) + " <span class='muted'>(" + b.review_count + " reseñas)</span></div>");
+            if (b.address) parts.push("<div>" + escapeHtml(b.address) + "</div>");
+            if (b.phone) parts.push("<div>📞 " + escapeHtml(b.phone) + "</div>");
+            if (b.website) parts.push('<div>🌐 <a href="' + escapeHtml(absURL(b.website)) + '" target="_blank" rel="noopener">Página web</a></div>');
+            if (b.maps_url) parts.push('<div>📍 <a href="' + escapeHtml(b.maps_url) + '" target="_blank" rel="noopener">Ver en Google Maps</a></div>');
+            if (b.email) parts.push('<div>✉️ <a href="mailto:' + escapeHtml(b.email) + '" target="_blank" rel="noopener">' + escapeHtml(b.email) + "</a></div>");
+            parts.push("</div>");
+            const st = b.status || "prospect";
+            parts.push('<span class="badge" style="background:' + (STATUS_COLORS[st] || NEUTRAL) + '">' + (STATUS_LABELS[st] || st) + "</span>");
+            parts.push("</div>");
+            return parts.join("");
+        }
+
+        function renderLegend() {
+            const el = document.getElementById("legend");
+            const items = [
+                { color: STATUS_COLORS.prospect, label: "Prospecto" },
+                { color: STATUS_COLORS.in_progress, label: "En gestión" },
+                { color: STATUS_COLORS.client, label: "Cliente" },
+                { color: STATUS_COLORS.featured, label: "Destacado" },
+                { color: STATUS_COLORS.discarded, label: "Descartado" }
+            ];
+            el.innerHTML = items.map(it => '<span><i class="dot" style="background:' + it.color + '"></i> ' + escapeHtml(it.label) + "</span>").join("");
+        }
+
+        function fitZone() {
+            var z = ZONES_LIST[0];
+            var geom = window.B2BMap.parseZoneGeom(z);
+            if (!geom || !mapApi || !mapApi.engine || !mapApi.engine.fitBox) return false;
+            var box = window.B2BMap.geomBounds(geom);
+            if (!box) return false;
+            mapApi.engine.fitBox(box);
+            return true;
+        }
+
+        function load() {
+            if (!mapApi) return;
+            const count = document.getElementById("count");
+            count.textContent = "Cargando…";
+            fetch("/embed/zona/businesses?t=" + encodeURIComponent(TOKEN))
+                .then(r => {
+                    if (!r.ok) throw new Error("load failed");
+                    return r.json();
+                })
+                .then(list => {
+                    if (!Array.isArray(list)) throw new Error("bad payload");
+                    mapApi.setMarkers(list, colorFor, function (b, marker) {
+                        mapApi.openInfo(marker, popupHtml(b));
+                    });
+                    if (!fitZone()) mapApi.fitOverview([]);
+                    count.textContent = (mapApi.visibleCount ? mapApi.visibleCount() : list.length) + " negocios";
+                    renderLegend();
+                })
+                .catch(() => {
+                    count.textContent = "Error al cargar";
+                    if (mapApi.setMarkers) mapApi.setMarkers([], colorFor, function () {});
+                    fitZone();
+                });
+        }
+
+        const legendCard = document.getElementById("legend-card");
+        if (window.matchMedia("(max-width: 720px)").matches) legendCard.classList.add("collapsed");
+        document.getElementById("legend-head").addEventListener("click", () => legendCard.classList.toggle("collapsed"));
+
+        renderLegend();
+        B2BMap.create({
+            el: document.getElementById("map"),
+            apiKey: GOOGLE_KEY,
+            showLocalidades: false,
+            showBarrios: false
+        }).then(function (api) {
+            mapApi = api;
+            api.setZones(ZONES_LIST);
+            load();
+        }).catch(function () {
+            document.getElementById("count").textContent = "Error al cargar el mapa";
+        });
+    })();
+    </script>
+</body>
+</html>
+{{end}}

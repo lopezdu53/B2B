@@ -59,3 +59,24 @@ func TestB2BMapUsesLocatorPins(t *testing.T) {
 		t.Error("PriceSmart should use the same locator pin as businesses")
 	}
 }
+
+func TestB2BMapSupportsStraightDraw(t *testing.T) {
+	t.Parallel()
+
+	raw, err := staticFS.ReadFile("static/b2b-map.js")
+	if err != nil {
+		t.Fatalf("read b2b-map.js: %v", err)
+	}
+
+	js := string(raw)
+	for _, needle := range []string{
+		"drawOpts.mode",
+		`mode === "straight"`,
+		"startStreetDraw(engine, color, drawOpts.onVertex, onDone, drawOpts.mode)",
+		"geomBounds: geomBounds",
+	} {
+		if !strings.Contains(js, needle) {
+			t.Errorf("b2b-map.js missing %q", needle)
+		}
+	}
+}

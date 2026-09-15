@@ -95,11 +95,22 @@ func TestB2BTemplateRenders(t *testing.T) {
 		t.Fatalf("execute embed_map.html: %v", err)
 	}
 
+	embedZoneData := map[string]any{
+		"Token":            "z.1.2.deadbeef",
+		"Zone":             zones[0],
+		"ZoneData":         asJSON(zones),
+		"GoogleMapsAPIKey": "AIza-test",
+		"AssetVersion":     "test",
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "embed_zona.html", embedZoneData); err != nil {
+		t.Fatalf("execute embed_zona.html: %v", err)
+	}
+
 	// zonas.html needs zoneRow values.
 	zdata := map[string]any{
 		"CSRFToken": "t",
 		"Advisors":  advisors,
-		"Rows":      []zoneRow{{Zone: zones[0], AdvisorName: "Ana"}},
+		"Rows":      []zoneRow{{Zone: zones[0], AdvisorName: "Ana", ShareURL: "https://example.com/embed/zona?t=z.1.1.abc"}},
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "zonas.html", zdata); err != nil {
 		t.Fatalf("execute zonas.html: %v", err)
@@ -276,6 +287,11 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		`id="btn-draw-finish"`,
 		`id="btn-draw-undo"`,
 		`id="btn-draw-cancel"`,
+		`id="btn-draw-streets"`,
+		`id="btn-draw-straight"`,
+		`Seguir calles`,
+		`Líneas rectas`,
+		`#dibujar-recto`,
 		`class="job-remove"`,
 		`/admin/b2b/jobs/`,
 	} {
@@ -319,7 +335,7 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 	zdata := map[string]any{
 		"CSRFToken": "t",
 		"Advisors":  []Advisor{},
-		"Rows":      []zoneRow{{Zone: drawn[0]}},
+		"Rows":      []zoneRow{{Zone: drawn[0], ShareURL: "/embed/zona?t=z.1.1.abc"}},
 	}
 
 	buf.Reset()
@@ -340,6 +356,22 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 
 	if !strings.Contains(zonas, `id="btn-draw-zone"`) {
 		t.Error("zonas.html should include the draw-zone button")
+	}
+
+	for _, needle := range []string{
+		`id="btn-draw-straight-zone"`,
+		`/admin/b2b#dibujar-recto`,
+		`Exportar Excel`,
+		`Importar Excel`,
+		`/admin/b2b/zones/`,
+		`/export`,
+		`/import`,
+		`/embed/zona?t=`,
+		`Enlace público`,
+	} {
+		if !strings.Contains(zonas, needle) {
+			t.Errorf("zonas.html missing %q", needle)
+		}
 	}
 }
 

@@ -4,6 +4,18 @@
 <head>
     {{template "head" .}}
     <title>Zonas - Maps Scraper</title>
+    <style>
+        .draw-choice { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:.85rem; }
+        .draw-choice .btn-primary { position:relative; z-index:1; background:#fff; color:#1d4ed8; }
+        .zone-excel, .zone-share { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }
+        .share-url {
+            width: min(220px, 42vw); font-size:.75rem; padding:.28rem .45rem; margin:0;
+            border-radius:8px;
+        }
+        .zone-actions { text-align:right; white-space:nowrap; }
+        .zone-actions form { display:inline; }
+        input[type=file].zone-file { display:none; }
+    </style>
 </head>
 <body>
     {{template "navbar" .}}
@@ -14,8 +26,11 @@
 
         <div class="page-header">
             <h1>Zonas</h1>
-            <p>Define zonas por nombre y asígnalas a un asesor para repartir el territorio. También puedes dibujar el polígono en el mapa.</p>
-            <a href="/admin/b2b#dibujar" class="btn-primary" id="btn-draw-zone" style="margin-top:.85rem; position:relative; z-index:1; background:#fff; color:#1d4ed8;">✎ Dibujar zona en el mapa</a>
+            <p>Define zonas por nombre y asígnalas a un asesor. Dibuja el polígono en el mapa siguiendo las calles o con líneas rectas. Cada zona exporta e importa su Excel de negocios y tiene un enlace público que solo muestra esa zona.</p>
+            <div class="draw-choice">
+                <a href="/admin/b2b#dibujar" class="btn-primary" id="btn-draw-zone">✎ Dibujar siguiendo calles</a>
+                <a href="/admin/b2b#dibujar-recto" class="btn-primary" id="btn-draw-straight-zone">✎ Dibujar líneas rectas</a>
+            </div>
         </div>
 
         <div class="card">
@@ -44,7 +59,7 @@
             </div>
             <div class="table-wrap">
                 <table class="data-table" id="zone-table">
-                    <thead><tr><th>Zona</th><th>Ciudad</th><th>Asesor</th><th>Mapa</th><th></th></tr></thead>
+                    <thead><tr><th>Zona</th><th>Ciudad</th><th>Asesor</th><th>Mapa</th><th>Excel</th><th>Enlace público</th><th></th></tr></thead>
                     <tbody>
                     {{range .Rows}}
                         <tr>
@@ -52,12 +67,29 @@
                             <td>{{.City}}</td>
                             <td>{{if .AdvisorName}}{{.AdvisorName}}{{else}}<span class="muted">Sin asignar</span>{{end}}</td>
                             <td>{{if .HasGeometry}}<span class="count-badge">Dibujada</span>{{else}}<span class="muted">Solo nombre</span>{{end}}</td>
-                            <td style="text-align:right; white-space:nowrap;">
+                            <td>
+                                <div class="zone-excel">
+                                    <a class="btn-edit" href="/admin/b2b/zones/{{.ID}}/export">Exportar Excel</a>
+                                    <form method="POST" action="/admin/b2b/zones/{{.ID}}/import" enctype="multipart/form-data">
+                                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                        <label class="btn-edit" style="cursor:pointer;">Importar Excel
+                                            <input class="zone-file" type="file" name="file" accept=".csv,text/csv,.txt,application/vnd.ms-excel" onchange="if(this.files.length) this.form.submit();">
+                                        </label>
+                                    </form>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="zone-share">
+                                    <input class="share-url" type="text" readonly value="{{.ShareURL}}" onclick="this.select()" aria-label="Enlace público de {{.Name}}">
+                                    <button type="button" class="btn-edit" data-url="{{.ShareURL}}" onclick="copyZoneLink(this)">Copiar</button>
+                                </div>
+                            </td>
+                            <td class="zone-actions">
                                 <button type="button" class="btn-edit"
                                     data-id="{{.ID}}" data-name="{{.Name}}" data-city="{{.City}}" data-color="{{.Color}}"
                                     data-advisor="{{if .AdvisorID}}{{.AdvisorID}}{{end}}"
                                     onclick="editZone(this)">Editar</button>
-                                <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" style="display:inline;" onsubmit="return confirm('¿Eliminar zona?');">
+                                <form method="POST" action="/admin/b2b/zones/{{.ID}}/delete" onsubmit="return confirm('¿Eliminar zona?');">
                                     <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
                                     <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
                                 </form>
@@ -112,6 +144,17 @@
         document.getElementById("e-advisor").value = btn.dataset.advisor || "";
         document.getElementById("e-color").value = btn.dataset.color || "#2563eb";
         document.getElementById("edit-modal").classList.add("open");
+    }
+    function copyZoneLink(btn) {
+        var url = btn.getAttribute("data-url") || "";
+        if (url && url.indexOf("http") !== 0) url = location.origin + url;
+        if (!url) return;
+        function ok() { btn.textContent = "Copiado"; setTimeout(function () { btn.textContent = "Copiar"; }, 1600); }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(ok).catch(function () { window.prompt("Copia el enlace público", url); });
+        } else {
+            window.prompt("Copia el enlace público", url);
+        }
     }
     document.getElementById("edit-modal").addEventListener("click", function (e) {
         if (e.target === this) closeModal("edit-modal");

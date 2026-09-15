@@ -158,6 +158,10 @@
             border-radius:12px; padding:.55rem .7rem; box-shadow: var(--shadow-md);
         }
         .draw-toolbar .empty-hint { margin:0; flex:1 1 220px; }
+        .draw-modes { display:flex; gap:.3rem; flex:none; }
+        .draw-modes button.is-active {
+            background:#0891b2; color:#fff; border-color:#0891b2;
+        }
 
         /* ---- Legend chips ---- */
         .legend { display: flex; flex-wrap: wrap; gap: .5rem; font-size: .8rem; margin: .8rem 0 0; }
@@ -408,6 +412,10 @@
                     <div class="map-stage" id="map-stage">
                     {{if .CanManage}}
                     <div id="draw-toolbar" class="draw-toolbar">
+                        <div class="draw-modes" role="group" aria-label="Modo de dibujo">
+                            <button type="button" class="btn-secondary is-active" id="btn-draw-streets">Seguir calles</button>
+                            <button type="button" class="btn-secondary" id="btn-draw-straight">Líneas rectas</button>
+                        </div>
                         <p id="draw-hint" class="empty-hint"></p>
                         <button type="button" class="btn-secondary" id="btn-draw-undo">Deshacer</button>
                         <button type="button" class="btn-primary" id="btn-draw-finish">Cerrar zona</button>
@@ -878,6 +886,14 @@
         }
 
         let pendingGeom = null;
+        let currentDrawMode = "streets";
+
+        function syncDrawModeButtons() {
+            const streets = document.getElementById("btn-draw-streets");
+            const straight = document.getElementById("btn-draw-straight");
+            if (streets) streets.classList.toggle("is-active", currentDrawMode !== "straight");
+            if (straight) straight.classList.toggle("is-active", currentDrawMode === "straight");
+        }
 
         function setDrawChrome(mode, verts, meta) {
             const toolbar = document.getElementById("draw-toolbar");
@@ -891,9 +907,12 @@
             if (btnUndo) btnUndo.disabled = routing || !verts;
             if (btnFinish) btnFinish.disabled = routing || !verts || verts < 3;
             if (btnCancel) btnCancel.disabled = !!routing;
+            syncDrawModeButtons();
             if (hint) {
                 if (routing) {
                     hint.textContent = "Siguiendo la calle o carrera…";
+                } else if (currentDrawMode === "straight") {
+                    hint.textContent = "Haz clic para unir los puntos con líneas rectas. Con 3 o más puntos, cierra el polígono.";
                 } else {
                     hint.textContent = "Haz clic cerca de una calle o carrera. El borde sigue su curva. Las zonas actuales quedan visibles para no cruzarlas. Con 3 o más puntos, cierra el polígono.";
                 }
@@ -977,10 +996,12 @@
             });
         }
 
-        function beginDraw() {
+        function beginDraw(mode) {
             if (!mapApi) return;
+            currentDrawMode = mode === "straight" ? "straight" : "streets";
             document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
             mapApi.startDraw({
+                mode: currentDrawMode,
                 color: "#0891b2",
                 onVertex: function (n, meta) { setDrawChrome("click", n, meta); },
                 onComplete: function (geom) {
@@ -991,6 +1012,16 @@
             setDrawChrome("click", 0);
         }
 
+        const btnDrawStreets = document.getElementById("btn-draw-streets");
+        if (btnDrawStreets) btnDrawStreets.addEventListener("click", function () {
+            if (currentDrawMode === "streets" && mapApi && mapApi.isDrawing()) return;
+            beginDraw("streets");
+        });
+        const btnDrawStraight = document.getElementById("btn-draw-straight");
+        if (btnDrawStraight) btnDrawStraight.addEventListener("click", function () {
+            if (currentDrawMode === "straight" && mapApi && mapApi.isDrawing()) return;
+            beginDraw("straight");
+        });
         const btnUndo = document.getElementById("btn-draw-undo");
         if (btnUndo) btnUndo.addEventListener("click", function () {
             if (mapApi) mapApi.undoDraw();
@@ -1237,9 +1268,14 @@
                     document.addEventListener(ev, syncFullLabel);
                 });
             }
-            if (location.hash === "#dibujar" && document.getElementById("draw-toolbar")) {
-                beginDraw();
-                history.replaceState(null, "", location.pathname + location.search);
+            if (document.getElementById("draw-toolbar")) {
+                if (location.hash === "#dibujar-recto") {
+                    beginDraw("straight");
+                    history.replaceState(null, "", location.pathname + location.search);
+                } else if (location.hash === "#dibujar") {
+                    beginDraw("streets");
+                    history.replaceState(null, "", location.pathname + location.search);
+                }
             }
         }).catch(function () {
             document.getElementById("loading-hint").textContent = "Error cargando el mapa de Bogotá";
