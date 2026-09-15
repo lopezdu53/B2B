@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -791,6 +792,99 @@ func DrawZoneHandler(appState *AppState) http.HandlerFunc {
 		if err != nil {
 			log.Error("b2b: draw zone", "error", err)
 			http.Error(w, "No se pudo guardar la zona", http.StatusInternalServerError)
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, zone)
+	}
+}
+
+// RedrawZoneHandler replaces the polygon of an existing zone (JSON body).
+func RedrawZoneHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if SessionFromContext(r.Context()) == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			http.Error(w, "zona inválida", http.StatusBadRequest)
+			return
+		}
+
+		var req struct {
+			Name     string          `json:"name"`
+			City     string          `json:"city"`
+			Color    string          `json:"color"`
+			Geometry json.RawMessage `json:"geometry"`
+		}
+
+		if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return
+			}
+		} else {
+			req.Name = r.FormValue("name")
+			req.City = r.FormValue("city")
+			req.Color = r.FormValue("color")
+			req.Geometry = json.RawMessage(r.FormValue("geometry"))
+		}
+
+		tid, _ := effectiveTenant(appState, r)
+
+		current, err := appState.Store.GetZone(r.Context(), tid, id)
+		if err != nil {
+			if errors.Is(err, ErrResourceNotFound) {
+				http.Error(w, "zona no encontrada", http.StatusNotFound)
+				return
+			}
+
+			log.Error("b2b: redraw zone get", "error", err)
+			http.Error(w, "No se pudo actualizar la zona", http.StatusInternalServerError)
+
+			return
+		}
+
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			name = current.Name
+		}
+
+		city := strings.TrimSpace(req.City)
+		if city == "" {
+			city = current.City
+		}
+
+		color := strings.TrimSpace(req.Color)
+		if color == "" {
+			color = current.Color
+		}
+
+		geom, err := NormalizeZoneGeometryJSON(req.Geometry)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if len(geom) == 0 {
+			http.Error(w, "Dibuja el polígono en el mapa", http.StatusBadRequest)
+			return
+		}
+
+		if err := appState.Store.UpdateZone(r.Context(), tid, id, name, city, current.AdvisorID, color, geom); err != nil {
+			log.Error("b2b: redraw zone", "error", err, "id", id)
+			http.Error(w, "No se pudo actualizar la zona", http.StatusInternalServerError)
+
+			return
+		}
+
+		zone, err := appState.Store.GetZone(r.Context(), tid, id)
+		if err != nil {
+			log.Error("b2b: redraw zone reload", "error", err, "id", id)
+			http.Error(w, "No se pudo actualizar la zona", http.StatusInternalServerError)
 
 			return
 		}
