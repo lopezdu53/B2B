@@ -76,6 +76,8 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 				r.Post("/b2b/zones/draw", DrawZoneHandler(appState))
 				r.Post("/b2b/zones/{id}/update", UpdateZoneHandler(appState))
 				r.Post("/b2b/zones/{id}/delete", DeleteZoneHandler(appState))
+				r.Get("/b2b/zones/{id}/export", ZoneExportHandler(appState))
+				r.Post("/b2b/zones/{id}/import", ZoneImportHandler(appState))
 			})
 
 			r.Get("/settings", SettingsPageHandler(appState))
@@ -121,6 +123,8 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 	// Kept outside the /admin group so no CSRF/frame-blocking headers apply.
 	r.Get("/embed/map", EmbedMapHandler(appState))
 	r.Get("/embed/businesses", EmbedBusinessesHandler(appState))
+	r.Get("/embed/zona", EmbedZoneHandler(appState))
+	r.Get("/embed/zona/businesses", EmbedZoneBusinessesHandler(appState))
 
 	// Health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {

@@ -3,9 +3,12 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/gosom/google-maps-scraper/admin"
 )
@@ -510,6 +513,29 @@ func (s *store) ListZones(ctx context.Context, tenantID int64) ([]admin.Zone, er
 	}
 
 	return out, rows.Err()
+}
+
+// GetZone returns one of the tenant's zones.
+func (s *store) GetZone(ctx context.Context, tenantID, id int64) (*admin.Zone, error) {
+	const q = `SELECT id, name, city, advisor_id, color, geometry, created_at FROM b2b_zones WHERE id = $1 AND tenant_id = $2`
+
+	var z admin.Zone
+	var geom []byte
+
+	err := s.db.QueryRow(ctx, q, id, tenantID).Scan(&z.ID, &z.Name, &z.City, &z.AdvisorID, &z.Color, &geom, &z.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, admin.ErrResourceNotFound
+		}
+
+		return nil, err
+	}
+
+	if len(geom) > 0 {
+		z.Geometry = geom
+	}
+
+	return &z, nil
 }
 
 // CreateZone inserts a new zone for the tenant.

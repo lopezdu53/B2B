@@ -62,3 +62,37 @@ func TestZoneHasGeometry(t *testing.T) {
 		t.Fatal("zone with raw geometry should report HasGeometry")
 	}
 }
+
+func TestPointInZoneGeometry(t *testing.T) {
+	t.Parallel()
+
+	poly := json.RawMessage(`{"type":"Polygon","coordinates":[[[-74.12,4.60],[-74.08,4.60],[-74.08,4.65],[-74.12,4.65],[-74.12,4.60]]]}`)
+	hole := json.RawMessage(`{"type":"Polygon","coordinates":[[[-74.12,4.60],[-74.08,4.60],[-74.08,4.65],[-74.12,4.65],[-74.12,4.60]],[[-74.11,4.61],[-74.09,4.61],[-74.09,4.63],[-74.11,4.63],[-74.11,4.61]]]}`)
+
+	if !PointInZoneGeometry(4.62, -74.10, poly) {
+		t.Fatal("interior point should be inside")
+	}
+
+	if PointInZoneGeometry(4.70, -74.10, poly) {
+		t.Fatal("exterior point should be outside")
+	}
+
+	if PointInZoneGeometry(4.62, -74.10, hole) {
+		t.Fatal("point in hole should be outside")
+	}
+
+	zid := int64(9)
+	inside := MapBusiness{Key: "in", Lat: 4.62, Lng: -74.10}
+	assigned := MapBusiness{Key: "as", ZoneID: &zid, Lat: 0, Lng: 0}
+	other := MapBusiness{Key: "out", Lat: 5, Lng: -74}
+
+	z := Zone{ID: zid, Geometry: poly}
+	if !BusinessInZone(&inside, &z) || !BusinessInZone(&assigned, &z) || BusinessInZone(&other, &z) {
+		t.Fatal("BusinessInZone membership mismatch")
+	}
+
+	got := FilterBusinessesInZone([]MapBusiness{inside, assigned, other}, &z)
+	if len(got) != 2 {
+		t.Fatalf("filter: want 2 got %d", len(got))
+	}
+}

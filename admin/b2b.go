@@ -257,6 +257,7 @@ type IB2BStore interface {
 
 	// Zones
 	ListZones(ctx context.Context, tenantID int64) ([]Zone, error)
+	GetZone(ctx context.Context, tenantID, id int64) (*Zone, error)
 	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) (*Zone, error)
 	UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) error
 	DeleteZone(ctx context.Context, tenantID, id int64) error

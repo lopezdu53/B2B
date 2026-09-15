@@ -518,6 +518,7 @@ type zoneRow struct {
 	Zone
 
 	AdvisorName string
+	ShareURL    string
 }
 
 // ZonasPageHandler renders the zones management page.
@@ -546,7 +547,7 @@ func ZonasPageHandler(appState *AppState) http.HandlerFunc {
 		rows := make([]zoneRow, 0, len(zones))
 		for i := range zones {
 			z := zones[i]
-			row := zoneRow{Zone: z}
+			row := zoneRow{Zone: z, ShareURL: zonePublicURL(r, tid, z.ID, appState.EncryptionKey)}
 
 			if z.AdvisorID != nil {
 				row.AdvisorName = advisorNames[*z.AdvisorID]

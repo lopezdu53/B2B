@@ -981,7 +981,7 @@
         };
     }
 
-    function startStreetDraw(engine, color, onVertex, onComplete) {
+        function startStreetDraw(engine, color, onVertex, onComplete, mode) {
         var corners = [];
         var segments = [];
         var preview = null;
@@ -990,6 +990,7 @@
         var busy = false;
         var finished = false;
         var preferGoogle = engine.kind === "google";
+        var straight = mode === "straight";
 
         function notify() {
             if (onVertex) onVertex(corners.length, { routing: busy });
@@ -1092,21 +1093,34 @@
             return draftCleanup;
         }
 
+        function completeRing() {
+            var first = corners[0];
+            var ring = closeRing(fullPath().map(function (p) {
+                return [p.lng, p.lat];
+            }));
+            if (!straight) {
+                ring = simplifyRing(ring, 0.000035);
+            }
+            unbind();
+            var draft = showDraft(fullPath().concat([first]));
+            onComplete({ type: "Polygon", coordinates: [ring] }, draft);
+        }
+
         function finish() {
             if (finished || busy || corners.length < 3) return false;
             finished = true;
-            busy = true;
-            notify();
             var last = corners[corners.length - 1];
             var first = corners[0];
+            if (straight) {
+                segments.push([last, first]);
+                completeRing();
+                return true;
+            }
+            busy = true;
+            notify();
             routeAlongStreet(last, first, preferGoogle).then(function (seg) {
                 if (seg && seg.length >= 2) segments.push(seg);
-                var ring = simplifyRing(closeRing(fullPath().map(function (p) {
-                    return [p.lng, p.lat];
-                })), 0.000035);
-                unbind();
-                var draft = showDraft(fullPath().concat([first]));
-                onComplete({ type: "Polygon", coordinates: [ring] }, draft);
+                completeRing();
             }).catch(function () {
                 finished = false;
                 busy = false;
@@ -1125,6 +1139,20 @@
 
         function addPoint(lat, lng) {
             if (busy || finished) return;
+            if (straight) {
+                var raw = { lat: lat, lng: lng };
+                if (!corners.length) {
+                    corners.push(raw);
+                    segments.push([raw]);
+                } else {
+                    var prev = corners[corners.length - 1];
+                    corners.push(raw);
+                    segments.push([prev, raw]);
+                }
+                redraw();
+                notify();
+                return;
+            }
             busy = true;
             notify();
             snapToStreet(lat, lng).then(function (pt) {
@@ -1185,6 +1213,7 @@
         escapeHtml: escapeHtml,
         pointInGeom: pointInGeom,
         parseZoneGeom: parseZoneGeom,
+        geomBounds: geomBounds,
         bindLocationSelects: bindLocationSelects,
         create: function (opts) {
             opts = opts || {};
@@ -1413,7 +1442,7 @@
                             applySectors();
                             if (drawOpts.onComplete) drawOpts.onComplete(geom);
                         };
-                        drawSession = startStreetDraw(engine, color, drawOpts.onVertex, onDone);
+                        drawSession = startStreetDraw(engine, color, drawOpts.onVertex, onDone, drawOpts.mode);
                         return drawSession.mode;
                     },
                     finishDraw: function () {
