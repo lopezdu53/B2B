@@ -291,7 +291,10 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		`id="btn-draw-straight"`,
 		`Seguir calles`,
 		`Líneas rectas`,
-		`#dibujar-recto`,
+		`dibujar-recto`,
+		`-zona-`,
+		`editingZone`,
+		`/admin/b2b/zones/`,
 		`class="job-remove"`,
 		`/admin/b2b/jobs/`,
 	} {
@@ -368,6 +371,8 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		`/import`,
 		`/embed/zona?t=`,
 		`Enlace público`,
+		`Editar dibujo`,
+		`#dibujar-zona-`,
 	} {
 		if !strings.Contains(zonas, needle) {
 			t.Errorf("zonas.html missing %q", needle)
@@ -474,5 +479,53 @@ func TestB2BTemplateHasLeadQualityAndZoneStats(t *testing.T) {
 
 	if strings.Contains(neg, `confirm("¿Eliminar`) {
 		t.Error("negocios.html must not block trash with window.confirm")
+	}
+}
+
+func TestEmbedPopupUsesReadableInk(t *testing.T) {
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	if err != nil {
+		t.Fatalf("parse templates: %v", err)
+	}
+
+	data := map[string]any{
+		"Token":             "z.1.1.abc",
+		"Zone":              Zone{ID: 1, Name: "Norte", City: "Bogotá", Color: "#0891b2"},
+		"ZoneData":          asJSON([]Zone{{ID: 1, Name: "Norte"}}),
+		"GoogleMapsAPIKey":  "AIza-test",
+		"AssetVersion":      "test",
+		"Cities":            []string{"Bogotá"},
+		"CityVal":           "Bogotá",
+		"Advisors":          []Advisor{},
+		"Zones":             []Zone{},
+		"Categories":        []Category{},
+		"AdvisorsData":      asJSON([]Advisor{}),
+		"ZonesData":         asJSON([]Zone{}),
+		"CategoriesData":    asJSON([]Category{}),
+		"PriceSmartData":    asJSON([]any{}),
+		"BogotaLocalidades": BogotaUrbanLocalidades(),
+	}
+
+	for _, name := range []string{"embed_zona.html", "embed_map.html"} {
+		var buf strings.Builder
+		if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
+			t.Fatalf("execute %s: %v", name, err)
+		}
+
+		html := buf.String()
+		for _, needle := range []string{
+			`.gm-style-iw`,
+			`.pop h4 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 700; color: #0f172a;`,
+			`.pop .meta { font-size: .85rem; line-height: 1.6; color: #334155;`,
+			`.pop .meta a { color: #1d4ed8;`,
+		} {
+			if !strings.Contains(html, needle) {
+				t.Errorf("%s missing readable popup style %q", name, needle)
+			}
+		}
+
+		if strings.Contains(html, `.pop h4 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 700; color: var(--ink);`) {
+			t.Errorf("%s popup title still inherits dark-scheme --ink", name)
+		}
 	}
 }

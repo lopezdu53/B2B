@@ -110,12 +110,22 @@
         .leaflet-popup-content { margin: .85rem 1rem; }
         .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
         .leaflet-container a.leaflet-popup-close-button:hover { color: var(--ink); }
-        .pop { font-family: inherit; min-width: 200px; max-width: 270px; }
-        .pop h4 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; line-height: 1.25; }
-        .pop .meta { font-size: .85rem; line-height: 1.6; color: var(--ink); }
+        /* Google InfoWindow is always a white card, even when the OS is in dark
+           mode — never inherit --ink from prefers-color-scheme. */
+        .gm-style-iw, .gm-style-iw-c, .gm-style-iw-d, .gm-style-iw-ch,
+        .leaflet-popup-content-wrapper {
+            background: #fff !important;
+            color: #0f172a !important;
+        }
+        .leaflet-popup-tip { background: #fff !important; }
+        .gm-style-iw-tc::after { background: #fff !important; }
+        .pop { font-family: inherit; min-width: 200px; max-width: 270px; color: #0f172a; }
+        .pop h4 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 700; color: #0f172a; letter-spacing: -.01em; line-height: 1.25; }
+        .pop .meta { font-size: .85rem; line-height: 1.6; color: #334155; }
         .pop .meta > div { margin-bottom: .1rem; }
-        .pop .meta a { color: var(--brand); font-weight: 600; word-break: break-all; }
+        .pop .meta a { color: #1d4ed8; font-weight: 600; word-break: break-all; }
         .pop .badge { display: inline-block; margin-top: .55rem; font-size: .72rem; font-weight: 700; padding: .18rem .65rem; border-radius: 999px; color: #fff; }
+        .pop .muted, .gm-style .muted { color: #64748b; }
         .muted { color: var(--muted); }
 
         /* ---- Mobile ---- */

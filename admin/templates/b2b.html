@@ -478,8 +478,8 @@
     {{if .CanManage}}
     <div class="modal-overlay" id="draw-zone-modal">
         <form class="modal" id="draw-zone-form" onsubmit="return false;">
-            <h3>Guardar zona dibujada</h3>
-            <p class="empty-hint" style="margin:0 0 1rem;">El polígono ya quedó en el mapa. Ponle un nombre para guardarlo.</p>
+            <h3 id="draw-zone-title">Guardar zona dibujada</h3>
+            <p class="empty-hint" id="draw-zone-blurb" style="margin:0 0 1rem;">El polígono ya quedó en el mapa. Ponle un nombre para guardarlo.</p>
             <div class="field">
                 <label for="draw-zone-name">Nombre *</label>
                 <input type="text" id="draw-zone-name" name="name" placeholder="Ej. Norte de Chapinero" required>
@@ -887,6 +887,21 @@
 
         let pendingGeom = null;
         let currentDrawMode = "streets";
+        let editingZone = null;
+
+        function zoneByID(id) {
+            if (!id) return null;
+            return ZONES_LIST.find(function (z) { return Number(z.ID) === Number(id); }) || null;
+        }
+
+        function showZonesExcept(id) {
+            if (!mapApi) return;
+            if (!id) {
+                mapApi.setZones(ZONES_LIST);
+                return;
+            }
+            mapApi.setZones(ZONES_LIST.filter(function (z) { return Number(z.ID) !== Number(id); }));
+        }
 
         function syncDrawModeButtons() {
             const streets = document.getElementById("btn-draw-streets");
@@ -911,6 +926,8 @@
             if (hint) {
                 if (routing) {
                     hint.textContent = "Siguiendo la calle o carrera…";
+                } else if (editingZone) {
+                    hint.textContent = "Vuelve a trazar " + (editingZone.Name || "la zona") + ". El dibujo anterior se oculta. Con 3 o más puntos, cierra el polígono.";
                 } else if (currentDrawMode === "straight") {
                     hint.textContent = "Haz clic para unir los puntos con líneas rectas. Con 3 o más puntos, cierra el polígono.";
                 } else {
@@ -925,11 +942,26 @@
             const cityEl = document.getElementById("draw-zone-city");
             const colorEl = document.getElementById("draw-zone-color");
             const errEl = document.getElementById("draw-zone-error");
-            if (nameEl) nameEl.value = "";
-            if (colorEl) colorEl.value = "#0891b2";
-            const filterCity = document.getElementById("f-city");
-            if (cityEl && filterCity && filterCity.value && filterCity.value !== "all") {
-                cityEl.value = filterCity.value;
+            const titleEl = document.getElementById("draw-zone-title");
+            const blurbEl = document.getElementById("draw-zone-blurb");
+            const saveEl = document.getElementById("draw-zone-save");
+            if (editingZone) {
+                if (titleEl) titleEl.textContent = "Actualizar dibujo de la zona";
+                if (blurbEl) blurbEl.textContent = "El nuevo polígono reemplaza el trazo anterior de " + (editingZone.Name || "esta zona") + ".";
+                if (saveEl) saveEl.textContent = "Guardar dibujo";
+                if (nameEl) nameEl.value = editingZone.Name || "";
+                if (colorEl) colorEl.value = editingZone.Color || "#0891b2";
+                if (cityEl && editingZone.City) cityEl.value = editingZone.City;
+            } else {
+                if (titleEl) titleEl.textContent = "Guardar zona dibujada";
+                if (blurbEl) blurbEl.textContent = "El polígono ya quedó en el mapa. Ponle un nombre para guardarlo.";
+                if (saveEl) saveEl.textContent = "Guardar zona";
+                if (nameEl) nameEl.value = "";
+                if (colorEl) colorEl.value = "#0891b2";
+                const filterCity = document.getElementById("f-city");
+                if (cityEl && filterCity && filterCity.value && filterCity.value !== "all") {
+                    cityEl.value = filterCity.value;
+                }
             }
             if (errEl) errEl.textContent = "";
             document.getElementById("draw-zone-modal").classList.add("open");
@@ -941,22 +973,33 @@
             if (modal) modal.classList.remove("open");
             if (discard && mapApi) mapApi.cancelDraw();
             pendingGeom = null;
+            editingZone = null;
+            showZonesExcept(null);
             setDrawChrome("idle");
         }
 
-        function addZoneToUI(zone) {
-            ZONES_LIST.push(zone);
+        function upsertZoneInUI(zone) {
+            const idx = ZONES_LIST.findIndex(function (z) { return Number(z.ID) === Number(zone.ID); });
+            if (idx >= 0) ZONES_LIST[idx] = zone;
+            else ZONES_LIST.push(zone);
             zoneMeta[zone.ID] = { name: zone.Name + " · " + zone.City, color: zone.Color || NEUTRAL };
             const sel = document.getElementById("biz-zone");
             if (sel) {
-                const opt = document.createElement("option");
-                opt.value = String(zone.ID);
+                let opt = sel.querySelector('option[value="' + zone.ID + '"]');
+                if (!opt) {
+                    opt = document.createElement("option");
+                    opt.value = String(zone.ID);
+                    sel.appendChild(opt);
+                }
                 opt.textContent = zone.Name + " · " + zone.City;
-                sel.appendChild(opt);
             }
             if (mapApi) mapApi.setZones(ZONES_LIST);
             refreshSummary();
             renderLegend();
+        }
+
+        function addZoneToUI(zone) {
+            upsertZoneInUI(zone);
         }
 
         function saveDrawnZone() {
@@ -972,7 +1015,10 @@
                 return;
             }
             if (errEl) errEl.textContent = "";
-            fetch("/admin/b2b/zones/draw", {
+            const url = editingZone
+                ? "/admin/b2b/zones/" + editingZone.ID + "/draw"
+                : "/admin/b2b/zones/draw";
+            fetch(url, {
                 method: "POST",
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF },
@@ -987,8 +1033,9 @@
                 return r.json();
             }).then(function (zone) {
                 if (mapApi) mapApi.cancelDraw();
-                addZoneToUI(zone);
+                upsertZoneInUI(zone);
                 pendingGeom = null;
+                editingZone = null;
                 document.getElementById("draw-zone-modal").classList.remove("open");
                 setDrawChrome("idle");
             }).catch(function (e) {
@@ -996,13 +1043,15 @@
             });
         }
 
-        function beginDraw(mode) {
+        function beginDraw(mode, zone) {
             if (!mapApi) return;
             currentDrawMode = mode === "straight" ? "straight" : "streets";
+            if (zone) editingZone = zone;
+            showZonesExcept(editingZone && editingZone.ID);
             document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
             mapApi.startDraw({
                 mode: currentDrawMode,
-                color: "#0891b2",
+                color: (editingZone && editingZone.Color) || "#0891b2",
                 onVertex: function (n, meta) { setDrawChrome("click", n, meta); },
                 onComplete: function (geom) {
                     setDrawChrome("idle");
@@ -1033,6 +1082,8 @@
         const btnCancel = document.getElementById("btn-draw-cancel");
         if (btnCancel) btnCancel.addEventListener("click", function () {
             if (mapApi) mapApi.cancelDraw();
+            editingZone = null;
+            showZonesExcept(null);
             setDrawChrome("idle");
         });
         const drawForm = document.getElementById("draw-zone-form");
@@ -1269,11 +1320,12 @@
                 });
             }
             if (document.getElementById("draw-toolbar")) {
-                if (location.hash === "#dibujar-recto") {
-                    beginDraw("straight");
-                    history.replaceState(null, "", location.pathname + location.search);
-                } else if (location.hash === "#dibujar") {
-                    beginDraw("streets");
+                // hashes: #dibujar, #dibujar-recto, #dibujar-zona-ID, #dibujar-recto-zona-ID
+                var hash = location.hash || "";
+                var m = hash.match(/^#(dibujar-recto|dibujar)(?:-zona-(\d+))?$/);
+                if (m) {
+                    var zone = m[2] ? zoneByID(m[2]) : null;
+                    beginDraw(m[1] === "dibujar-recto" ? "straight" : "streets", zone);
                     history.replaceState(null, "", location.pathname + location.search);
                 }
             }
