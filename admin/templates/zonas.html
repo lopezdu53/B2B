@@ -150,10 +150,21 @@
         if (url && url.indexOf("http") !== 0) url = location.origin + url;
         if (!url) return;
         function ok() { btn.textContent = "Copiado"; setTimeout(function () { btn.textContent = "Copiar"; }, 1600); }
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(url).then(ok).catch(function () { window.prompt("Copia el enlace público", url); });
-        } else {
+        function fallback() {
+            var input = btn.parentNode && btn.parentNode.querySelector(".share-url");
+            if (input) {
+                input.focus();
+                input.select();
+                try {
+                    if (document.execCommand("copy")) { ok(); return; }
+                } catch (e) { /* fall through */ }
+            }
             window.prompt("Copia el enlace público", url);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(ok).catch(fallback);
+        } else {
+            fallback();
         }
     }
     document.getElementById("edit-modal").addEventListener("click", function (e) {
