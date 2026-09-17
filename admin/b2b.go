@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -58,6 +59,29 @@ type Zone struct {
 // HasGeometry reports whether the zone has a drawn polygon on the map.
 func (z *Zone) HasGeometry() bool {
 	return z != nil && len(z.Geometry) > 0
+}
+
+// ZoneGroup is a named collection of zones that share one public map link.
+type ZoneGroup struct {
+	ID        int64
+	Name      string
+	ZoneIDs   []int64
+	Zones     []Zone
+	CreatedAt time.Time
+}
+
+// ZoneIDsCSV is a comma-separated list of member zone IDs for form data attributes.
+func (g ZoneGroup) ZoneIDsCSV() string {
+	if len(g.ZoneIDs) == 0 {
+		return ""
+	}
+
+	parts := make([]string, len(g.ZoneIDs))
+	for i, id := range g.ZoneIDs {
+		parts[i] = strconv.FormatInt(id, 10)
+	}
+
+	return strings.Join(parts, ",")
 }
 
 // Category is a per-tenant business category (Restaurantes, Hoteles, …).
@@ -261,6 +285,13 @@ type IB2BStore interface {
 	CreateZone(ctx context.Context, tenantID int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) (*Zone, error)
 	UpdateZone(ctx context.Context, tenantID, id int64, name, city string, advisorID *int64, color string, geometry json.RawMessage) error
 	DeleteZone(ctx context.Context, tenantID, id int64) error
+
+	// Zone groups (public link shows only the group's zones and businesses)
+	ListZoneGroups(ctx context.Context, tenantID int64) ([]ZoneGroup, error)
+	GetZoneGroup(ctx context.Context, tenantID, id int64) (*ZoneGroup, error)
+	CreateZoneGroup(ctx context.Context, tenantID int64, name string, zoneIDs []int64) (*ZoneGroup, error)
+	UpdateZoneGroup(ctx context.Context, tenantID, id int64, name string, zoneIDs []int64) error
+	DeleteZoneGroup(ctx context.Context, tenantID, id int64) error
 
 	// Categories
 	ListCategories(ctx context.Context, tenantID int64) ([]Category, error)

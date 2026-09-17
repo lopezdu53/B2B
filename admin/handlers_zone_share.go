@@ -122,6 +122,70 @@ func zonePublicURL(r *http.Request, tenantID, zoneID int64, secret []byte) strin
 	return path
 }
 
+// groupShareToken mints a public link of the form "g.<tenantID>.<groupID>.<hmac>".
+func groupShareToken(tenantID, groupID int64, secret []byte) string {
+	payload := strconv.FormatInt(tenantID, 10) + "." + strconv.FormatInt(groupID, 10)
+	h := hmac.New(sha256.New, secret)
+	h.Write([]byte("group-embed:" + payload))
+
+	return "g." + payload + "." + hex.EncodeToString(h.Sum(nil))
+}
+
+// parseGroupShareToken validates a public group token and returns tenant + group ids.
+func parseGroupShareToken(token string, secret []byte) (tenantID, groupID int64, ok bool) {
+	token = strings.TrimSpace(token)
+	if !strings.HasPrefix(token, "g.") {
+		return 0, 0, false
+	}
+
+	rest := token[2:]
+	dot := strings.LastIndexByte(rest, '.')
+	if dot <= 0 || dot == len(rest)-1 {
+		return 0, 0, false
+	}
+
+	payload := rest[:dot]
+	parts := strings.Split(payload, ".")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+
+	tid, err1 := strconv.ParseInt(parts[0], 10, 64)
+	gid, err2 := strconv.ParseInt(parts[1], 10, 64)
+	if err1 != nil || err2 != nil || tid <= 0 || gid <= 0 {
+		return 0, 0, false
+	}
+
+	expected := groupShareToken(tid, gid, secret)
+	if !hmac.Equal([]byte(token), []byte(expected)) {
+		return 0, 0, false
+	}
+
+	return tid, gid, true
+}
+
+func groupPublicPath(tenantID, groupID int64, secret []byte) string {
+	return "/embed/grupo?t=" + groupShareToken(tenantID, groupID, secret)
+}
+
+func groupPublicURL(r *http.Request, tenantID, groupID int64, secret []byte) string {
+	path := groupPublicPath(tenantID, groupID, secret)
+	if origin := requestOrigin(r); origin != "" {
+		return origin + path
+	}
+
+	return path
+}
+
+func listGroupBusinesses(appState *AppState, r *http.Request, tid int64, zones []Zone) ([]MapBusiness, error) {
+	list, err := appState.Store.ListBusinesses(r.Context(), tid, BusinessFilter{})
+	if err != nil {
+		return nil, err
+	}
+
+	return FilterBusinessesInZones(list, zones), nil
+}
+
 func loadZoneForTenant(appState *AppState, r *http.Request, id int64) (*Zone, int64, error) {
 	tid, _ := effectiveTenant(appState, r)
 
@@ -568,6 +632,77 @@ func EmbedZoneBusinessesHandler(appState *AppState) http.HandlerFunc {
 		businesses, err := listZoneBusinesses(appState, r, tid, z)
 		if err != nil {
 			log.Error("embed: zone businesses", "error", err)
+			http.Error(w, "failed to load businesses", http.StatusInternalServerError)
+
+			return
+		}
+
+		if businesses == nil {
+			businesses = []MapBusiness{}
+		}
+
+		writeJSON(w, http.StatusOK, businesses)
+	}
+}
+
+func resolveGroupShare(appState *AppState, r *http.Request) (*ZoneGroup, int64, bool) {
+	tid, gid, ok := parseGroupShareToken(r.URL.Query().Get("t"), appState.EncryptionKey)
+	if !ok {
+		return nil, 0, false
+	}
+
+	g, err := appState.Store.GetZoneGroup(r.Context(), tid, gid)
+	if err != nil {
+		return nil, 0, false
+	}
+
+	return g, tid, true
+}
+
+// EmbedGroupHandler renders the public, read-only page for a zone group.
+func EmbedGroupHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		g, _, ok := resolveGroupShare(appState, r)
+		if !ok {
+			http.Error(w, "Enlace de grupo inválido o vencido.", http.StatusForbidden)
+			return
+		}
+
+		zones := g.Zones
+		if zones == nil {
+			zones = []Zone{}
+		}
+
+		data := map[string]any{
+			"Token":            r.URL.Query().Get("t"),
+			"Group":            g,
+			"ZoneData":         asJSON(zones),
+			"GoogleMapsAPIKey": resolveGoogleMapsAPIKey(appState, r),
+			"AssetVersion":     assetVersion,
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		if err := appState.Templates.ExecuteTemplate(w, "embed_grupo.html", data); err != nil {
+			log.Error("embed: render grupo", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+	}
+}
+
+// EmbedGroupBusinessesHandler returns JSON of businesses that belong to any
+// zone in the shared group (assigned or inside a polygon).
+func EmbedGroupBusinessesHandler(appState *AppState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		g, tid, ok := resolveGroupShare(appState, r)
+		if !ok {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		businesses, err := listGroupBusinesses(appState, r, tid, g.Zones)
+		if err != nil {
+			log.Error("embed: group businesses", "error", err)
 			http.Error(w, "failed to load businesses", http.StatusInternalServerError)
 
 			return

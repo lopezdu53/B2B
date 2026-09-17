@@ -521,6 +521,13 @@ type zoneRow struct {
 	ShareURL    string
 }
 
+// zoneGroupRow is a zone group with its public URL for the list view.
+type zoneGroupRow struct {
+	ZoneGroup
+
+	ShareURL string
+}
+
 // ZonasPageHandler renders the zones management page.
 func ZonasPageHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -556,8 +563,23 @@ func ZonasPageHandler(appState *AppState) http.HandlerFunc {
 			rows = append(rows, row)
 		}
 
+		groups, err := appState.Store.ListZoneGroups(ctx, tid)
+		if err != nil {
+			log.Error("b2b: zone groups list", "error", err)
+		}
+
+		groupRows := make([]zoneGroupRow, 0, len(groups))
+		for i := range groups {
+			g := groups[i]
+			groupRows = append(groupRows, zoneGroupRow{
+				ZoneGroup: g,
+				ShareURL:  groupPublicURL(r, tid, g.ID, appState.EncryptionKey),
+			})
+		}
+
 		data := map[string]any{
 			"Rows":     rows,
+			"Groups":   groupRows,
 			"Advisors": advisors,
 			"Success":  r.URL.Query().Get("success"),
 			"Error":    r.URL.Query().Get("error"),

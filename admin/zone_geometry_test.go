@@ -95,4 +95,16 @@ func TestPointInZoneGeometry(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("filter: want 2 got %d", len(got))
 	}
+
+	z2 := Zone{ID: 11}
+	z2only := MapBusiness{Key: "z2", ZoneID: &z2.ID}
+	combined := FilterBusinessesInZones([]MapBusiness{inside, assigned, other, z2only}, []Zone{z, z2})
+	if len(combined) != 3 {
+		t.Fatalf("group filter: want 3 unique keys got %d", len(combined))
+	}
+
+	g := ZoneGroup{ID: 1, ZoneIDs: []int64{9, 11, 9}}
+	if g.ZoneIDsCSV() != "9,11,9" {
+		t.Fatalf("csv: %q", g.ZoneIDsCSV())
+	}
 }
