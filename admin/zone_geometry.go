@@ -238,10 +238,40 @@ func BusinessInZone(b *MapBusiness, z *Zone) bool {
 
 // FilterBusinessesInZone keeps the businesses that belong to z.
 func FilterBusinessesInZone(list []MapBusiness, z *Zone) []MapBusiness {
+	if z == nil {
+		return nil
+	}
+
+	return FilterBusinessesInZones(list, []Zone{*z})
+}
+
+// FilterBusinessesInZones keeps businesses that belong to any of the zones
+// (CRM assignment or polygon), de-duplicated by Key.
+func FilterBusinessesInZones(list []MapBusiness, zones []Zone) []MapBusiness {
+	if len(zones) == 0 {
+		return nil
+	}
+
 	out := make([]MapBusiness, 0, len(list))
+	seen := make(map[string]struct{}, len(list))
+
 	for i := range list {
-		if BusinessInZone(&list[i], z) {
-			out = append(out, list[i])
+		key := strings.TrimSpace(list[i].Key)
+		if key == "" {
+			key = fmt.Sprintf("#%d", i)
+		}
+
+		if _, dup := seen[key]; dup {
+			continue
+		}
+
+		for j := range zones {
+			if BusinessInZone(&list[i], &zones[j]) {
+				seen[key] = struct{}{}
+				out = append(out, list[i])
+
+				break
+			}
 		}
 	}
 

@@ -15,6 +15,14 @@
         .zone-actions { text-align:right; white-space:nowrap; }
         .zone-actions form { display:inline; }
         input[type=file].zone-file { display:none; }
+        .zone-pick {
+            display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+            gap:.35rem .8rem; max-height:220px; overflow:auto; padding:.5rem .65rem;
+            border:1px solid var(--border-color, #e6e9f0); border-radius:10px; background:var(--surface, #fff);
+        }
+        .zone-pick label { display:flex; align-items:center; gap:.4rem; margin:0; font-size:.85rem; font-weight:500; }
+        .group-zones { display:flex; flex-wrap:wrap; gap:.3rem; }
+        .group-zones .chip { display:inline-flex; align-items:center; gap:.3rem; font-size:.78rem; }
     </style>
 </head>
 <body>
@@ -26,7 +34,7 @@
 
         <div class="page-header">
             <h1>Zonas</h1>
-            <p>Define zonas por nombre y asígnalas a un asesor. Dibuja el polígono en el mapa siguiendo las calles o con líneas rectas. Puedes volver a trazar el dibujo de cada zona. Cada zona exporta e importa su Excel de negocios y tiene un enlace público que solo muestra esa zona.</p>
+            <p>Define zonas por nombre y asígnalas a un asesor. Dibuja el polígono en el mapa siguiendo las calles o con líneas rectas. Puedes volver a trazar el dibujo de cada zona. Cada zona exporta e importa su Excel de negocios y tiene un enlace público que solo muestra esa zona. Agrupa varias zonas para compartir un solo enlace con todas ellas y sus negocios.</p>
             <div class="draw-choice">
                 <a href="/admin/b2b#dibujar" class="btn-primary" id="btn-draw-zone">✎ Dibujar siguiendo calles</a>
                 <a href="/admin/b2b#dibujar-recto" class="btn-primary" id="btn-draw-straight-zone">✎ Dibujar líneas rectas</a>
@@ -49,6 +57,27 @@
                 <div><label>Color</label><input type="color" name="color" value="#2563eb" style="width:52px;height:42px;padding:2px;"></div>
                 <div><button type="submit" class="btn-primary">Agregar</button></div>
             </form>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🗂️</span> Grupo de zonas</h2>
+            {{if .Rows}}
+            <form method="POST" action="/admin/b2b/zone-groups">
+                <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+                <div class="filters-bar">
+                    <div><label>Nombre del grupo *</label><input type="text" name="name" placeholder="Ej. Norte Bogotá" required></div>
+                    <div><button type="submit" class="btn-primary">Crear grupo</button></div>
+                </div>
+                <p class="muted" style="margin:.7rem 0 .45rem;">Elige las zonas que verá quien abra el enlace del grupo.</p>
+                <div class="zone-pick">
+                    {{range .Rows}}
+                    <label><input type="checkbox" name="zone_id" value="{{.ID}}"> <span class="swatch" style="background:{{.Color}};"></span> {{.Name}}</label>
+                    {{end}}
+                </div>
+            </form>
+            {{else}}
+            <p class="muted">Crea al menos una zona para armar un grupo.</p>
+            {{end}}
         </div>
 
         <div class="card">
@@ -107,7 +136,72 @@
             </div>
             {{end}}
         </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🗂️</span> Grupos <span class="count-badge">{{len .Groups}}</span></h2>
+            {{if .Groups}}
+            <div class="table-wrap">
+                <table class="data-table" id="group-table">
+                    <thead><tr><th>Grupo</th><th>Zonas</th><th>Enlace público</th><th></th></tr></thead>
+                    <tbody>
+                    {{range .Groups}}
+                        <tr>
+                            <td><strong>{{.Name}}</strong></td>
+                            <td>
+                                <div class="group-zones">
+                                    {{range .Zones}}
+                                    <span class="chip"><span class="swatch" style="background:{{.Color}};"></span> {{.Name}}</span>
+                                    {{else}}<span class="muted">Sin zonas</span>{{end}}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="zone-share">
+                                    <input class="share-url" type="text" readonly value="{{.ShareURL}}" onclick="this.select()" aria-label="Enlace público de {{.Name}}">
+                                    <button type="button" class="btn-edit" data-url="{{.ShareURL}}" onclick="copyZoneLink(this)">Copiar</button>
+                                </div>
+                            </td>
+                            <td class="zone-actions">
+                                <button type="button" class="btn-edit"
+                                    data-id="{{.ID}}" data-name="{{.Name}}" data-zone-ids="{{.ZoneIDsCSV}}"
+                                    onclick="editGroup(this)">Editar</button>
+                                <form method="POST" action="/admin/b2b/zone-groups/{{.ID}}/delete" onsubmit="return confirm('¿Eliminar grupo? Las zonas no se borran.');">
+                                    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                                    <button type="submit" class="btn-link" style="color:#dc2626;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🗂️</div>
+                <p>Aún no hay grupos. Elige zonas arriba y crea un grupo para compartir un solo enlace.</p>
+            </div>
+            {{end}}
+        </div>
     </main>
+
+    <div class="modal-overlay" id="edit-group-modal">
+        <form class="modal" method="POST" id="edit-group-form">
+            <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+            <h3>Editar grupo</h3>
+            <div class="field"><label>Nombre *</label><input type="text" name="name" id="eg-name" required></div>
+            <div class="field">
+                <label>Zonas del grupo</label>
+                <div class="zone-pick" id="eg-zones">
+                    {{range .Rows}}
+                    <label><input type="checkbox" name="zone_id" value="{{.ID}}"> <span class="swatch" style="background:{{.Color}};"></span> {{.Name}}</label>
+                    {{end}}
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('edit-group-modal')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
 
     <div class="modal-overlay" id="edit-modal">
         <form class="modal" method="POST" id="edit-form">
@@ -138,6 +232,19 @@
         });
     }
     function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+    function editGroup(btn) {
+        document.getElementById("edit-group-form").action = "/admin/b2b/zone-groups/" + btn.dataset.id + "/update";
+        document.getElementById("eg-name").value = btn.dataset.name || "";
+        var selected = {};
+        (btn.dataset.zoneIds || "").split(",").forEach(function (id) {
+            id = (id || "").trim();
+            if (id) selected[id] = true;
+        });
+        document.querySelectorAll("#eg-zones input[type=checkbox]").forEach(function (cb) {
+            cb.checked = !!selected[cb.value];
+        });
+        document.getElementById("edit-group-modal").classList.add("open");
+    }
     function editZone(btn) {
         document.getElementById("edit-form").action = "/admin/b2b/zones/" + btn.dataset.id + "/update";
         document.getElementById("e-name").value = btn.dataset.name || "";
@@ -170,6 +277,9 @@
     }
     document.getElementById("edit-modal").addEventListener("click", function (e) {
         if (e.target === this) closeModal("edit-modal");
+    });
+    document.getElementById("edit-group-modal").addEventListener("click", function (e) {
+        if (e.target === this) closeModal("edit-group-modal");
     });
     </script>
 </body>

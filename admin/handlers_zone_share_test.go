@@ -17,6 +17,10 @@ func TestZoneShareTokenRoundTrip(t *testing.T) {
 		t.Fatalf("round trip: ok=%v tid=%d zid=%d tok=%q", ok, tid, zid, tok)
 	}
 
+	if _, _, ok := parseGroupShareToken(tok, secret); ok {
+		t.Fatal("zone token must not parse as a group token")
+	}
+
 	if _, _, ok := parseZoneShareToken(embedToken(7, secret), secret); ok {
 		t.Fatal("tenant embed token must not parse as a zone token")
 	}
@@ -82,5 +86,62 @@ func TestRequestOriginAndPublicURL(t *testing.T) {
 	got := zonePublicURL(r, 1, 2, []byte("secret"))
 	if !strings.HasPrefix(got, "https://b2b.ventabot.cloud/embed/zona?t=z.1.2.") {
 		t.Fatalf("public url: %q", got)
+	}
+
+	groupURL := groupPublicURL(r, 1, 9, []byte("secret"))
+	if !strings.HasPrefix(groupURL, "https://b2b.ventabot.cloud/embed/grupo?t=g.1.9.") {
+		t.Fatalf("group public url: %q", groupURL)
+	}
+}
+
+func TestGroupShareTokenRoundTrip(t *testing.T) {
+	secret := []byte("test-secret-key-000000000000000000000000")
+
+	tok := groupShareToken(7, 4, secret)
+	tid, gid, ok := parseGroupShareToken(tok, secret)
+	if !ok || tid != 7 || gid != 4 {
+		t.Fatalf("round trip: ok=%v tid=%d gid=%d tok=%q", ok, tid, gid, tok)
+	}
+
+	if !strings.HasPrefix(tok, "g.7.4.") {
+		t.Fatalf("prefix: %q", tok)
+	}
+
+	if _, _, ok := parseGroupShareToken(zoneShareToken(7, 4, secret), secret); ok {
+		t.Fatal("zone token must not parse as a group token")
+	}
+
+	if _, _, ok := parseZoneShareToken(tok, secret); ok {
+		t.Fatal("group token must not parse as a zone token")
+	}
+
+	if _, ok := parseEmbedToken(tok, secret); ok {
+		t.Fatal("group token must not parse as a tenant embed token")
+	}
+
+	if _, _, ok := parseGroupShareToken("g.7.4.deadbeef", secret); ok {
+		t.Fatal("forged group token accepted")
+	}
+
+	other := groupShareToken(7, 4, []byte("a-completely-different-secret-key-000000"))
+	if _, _, ok := parseGroupShareToken(other, secret); ok {
+		t.Fatal("group token from different secret accepted")
+	}
+}
+
+func TestParseZoneIDForm(t *testing.T) {
+	r, err := http.NewRequest(http.MethodPost, "/", strings.NewReader("zone_id=3&zone_id=1&zone_id=1&zone_id=abc&zone_id=-2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := r.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := parseZoneIDForm(r)
+	if len(got) != 2 || got[0] != 3 || got[1] != 1 {
+		t.Fatalf("ids: %v", got)
 	}
 }

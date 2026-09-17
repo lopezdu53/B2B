@@ -79,6 +79,9 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 				r.Post("/b2b/zones/{id}/delete", DeleteZoneHandler(appState))
 				r.Get("/b2b/zones/{id}/export", ZoneExportHandler(appState))
 				r.Post("/b2b/zones/{id}/import", ZoneImportHandler(appState))
+				r.Post("/b2b/zone-groups", CreateZoneGroupHandler(appState))
+				r.Post("/b2b/zone-groups/{id}/update", UpdateZoneGroupHandler(appState))
+				r.Post("/b2b/zone-groups/{id}/delete", DeleteZoneGroupHandler(appState))
 			})
 
 			r.Get("/settings", SettingsPageHandler(appState))
@@ -126,6 +129,8 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 	r.Get("/embed/businesses", EmbedBusinessesHandler(appState))
 	r.Get("/embed/zona", EmbedZoneHandler(appState))
 	r.Get("/embed/zona/businesses", EmbedZoneBusinessesHandler(appState))
+	r.Get("/embed/grupo", EmbedGroupHandler(appState))
+	r.Get("/embed/grupo/businesses", EmbedGroupBusinessesHandler(appState))
 
 	// Health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {

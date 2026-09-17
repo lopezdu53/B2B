@@ -111,9 +111,24 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"CSRFToken": "t",
 		"Advisors":  advisors,
 		"Rows":      []zoneRow{{Zone: zones[0], AdvisorName: "Ana", ShareURL: "https://example.com/embed/zona?t=z.1.1.abc"}},
+		"Groups": []zoneGroupRow{{
+			ZoneGroup: ZoneGroup{ID: 1, Name: "Norte", ZoneIDs: []int64{1}, Zones: zones},
+			ShareURL:  "https://example.com/embed/grupo?t=g.1.1.abc",
+		}},
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "zonas.html", zdata); err != nil {
 		t.Fatalf("execute zonas.html: %v", err)
+	}
+
+	embedGroupData := map[string]any{
+		"Token":            "g.1.1.deadbeef",
+		"Group":            ZoneGroup{ID: 1, Name: "Norte"},
+		"ZoneData":         asJSON(zones),
+		"GoogleMapsAPIKey": "AIza-test",
+		"AssetVersion":     "test",
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "embed_grupo.html", embedGroupData); err != nil {
+		t.Fatalf("execute embed_grupo.html: %v", err)
 	}
 
 	// clientes.html needs tenantRow values.
@@ -339,6 +354,15 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		"CSRFToken": "t",
 		"Advisors":  []Advisor{},
 		"Rows":      []zoneRow{{Zone: drawn[0], ShareURL: "/embed/zona?t=z.1.1.abc"}},
+		"Groups": []zoneGroupRow{{
+			ZoneGroup: ZoneGroup{
+				ID:      8,
+				Name:    "Norte unido",
+				ZoneIDs: []int64{2},
+				Zones:   drawn,
+			},
+			ShareURL: "/embed/grupo?t=g.1.8.abc",
+		}},
 	}
 
 	buf.Reset()
@@ -373,6 +397,12 @@ func TestB2BTemplateHasDrawZoneControls(t *testing.T) {
 		`Enlace público`,
 		`Editar dibujo`,
 		`#dibujar-zona-`,
+		`/admin/b2b/zone-groups`,
+		`Grupo de zonas`,
+		`/embed/grupo?t=`,
+		`Norte unido`,
+		`editGroup`,
+		`id="edit-group-modal"`,
 	} {
 		if !strings.Contains(zonas, needle) {
 			t.Errorf("zonas.html missing %q", needle)
@@ -504,9 +534,10 @@ func TestEmbedPopupUsesReadableInk(t *testing.T) {
 		"CategoriesData":    asJSON([]Category{}),
 		"PriceSmartData":    asJSON([]any{}),
 		"BogotaLocalidades": BogotaUrbanLocalidades(),
+		"Group":             ZoneGroup{ID: 1, Name: "Norte unido"},
 	}
 
-	for _, name := range []string{"embed_zona.html", "embed_map.html"} {
+	for _, name := range []string{"embed_zona.html", "embed_map.html", "embed_grupo.html"} {
 		var buf strings.Builder
 		if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
 			t.Fatalf("execute %s: %v", name, err)
