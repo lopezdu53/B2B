@@ -8,54 +8,106 @@ import (
 // DefaultCity is the urban capital used for Bogotá localidad matching.
 const DefaultCity = "Bogotá"
 
-// CundinamarcaRegion is the default map/list filter: Bogotá D.C. plus the
+// CundinamarcaRegion is the Cundinamarca department filter: Bogotá D.C. plus
 // surrounding municipalities (Chía, La Calera, Cajicá, Soacha, …).
 const CundinamarcaRegion = "Cundinamarca"
 
-// PredefinedCities is the filter list. Bogotá is first; the rest are major
-// Colombian cities so the dropdown does not depend on whatever a scrape stored.
-var PredefinedCities = []string{
+// BoyacaRegion is the Boyacá department filter (Tunja, Duitama, Sogamoso, …).
+const BoyacaRegion = "Boyacá"
+
+// PlaceAll is the dropdown value that shows every business and zone.
+const PlaceAll = "all"
+
+// CundinamarcaCities are the municipalities offered under Cundinamarca.
+var CundinamarcaCities = []string{
 	"Bogotá",
-	"Medellín",
-	"Cali",
-	"Barranquilla",
-	"Cartagena",
-	"Bucaramanga",
-	"Pereira",
-	"Cúcuta",
-	"Santa Marta",
-	"Ibagué",
-	"Manizales",
-	"Villavicencio",
-	"Pasto",
-	"Neiva",
-	"Armenia",
-	"Montería",
-	"Valledupar",
-	"Sincelejo",
-	"Popayán",
-	"Tunja",
 	"Soacha",
 	"Chía",
-	"La Calera",
-	"Cajicá",
-	"Cota",
 	"Zipaquirá",
 	"Facatativá",
 	"Fusagasugá",
 	"Girardot",
-	"Riohacha",
-	"Quibdó",
-	"Florencia",
-	"Yopal",
+	"Cajicá",
+	"Cota",
+	"La Calera",
+	"Mosquera",
+	"Funza",
+	"Madrid",
+	"Sopó",
+	"Tabio",
+	"Tenjo",
+	"Sibaté",
+	"Tocancipá",
+	"Gachancipá",
+	"Cogua",
+}
+
+// BoyacaCities are the municipalities offered under Boyacá.
+var BoyacaCities = []string{
+	"Tunja",
+	"Duitama",
+	"Sogamoso",
+	"Chiquinquirá",
+	"Paipa",
+	"Villa de Leyva",
+	"Puerto Boyacá",
+	"Nobsa",
+	"Moniquirá",
+	"Tibasosa",
+	"Ráquira",
+	"Samacá",
+	"Combita",
+	"Garagoa",
+	"Soatá",
+	"Santa Rosa de Viterbo",
+	"Monguí",
+	"Toca",
+	"Belén",
+	"Guateque",
+}
+
+// PredefinedCities is every city in the two supported departments.
+var PredefinedCities = append(append([]string{}, CundinamarcaCities...), BoyacaCities...)
+
+// PlaceDepartment is a department and the cities shown under it.
+type PlaceDepartment struct {
+	Name   string   `json:"name"`
+	Cities []string `json:"cities"`
+}
+
+// Departments is the map filter: Cundinamarca and Boyacá only.
+func Departments() []PlaceDepartment {
+	return []PlaceDepartment{
+		{Name: CundinamarcaRegion, Cities: append([]string{}, CundinamarcaCities...)},
+		{Name: BoyacaRegion, Cities: append([]string{}, BoyacaCities...)},
+	}
+}
+
+// DepartmentNames returns the two supported departments.
+func DepartmentNames() []string {
+	return []string{CundinamarcaRegion, BoyacaRegion}
 }
 
 var cityByKey map[string]string
 
 func init() {
-	cityByKey = make(map[string]string, len(PredefinedCities)+8)
+	cityByKey = make(map[string]string, len(PredefinedCities)+32)
 	for _, name := range PredefinedCities {
 		cityByKey[cityKey(name)] = name
+	}
+
+	for _, name := range []string{
+		"Medellín", "Cali", "Barranquilla", "Cartagena", "Bucaramanga",
+		"Pereira", "Cúcuta", "Santa Marta", "Ibagué", "Manizales",
+		"Villavicencio", "Pasto", "Neiva", "Armenia", "Montería",
+		"Valledupar", "Sincelejo", "Popayán", "Riohacha", "Quibdó",
+		"Florencia", "Yopal",
+	} {
+		if k := cityKey(name); k != "" {
+			if _, exists := cityByKey[k]; !exists {
+				cityByKey[k] = name
+			}
+		}
 	}
 
 	// Common scrape variants that should collapse into a predefined city.
@@ -69,8 +121,13 @@ func init() {
 
 	cityByKey[cityKey("calera")] = "La Calera"
 	cityByKey[cityKey("la calera cundinamarca")] = "La Calera"
+	cityByKey[cityKey("villa de leiva")] = "Villa de Leyva"
+	cityByKey[cityKey("villa de leyva boyaca")] = "Villa de Leyva"
 	cityByKey[cityKey(CundinamarcaRegion)] = CundinamarcaRegion
 	cityByKey[cityKey("cundinamarca colombia")] = CundinamarcaRegion
+	cityByKey[cityKey(BoyacaRegion)] = BoyacaRegion
+	cityByKey[cityKey("boyaca colombia")] = BoyacaRegion
+	cityByKey[cityKey("boyaca")] = BoyacaRegion
 
 	// Google often stores the locality (Usaquén, Chapinero…) as "city".
 	// Those still belong to Bogotá for the map/list filter.
@@ -83,14 +140,33 @@ func init() {
 	}
 }
 
-// CityList returns the city dropdown with Cundinamarca first (the default
-// regional view), then Bogotá and the rest of the predefined cities.
+// CityList returns cities of Cundinamarca and Boyacá (no department names).
 func CityList() []string {
-	out := make([]string, 0, len(PredefinedCities)+1)
-	out = append(out, CundinamarcaRegion)
-	out = append(out, PredefinedCities...)
+	out := make([]string, 0, len(CundinamarcaCities)+len(BoyacaCities))
+	seen := map[string]struct{}{}
+
+	for _, name := range append(append([]string{}, CundinamarcaCities...), BoyacaCities...) {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
 
 	return out
+}
+
+// CitiesForDepartment returns the city dropdown for one department.
+func CitiesForDepartment(department string) []string {
+	switch NormalizeDepartment(department) {
+	case CundinamarcaRegion:
+		return append([]string{}, CundinamarcaCities...)
+	case BoyacaRegion:
+		return append([]string{}, BoyacaCities...)
+	default:
+		return CityList()
+	}
 }
 
 // CanonicalCity maps a scraped city string to a single display name.
@@ -167,22 +243,87 @@ func SearchKeyword(what, city, localidad, barrio, where string) string {
 	return what + " en " + loc
 }
 
+// isChoiceAll reports whether a dropdown value means "show everything".
+func isChoiceAll(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", PlaceAll, "todos", "todas", "*":
+		return true
+	default:
+		return false
+	}
+}
+
+// NormalizeDepartment maps a dropdown/query value to Cundinamarca, Boyacá, or all.
+func NormalizeDepartment(raw string) string {
+	if isChoiceAll(raw) {
+		return PlaceAll
+	}
+
+	switch cityKey(raw) {
+	case "cundinamarca":
+		return CundinamarcaRegion
+	case "boyaca":
+		return BoyacaRegion
+	default:
+		return PlaceAll
+	}
+}
+
+// NormalizeCityChoice maps a city dropdown value to a canonical city or all.
+func NormalizeCityChoice(raw string) string {
+	if isChoiceAll(raw) {
+		return PlaceAll
+	}
+
+	if c := CanonicalCity(raw); c != "" && c != CundinamarcaRegion && c != BoyacaRegion {
+		return c
+	}
+
+	if c := CanonicalCity(raw); c == CundinamarcaRegion || c == BoyacaRegion {
+		return PlaceAll
+	}
+
+	return strings.TrimSpace(raw)
+}
+
 // ResolveCityFilter interprets a city query parameter.
-// "all" / "todas" / "*" means no city filter. Empty defaults to Cundinamarca.
+// "all" / "todos" / "todas" / "*" means no city filter. Empty also means all.
 func ResolveCityFilter(raw string) (city string, all bool) {
-	raw = strings.TrimSpace(raw)
-	switch strings.ToLower(raw) {
-	case "all", "todas", "*":
+	if isChoiceAll(raw) {
 		return "", true
-	case "":
+	}
+
+	if isCundinamarcaFilter(raw) {
 		return CundinamarcaRegion, false
+	}
+
+	if isBoyacaFilter(raw) {
+		return BoyacaRegion, false
 	}
 
 	if c := CanonicalCity(raw); c != "" {
 		return c, false
 	}
 
-	return raw, false
+	return strings.TrimSpace(raw), false
+}
+
+// ResolvePlaceFilter combines department + city dropdowns into the store filter.
+// City wins when it is a specific municipality. Department applies when city is Todos.
+func ResolvePlaceFilter(department, city string) (filter string, all bool) {
+	cityChoice := NormalizeCityChoice(city)
+	if cityChoice != PlaceAll {
+		return ResolveCityFilter(cityChoice)
+	}
+
+	switch NormalizeDepartment(department) {
+	case CundinamarcaRegion:
+		return CundinamarcaRegion, false
+	case BoyacaRegion:
+		return BoyacaRegion, false
+	default:
+		return "", true
+	}
 }
 
 func cityKey(s string) string {
@@ -327,6 +468,128 @@ func InCundinamarcaRegion(name string) bool {
 	return isSatelliteTown(name)
 }
 
+// BoyacaTownKeys are folded municipality names that count as Boyacá.
+func BoyacaTownKeys() []string {
+	out := make([]string, 0, len(BoyacaCities)+2)
+	seen := map[string]struct{}{}
+
+	for _, name := range BoyacaCities {
+		k := cityKey(name)
+		if k == "" {
+			continue
+		}
+
+		if _, ok := seen[k]; ok {
+			continue
+		}
+
+		seen[k] = struct{}{}
+		out = append(out, k)
+	}
+
+	for _, alias := range []string{"villa de leiva", "villa de leyva"} {
+		if _, ok := seen[alias]; ok {
+			continue
+		}
+
+		seen[alias] = struct{}{}
+		out = append(out, alias)
+	}
+
+	return out
+}
+
+func isBoyacaTown(s string) bool {
+	k := cityKey(s)
+	if k == "" {
+		return false
+	}
+
+	padded := " " + k + " "
+	for _, town := range BoyacaTownKeys() {
+		if k == town || firstToken(k) == town || strings.HasPrefix(k, town+" ") || strings.Contains(padded, " "+town+" ") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// InBoyacaRegion reports whether a place name belongs to Boyacá.
+func InBoyacaRegion(name string) bool {
+	k := cityKey(name)
+	if k == "" {
+		return false
+	}
+
+	if k == "boyaca" || strings.Contains(k, "boyaca") {
+		return true
+	}
+
+	canon := CanonicalCity(name)
+	if canon == BoyacaRegion {
+		return true
+	}
+
+	return isBoyacaTown(name)
+}
+
+func isBoyacaFilter(filter string) bool {
+	k := cityKey(filter)
+	if canon := CanonicalCity(filter); canon != "" {
+		k = cityKey(canon)
+	}
+
+	return k == "boyaca"
+}
+
+// IsBoyacaPlace reports whether a scraped address is in Boyacá.
+func IsBoyacaPlace(city, state, borough, address string) bool {
+	if isBoyacaTown(city) || isBoyacaTown(borough) || isBoyacaTown(address) {
+		return true
+	}
+
+	if InBoyacaRegion(city) || InBoyacaRegion(borough) || InBoyacaRegion(state) {
+		return true
+	}
+
+	blob := cityKey(strings.Join([]string{city, state, borough, address}, " "))
+
+	return strings.Contains(blob, "boyaca")
+}
+
+// DepartmentOfCity returns Cundinamarca or Boyacá for a city name, or empty.
+func DepartmentOfCity(city string) string {
+	if isCundinamarcaFilter(city) || InCundinamarcaRegion(city) {
+		return CundinamarcaRegion
+	}
+
+	if isBoyacaFilter(city) || InBoyacaRegion(city) {
+		return BoyacaRegion
+	}
+
+	return ""
+}
+
+// ZoneMatchesPlaceFilter reports whether a drawn zone belongs to the selected
+// department/city (Todos matches every zone).
+func ZoneMatchesPlaceFilter(z Zone, department, city string) bool {
+	filter, all := ResolvePlaceFilter(department, city)
+	if all {
+		return true
+	}
+
+	if isCundinamarcaFilter(filter) {
+		return InCundinamarcaRegion(z.City) || cityKey(z.City) == "cundinamarca"
+	}
+
+	if isBoyacaFilter(filter) {
+		return InBoyacaRegion(z.City) || cityKey(z.City) == "boyaca"
+	}
+
+	return MatchesCityFilter(filter, z.City, "", "", z.City)
+}
+
 func isCundinamarcaFilter(filter string) bool {
 	k := cityKey(filter)
 	if canon := CanonicalCity(filter); canon != "" {
@@ -367,6 +630,10 @@ func MatchesCityFilter(filter, city, state, borough, address string) bool {
 
 	if isCundinamarcaFilter(filter) {
 		return IsCundinamarcaPlace(city, state, borough, address)
+	}
+
+	if isBoyacaFilter(filter) {
+		return IsBoyacaPlace(city, state, borough, address)
 	}
 
 	if cityFieldMatchesFilter(filter, city) {
@@ -413,19 +680,45 @@ func cityFieldMatchesFilter(filter, scraped string) bool {
 }
 
 // InferCityFromSearch picks the city dropdown for a dashboard search.
-// Searches in Bogotá, Chía or La Calera keep the Cundinamarca regional view
-// so one town does not hide the rest of the department.
+// Searches in a Cundinamarca or Boyacá town keep the department view.
 func InferCityFromSearch(what, where string) string {
+	dept, city := InferPlaceFromSearch(what, where)
+	if city != "" && city != PlaceAll {
+		return city
+	}
+
+	if dept != "" && dept != PlaceAll {
+		return dept
+	}
+
+	return ""
+}
+
+// InferPlaceFromSearch returns department + city for the map filters after a
+// search. Towns in a supported department widen to that department + Todos.
+func InferPlaceFromSearch(what, where string) (department, city string) {
 	c := inferCityFromText(where)
 	if c == "" {
 		c = inferCityFromText(what)
 	}
 
-	if InCundinamarcaRegion(c) {
-		return CundinamarcaRegion
+	if c == "" {
+		return "", ""
 	}
 
-	return c
+	if isCundinamarcaFilter(c) || InCundinamarcaRegion(c) {
+		return CundinamarcaRegion, PlaceAll
+	}
+
+	if isBoyacaFilter(c) || InBoyacaRegion(c) {
+		return BoyacaRegion, PlaceAll
+	}
+
+	if d := DepartmentOfCity(c); d != "" {
+		return d, c
+	}
+
+	return PlaceAll, c
 }
 
 func inferCityFromText(s string) string {
@@ -469,29 +762,64 @@ func inferCityFromText(s string) string {
 }
 
 const b2bCityCookie = "b2b_city"
+const b2bDeptCookie = "b2b_dept"
 
-// CityFilterFromInputs resolves the city dropdown. An explicit query string
-// wins. A remembered Chía/Bogotá/La Calera cookie is widened to Cundinamarca
-// so the map shows the whole department instead of a single town.
-func CityFilterFromInputs(queryCity, remembered string) (city string, all bool, cityVal string) {
-	explicit := strings.TrimSpace(queryCity)
-	raw := explicit
-	if raw == "" {
-		raw = strings.TrimSpace(remembered)
-		if raw == "" || InCundinamarcaRegion(raw) {
-			raw = CundinamarcaRegion
+// PlaceFilterFromInputs resolves department + city dropdowns. Query params
+// win over cookies. Empty defaults to Todos / Todos (all businesses and zones).
+func PlaceFilterFromInputs(queryDept, queryCity, rememberedDept, rememberedCity string) (filter, deptVal, cityVal string, all bool) {
+	dept := strings.TrimSpace(queryDept)
+	city := strings.TrimSpace(queryCity)
+
+	if dept == "" && city == "" {
+		dept = strings.TrimSpace(rememberedDept)
+		city = strings.TrimSpace(rememberedCity)
+	}
+
+	if isCundinamarcaFilter(city) {
+		dept = CundinamarcaRegion
+		city = PlaceAll
+	}
+
+	if isBoyacaFilter(city) {
+		dept = BoyacaRegion
+		city = PlaceAll
+	}
+
+	deptVal = NormalizeDepartment(dept)
+	cityVal = NormalizeCityChoice(city)
+
+	if cityVal != PlaceAll && deptVal == PlaceAll {
+		if d := DepartmentOfCity(cityVal); d != "" {
+			deptVal = d
 		}
 	}
 
-	city, all = ResolveCityFilter(raw)
-	cityVal = city
+	if cityVal != PlaceAll && deptVal != PlaceAll {
+		allowed := false
+		for _, name := range CitiesForDepartment(deptVal) {
+			if name == cityVal {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			cityVal = PlaceAll
+		}
+	}
+
+	filter, all = ResolvePlaceFilter(deptVal, cityVal)
+
+	return filter, deptVal, cityVal, all
+}
+
+// CityFilterFromInputs resolves the city dropdown. An explicit query string
+// wins. Empty defaults to all businesses (Todos).
+func CityFilterFromInputs(queryCity, remembered string) (city string, all bool, cityVal string) {
+	filter, _, cityVal, all := PlaceFilterFromInputs("", queryCity, "", remembered)
 	if all {
-		cityVal = "all"
+		return "", true, PlaceAll
 	}
 
-	if cityVal == "" && !all {
-		cityVal = CundinamarcaRegion
-	}
-
-	return city, all, cityVal
+	return filter, false, cityVal
 }

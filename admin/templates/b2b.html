@@ -291,7 +291,7 @@
         {{if .CanManage}}
         <div class="card">
             <h2 class="sec-title"><span class="ico">🔍</span> Buscar negocios en Google Maps</h2>
-            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. El filtro <strong>Cundinamarca</strong> muestra Bogotá, Chía, La Calera y los municipios vecinos.</p>
+            <p class="empty-hint" style="margin:.1rem 0 1rem;">Lanza una búsqueda y, cuando un worker la procese, los negocios aparecerán en el mapa. El filtro del mapa va por departamento (Cundinamarca o Boyacá) y luego por ciudad. <strong>Todos</strong> muestra todos los negocios y zonas.</p>
             <form method="POST" action="/admin/b2b/search" class="search-form" id="search-form">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
                 <div>
@@ -329,10 +329,18 @@
         <div class="card">
             <div class="b2b-filters">
                 <div>
+                    <label for="f-dept">Departamento</label>
+                    <select id="f-dept">
+                        {{$d := .DeptVal}}
+                        <option value="all" {{if or (eq $d "all") (eq $d "")}}selected{{end}}>Todos</option>
+                        {{range .Departments}}<option value="{{.Name}}" {{if eq .Name $d}}selected{{end}}>{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
                     <label for="f-city">Ciudad</label>
                     <select id="f-city">
                         {{$c := .CityVal}}
-                        <option value="all" {{if eq $c "all"}}selected{{end}}>Todas</option>
+                        <option value="all" {{if or (eq $c "all") (eq $c "")}}selected{{end}}>Todos</option>
                         {{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
                     </select>
                 </div>
@@ -565,7 +573,10 @@
         const SEARCH_RUBROS = {{if .SearchRubrosData}}{{.SearchRubrosData}}{{else}}[]{{end}};
         const MIN_LEAD_REVIEWS = {{if .MinLeadReviews}}{{.MinLeadReviews}}{{else}}10{{end}};
         const PRICE_SMART = {{if .PriceSmartData}}{{.PriceSmartData}}{{else}}[]{{end}};
+        const DEPARTMENTS = {{if .DepartmentsData}}{{.DepartmentsData}}{{else}}[]{{end}};
         const CITY_OPTIONS = [{{range .Cities}}"{{.}}",{{end}}];
+        const INITIAL_DEPT = "{{.DeptVal}}";
+        const INITIAL_CITY = "{{.CityVal}}";
         var cityLocked = false;
         const CAT_PALETTE = ["#2563eb","#16a34a","#f59e0b","#7c3aed","#0891b2","#db2777","#65a30d","#dc2626","#0ea5e9","#9333ea","#ca8a04","#059669","#e11d48","#0d9488"];
         const NEUTRAL = "#94a3b8";
@@ -601,7 +612,7 @@
                 items = ADVISORS_LIST.map(a => ({ color: advisorMeta[a.ID].color, label: a.Name }));
                 items.push({ color: NEUTRAL, label: "Sin asignar" });
             } else if (colorMode === "zone") {
-                items = ZONES_LIST.map(z => ({ color: zoneMeta[z.ID].color, label: z.Name }));
+                items = visibleZones().map(z => ({ color: zoneMeta[z.ID].color, label: z.Name }));
                 items.push({ color: NEUTRAL, label: "Sin zona" });
             } else if (colorMode === "category") {
                 items = CATEGORIES_LIST.map(c => ({ color: categoryMeta[c.ID].color, label: (categoryMeta[c.ID].icon ? categoryMeta[c.ID].icon + " " : "") + c.Name }));
@@ -667,11 +678,16 @@
 
         function priceSmartForCity(city) {
             var key = cityKeyJS(city);
-            if (!key || key === "all" || key === "todas") return PRICE_SMART.slice();
+            var dept = cityKeyJS((document.getElementById("f-dept") || {}).value);
+            if (isAllChoice(key) && isAllChoice(dept)) return PRICE_SMART.slice();
+            if (dept === "boyaca" && isAllChoice(key)) return [];
+            if (!key || key === "all" || key === "todas" || key === "todos") {
+                if (dept === "cundinamarca") return PRICE_SMART.slice();
+                return PRICE_SMART.slice();
+            }
             return PRICE_SMART.filter(function (p) {
                 var ck = cityKeyJS(p.city);
                 if (ck === key) return true;
-                // Chía / La Calera sit just north-east of Bogotá — show clubs with that metro view.
                 var metro = (key === "bogota" || key === "chia" || key === "la calera" || key === "cundinamarca");
                 return metro && (ck === "bogota" || ck === "chia");
             });
@@ -680,9 +696,9 @@
         function renderZoneStats(list) {
             var el = document.getElementById("zone-stats");
             if (!el) return;
-            var zones = ZONES_LIST || [];
+            var zones = visibleZones();
             if (!zones.length) {
-                el.innerHTML = '<p class="empty-hint" style="margin:0;">Aún no hay zonas. Dibújalas en el mapa para ver cuántos negocios tiene cada una.</p>';
+                el.innerHTML = '<p class="empty-hint" style="margin:0;">No hay zonas en este filtro. Elige Todos o dibuja una zona en el mapa.</p>';
                 return;
             }
             el.innerHTML = zones.map(function (z) {
@@ -729,6 +745,93 @@
             return pois;
         }
 
+        function isAllChoice(v) {
+            v = cityKeyJS(v).trim();
+            return !v || v === "all" || v === "todos" || v === "todas";
+        }
+
+        function citiesForDept(dept) {
+            if (isAllChoice(dept)) {
+                var all = [];
+                (DEPARTMENTS || []).forEach(function (d) {
+                    (d.cities || []).forEach(function (c) { all.push(c); });
+                });
+                return all;
+            }
+            var found = (DEPARTMENTS || []).find(function (d) { return d.name === dept; });
+            return found && found.cities ? found.cities.slice() : (CITY_OPTIONS || []).slice();
+        }
+
+        function departmentOfCityName(city) {
+            var k = cityKeyJS(city);
+            if (!k || isAllChoice(k)) return "all";
+            var hit = "all";
+            (DEPARTMENTS || []).forEach(function (d) {
+                (d.cities || []).forEach(function (c) {
+                    if (cityKeyJS(c) === k) hit = d.name;
+                });
+                if (cityKeyJS(d.name) === k) hit = d.name;
+            });
+            return hit;
+        }
+
+        function fillCityOptions(keepCity) {
+            var deptEl = document.getElementById("f-dept");
+            var cityEl = document.getElementById("f-city");
+            if (!cityEl) return;
+            var dept = deptEl ? deptEl.value : "all";
+            var current = keepCity || cityEl.value || "all";
+            var cities = citiesForDept(dept);
+            var html = '<option value="all">Todos</option>';
+            var found = isAllChoice(current);
+            cities.forEach(function (c) {
+                html += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + "</option>";
+                if (c === current) found = true;
+            });
+            cityEl.innerHTML = html;
+            cityEl.value = found ? (isAllChoice(current) ? "all" : current) : "all";
+        }
+
+        function persistPlace() {
+            var deptEl = document.getElementById("f-dept");
+            var cityEl = document.getElementById("f-city");
+            var dept = deptEl ? deptEl.value : "all";
+            var city = cityEl ? cityEl.value : "all";
+            persistCity(city);
+            try {
+                document.cookie = "b2b_dept=" + encodeURIComponent(dept) + "; path=/admin; max-age=2592000; samesite=lax";
+            } catch (e) {}
+        }
+
+        function zoneMatchesPlace(z) {
+            var deptEl = document.getElementById("f-dept");
+            var cityEl = document.getElementById("f-city");
+            var dept = deptEl ? deptEl.value : "all";
+            var city = cityEl ? cityEl.value : "all";
+            var zcity = z.City || z.city || "";
+            if (!isAllChoice(city)) {
+                return cityKeyJS(zcity) === cityKeyJS(city) || cityKeyJS(zcity).indexOf(cityKeyJS(city) + " ") === 0;
+            }
+            if (!isAllChoice(dept)) {
+                if (cityKeyJS(zcity) === cityKeyJS(dept)) return true;
+                return departmentOfCityName(zcity) === dept;
+            }
+            return true;
+        }
+
+        function visibleZones() {
+            return (ZONES_LIST || []).filter(zoneMatchesPlace);
+        }
+
+        function applyZoneFilter(exceptId) {
+            if (!mapApi) return;
+            var list = visibleZones();
+            if (exceptId) {
+                list = list.filter(function (z) { return Number(z.ID) !== Number(exceptId); });
+            }
+            mapApi.setZones(list);
+        }
+
         function persistCity(city) {
             if (!city) return;
             try {
@@ -751,25 +854,37 @@
             });
             if (!best && loc.indexOf("calera") >= 0) best = "La Calera";
             if (!best && loc.indexOf("chia") >= 0) best = "Chía";
+            if (!best && loc.indexOf("tunja") >= 0) best = "Tunja";
+            if (!best && loc.indexOf("duitama") >= 0) best = "Duitama";
+            if (!best && loc.indexOf("sogamoso") >= 0) best = "Sogamoso";
+            if (!best && (loc.indexOf("villa de leyva") >= 0 || loc.indexOf("villa de leiva") >= 0)) best = "Villa de Leyva";
             var k = cityKeyJS(best);
             if (k === "bogota" || k === "chia" || k === "la calera" || k === "cundinamarca" || loc.indexOf("cundinamarca") >= 0 || loc.indexOf("usaquen") >= 0) {
-                return "Cundinamarca";
+                return { dept: "Cundinamarca", city: "all" };
             }
-            return best;
+            if (k === "tunja" || k === "duitama" || k === "sogamoso" || k === "boyaca" || loc.indexOf("boyaca") >= 0) {
+                return { dept: "Boyacá", city: "all" };
+            }
+            if (best) {
+                return { dept: departmentOfCityName(best), city: best };
+            }
+            return { dept: "", city: "" };
         }
 
         function maybeAdoptSearchCity(jobs) {
             if (cityLocked || !jobs || !jobs.length) return;
-            var sel = document.getElementById("f-city");
-            if (!sel) return;
+            var citySel = document.getElementById("f-city");
+            var deptSel = document.getElementById("f-dept");
+            if (!citySel) return;
             for (var i = 0; i < jobs.length; i++) {
-                var city = cityFromKeyword(jobs[i].keyword || "");
-                if (!city || sel.value === city) {
-                    if (city) return;
-                    continue;
-                }
-                sel.value = city;
-                persistCity(city);
+                var place = cityFromKeyword(jobs[i].keyword || "");
+                if (!place || !place.dept && !place.city) continue;
+                var nextDept = place.dept || "all";
+                var nextCity = place.city || "all";
+                if (deptSel && deptSel.value === nextDept && citySel.value === nextCity) return;
+                if (deptSel) deptSel.value = nextDept;
+                fillCityOptions(nextCity);
+                persistPlace();
                 loadBusinesses();
                 return;
             }
@@ -777,10 +892,12 @@
 
         function loadBusinesses() {
             if (!mapApi) return;
-            persistCity(document.getElementById("f-city").value);
+            persistPlace();
+            applyZoneFilter();
             const hint = document.getElementById("loading-hint");
             hint.textContent = "Cargando…";
             const params = new URLSearchParams({
+                department: (document.getElementById("f-dept") || {value: "all"}).value,
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
                 advisor: (document.getElementById("f-advisor") || {value: ""}).value,
@@ -860,9 +977,22 @@
             cityLocked = true;
             loadBusinesses();
         });
+        var deptEl = document.getElementById("f-dept");
+        if (deptEl) {
+            deptEl.addEventListener("change", function () {
+                cityLocked = true;
+                fillCityOptions("all");
+                persistPlace();
+            });
+        }
         document.getElementById("f-city").addEventListener("change", function () {
             cityLocked = true;
-            persistCity(this.value);
+            var deptSel = document.getElementById("f-dept");
+            if (deptSel && !isAllChoice(this.value) && isAllChoice(deptSel.value)) {
+                var inferred = departmentOfCityName(this.value);
+                if (inferred && inferred !== "all") deptSel.value = inferred;
+            }
+            persistPlace();
         });
         document.getElementById("biz-save").addEventListener("click", saveSelected);
         document.getElementById("f-colorby").addEventListener("change", function () {
@@ -895,12 +1025,7 @@
         }
 
         function showZonesExcept(id) {
-            if (!mapApi) return;
-            if (!id) {
-                mapApi.setZones(ZONES_LIST);
-                return;
-            }
-            mapApi.setZones(ZONES_LIST.filter(function (z) { return Number(z.ID) !== Number(id); }));
+            applyZoneFilter(id);
         }
 
         function syncDrawModeButtons() {
@@ -959,8 +1084,13 @@
                 if (nameEl) nameEl.value = "";
                 if (colorEl) colorEl.value = "#0891b2";
                 const filterCity = document.getElementById("f-city");
-                if (cityEl && filterCity && filterCity.value && filterCity.value !== "all") {
+                const filterDept = document.getElementById("f-dept");
+                if (cityEl && filterCity && !isAllChoice(filterCity.value)) {
                     cityEl.value = filterCity.value;
+                } else if (cityEl && filterDept && filterDept.value === "Cundinamarca") {
+                    cityEl.value = "Bogotá";
+                } else if (cityEl && filterDept && filterDept.value === "Boyacá") {
+                    cityEl.value = "Tunja";
                 }
             }
             if (errEl) errEl.textContent = "";
@@ -993,7 +1123,7 @@
                 }
                 opt.textContent = zone.Name + " · " + zone.City;
             }
-            if (mapApi) mapApi.setZones(ZONES_LIST);
+            if (mapApi) applyZoneFilter();
             refreshSummary();
             renderLegend();
         }
@@ -1286,6 +1416,8 @@
             });
         }
 
+        fillCityOptions(INITIAL_CITY || "all");
+
         B2BMap.create({
             el: document.getElementById("map"),
             apiKey: GOOGLE_KEY,
@@ -1294,7 +1426,7 @@
             showBarrios: false
         }).then(function (api) {
             mapApi = api;
-            api.setZones(ZONES_LIST);
+            api.setZones(visibleZones());
             if (togZones) api.setZonesVisible(togZones.checked);
             var hint = document.getElementById("map-engine-hint");
             if (api.usesGoogle()) {

@@ -34,10 +34,18 @@
                     <input type="search" id="q" name="q" value="{{.QVal}}" placeholder="Nombre, categoría o dirección…">
                 </div>
                 <div>
+                    <label for="department">Departamento</label>
+                    <select id="department" name="department">
+                        {{$d := .DeptVal}}
+                        <option value="all" {{if or (eq $d "all") (eq $d "")}}selected{{end}}>Todos</option>
+                        {{range .Departments}}<option value="{{.Name}}" {{if eq .Name $d}}selected{{end}}>{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
                     <label for="city">Ciudad</label>
                     <select id="city" name="city">
                         {{$c := .CityVal}}
-                        <option value="all" {{if eq $c "all"}}selected{{end}}>Todas</option>
+                        <option value="all" {{if or (eq $c "all") (eq $c "")}}selected{{end}}>Todos</option>
                         {{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
                     </select>
                 </div>
@@ -227,6 +235,30 @@
     </div>
 
     <script>
+    (function () {
+        var DEPTS = {{if .DepartmentsData}}{{.DepartmentsData}}{{else}}[]{{end}};
+        var deptEl = document.getElementById("department");
+        var cityEl = document.getElementById("city");
+        if (!deptEl || !cityEl) return;
+        function fill() {
+            var dept = deptEl.value;
+            var current = cityEl.value;
+            var cities = [];
+            (DEPTS || []).forEach(function (d) {
+                if (dept === "all" || d.name === dept) (d.cities || []).forEach(function (c) { cities.push(c); });
+            });
+            var html = '<option value="all">Todos</option>';
+            var found = !current || current === "all";
+            cities.forEach(function (c) {
+                html += '<option value="' + c + '">' + c + "</option>";
+                if (c === current) found = true;
+            });
+            cityEl.innerHTML = html;
+            cityEl.value = found ? current : "all";
+        }
+        deptEl.addEventListener("change", fill);
+        fill();
+    })();
     function closeModal(id) { document.getElementById(id).classList.remove("open"); }
     function editBiz(btn) {
         document.getElementById("e-key").value = btn.dataset.key || "";

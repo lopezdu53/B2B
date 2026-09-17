@@ -96,6 +96,23 @@ func cityMatchSQL() string {
 		)
 	}
 
+	boyacaTowns := sqlQuotedList(admin.BoyacaTownKeys())
+	boyacaParts := []string{
+		sqlFoldCity("state") + ` LIKE 'boyaca%'`,
+		sqlFoldCity("city") + ` LIKE 'boyaca%'`,
+		sqlFoldCity("borough") + ` LIKE 'boyaca%'`,
+		sqlFoldCity("address") + ` LIKE '%boyaca%'`,
+		sqlFirstCityToken("city") + ` IN (` + boyacaTowns + `)`,
+		sqlFoldCity("city") + ` IN (` + boyacaTowns + `)`,
+	}
+	for _, town := range admin.BoyacaTownKeys() {
+		boyacaParts = append(boyacaParts,
+			sqlFoldCity("city")+` LIKE '`+town+` %'`,
+			sqlFoldCity("borough")+` = '`+town+`'`,
+			sqlFoldCity("address")+` LIKE '%`+town+`%'`,
+		)
+	}
+
 	return `(` +
 		sqlFirstCityToken("city") + ` = ` + sqlFirstCityToken("$1") +
 		` OR ` + sqlFoldCity("city") + ` = ` + foldFilter +
@@ -105,7 +122,11 @@ func cityMatchSQL() string {
 		` AND (` + strings.Join(cundiParts, " OR ") + `)` +
 		`)` +
 		` OR (` +
-		sqlFirstCityToken("$1") + ` <> 'bogota' AND ` + foldFilter + ` <> 'cundinamarca'` +
+		foldFilter + ` = 'boyaca'` +
+		` AND (` + strings.Join(boyacaParts, " OR ") + `)` +
+		`)` +
+		` OR (` +
+		sqlFirstCityToken("$1") + ` <> 'bogota' AND ` + foldFilter + ` <> 'cundinamarca' AND ` + foldFilter + ` <> 'boyaca'` +
 		` AND (` +
 		sqlFoldCity("borough") + ` = ` + foldFilter +
 		` OR ` + sqlFoldCity("borough") + ` LIKE ` + foldFilter + ` || ' %'` +
@@ -303,7 +324,7 @@ func (s *store) CountBusinesses(ctx context.Context, tenantID int64, f admin.Bus
 	return n, err
 }
 
-// ListBusinessCities returns the predefined city list (Bogotá first).
+// ListBusinessCities returns the city list for Cundinamarca and Boyacá.
 // Scraped raw values are not used: they produce duplicates like
 // "Bogotá, BOGOTÁ D.C." and leftover towns from old searches.
 func (s *store) ListBusinessCities(_ context.Context) ([]string, error) {

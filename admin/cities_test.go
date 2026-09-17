@@ -48,7 +48,7 @@ func TestResolveCityFilter(t *testing.T) {
 	t.Parallel()
 
 	city, all := ResolveCityFilter("")
-	if all || city != CundinamarcaRegion {
+	if !all || city != "" {
 		t.Fatalf("empty: city=%q all=%v", city, all)
 	}
 
@@ -57,9 +57,24 @@ func TestResolveCityFilter(t *testing.T) {
 		t.Fatalf("all: city=%q all=%v", city, all)
 	}
 
+	city, all = ResolveCityFilter("todos")
+	if !all || city != "" {
+		t.Fatalf("todos: city=%q all=%v", city, all)
+	}
+
 	city, all = ResolveCityFilter("Bogotá, BOGOTÁ D.C.")
 	if all || city != DefaultCity {
 		t.Fatalf("variant: city=%q all=%v", city, all)
+	}
+
+	city, all = ResolveCityFilter("Cundinamarca")
+	if all || city != CundinamarcaRegion {
+		t.Fatalf("dept as city: city=%q all=%v", city, all)
+	}
+
+	city, all = ResolveCityFilter("Boyacá")
+	if all || city != BoyacaRegion {
+		t.Fatalf("boyaca: city=%q all=%v", city, all)
 	}
 }
 
@@ -192,8 +207,28 @@ func TestMatchesCityFilterBogotaLocalidad(t *testing.T) {
 		t.Fatal("Usaquén should match Cundinamarca")
 	}
 
-	if MatchesCityFilter("Cundinamarca", "Medellín", "Antioquia", "", "") {
-		t.Fatal("Medellín must not match Cundinamarca")
+	if MatchesCityFilter("Cundinamarca", "Tunja", "Boyacá", "", "") {
+		t.Fatal("Tunja must not match Cundinamarca")
+	}
+
+	if !MatchesCityFilter("Boyacá", "Tunja", "", "", "") {
+		t.Fatal("Tunja should match Boyacá")
+	}
+
+	if !MatchesCityFilter("Boyacá", "Duitama", "Boyacá", "", "") {
+		t.Fatal("Duitama should match Boyacá")
+	}
+
+	if !MatchesCityFilter("Boyacá", "Villa de Leyva", "", "", "") {
+		t.Fatal("Villa de Leyva should match Boyacá")
+	}
+
+	if MatchesCityFilter("Boyacá", "Bogotá", "", "", "") {
+		t.Fatal("Bogotá must not match Boyacá")
+	}
+
+	if !MatchesCityFilter("Tunja", "Tunja", "Boyacá", "", "") {
+		t.Fatal("Tunja should match Tunja")
 	}
 
 	if !MatchesCityFilter("Chía", "Chía", "Cundinamarca", "", "") {
@@ -249,11 +284,11 @@ func TestIsBogotaPlace(t *testing.T) {
 	}
 }
 
-func TestCityListStartsWithBogota(t *testing.T) {
+func TestCityListIsCundinamarcaAndBoyaca(t *testing.T) {
 	t.Parallel()
 
 	list := CityList()
-	if len(list) < 3 || list[0] != CundinamarcaRegion || list[1] != DefaultCity {
+	if len(list) < 3 || list[0] != DefaultCity {
 		t.Fatalf("first cities = %v", list)
 	}
 
@@ -265,10 +300,29 @@ func TestCityListStartsWithBogota(t *testing.T) {
 		seen[c] = struct{}{}
 	}
 
-	for _, need := range []string{"Cundinamarca", "Bogotá", "Chía", "La Calera", "Cajicá", "Cota"} {
+	for _, need := range []string{"Bogotá", "Chía", "La Calera", "Cajicá", "Cota", "Tunja", "Duitama", "Sogamoso", "Villa de Leyva"} {
 		if _, ok := seen[need]; !ok {
 			t.Fatalf("city list missing %q", need)
 		}
+	}
+
+	for _, gone := range []string{"Cundinamarca", "Boyacá", "Medellín", "Cali", "Barranquilla"} {
+		if _, ok := seen[gone]; ok {
+			t.Fatalf("city list should not include %q", gone)
+		}
+	}
+
+	depts := Departments()
+	if len(depts) != 2 || depts[0].Name != CundinamarcaRegion || depts[1].Name != BoyacaRegion {
+		t.Fatalf("departments: %+v", depts)
+	}
+
+	if got := CitiesForDepartment(CundinamarcaRegion); got[0] != DefaultCity {
+		t.Fatalf("cundinamarca cities: %v", got)
+	}
+
+	if got := CitiesForDepartment(BoyacaRegion); got[0] != "Tunja" {
+		t.Fatalf("boyaca cities: %v", got)
 	}
 }
 
@@ -285,6 +339,8 @@ func TestInferCityFromSearch(t *testing.T) {
 		{"restaurantes", "calera", "Cundinamarca"},
 		{"restaurantes, hoteles", "Cajicá", "Cundinamarca"},
 		{"hoteles", "Medellín", "Medellín"},
+		{"hoteles", "Tunja", "Boyacá"},
+		{"restaurantes", "Duitama", "Boyacá"},
 	}
 
 	for _, tc := range cases {
@@ -298,13 +354,13 @@ func TestCityFilterFromInputsRemembersSearch(t *testing.T) {
 	t.Parallel()
 
 	city, all, val := CityFilterFromInputs("", "Chía")
-	if all || city != CundinamarcaRegion || val != CundinamarcaRegion {
-		t.Fatalf("remembered Chía widens: city=%q all=%v val=%q", city, all, val)
+	if all || city != "Chía" || val != "Chía" {
+		t.Fatalf("remembered Chía: city=%q all=%v val=%q", city, all, val)
 	}
 
 	city, all, val = CityFilterFromInputs("", "")
-	if all || city != CundinamarcaRegion || val != CundinamarcaRegion {
-		t.Fatalf("default: city=%q all=%v val=%q", city, all, val)
+	if !all || city != "" || val != PlaceAll {
+		t.Fatalf("default todos: city=%q all=%v val=%q", city, all, val)
 	}
 
 	city, all, val = CityFilterFromInputs("La Calera", "Chía")
@@ -313,7 +369,50 @@ func TestCityFilterFromInputsRemembersSearch(t *testing.T) {
 	}
 
 	city, all, val = CityFilterFromInputs("all", "Chía")
-	if !all || city != "" || val != "all" {
+	if !all || city != "" || val != PlaceAll {
 		t.Fatalf("all: city=%q all=%v val=%q", city, all, val)
+	}
+
+	filter, dept, cityVal, all := PlaceFilterFromInputs("", "", "", "")
+	if !all || filter != "" || dept != PlaceAll || cityVal != PlaceAll {
+		t.Fatalf("empty place: filter=%q dept=%q city=%q all=%v", filter, dept, cityVal, all)
+	}
+
+	filter, dept, cityVal, all = PlaceFilterFromInputs("Cundinamarca", "all", "", "")
+	if all || filter != CundinamarcaRegion || dept != CundinamarcaRegion || cityVal != PlaceAll {
+		t.Fatalf("cund todos: filter=%q dept=%q city=%q all=%v", filter, dept, cityVal, all)
+	}
+
+	filter, dept, cityVal, all = PlaceFilterFromInputs("Boyacá", "all", "", "")
+	if all || filter != BoyacaRegion || dept != BoyacaRegion || cityVal != PlaceAll {
+		t.Fatalf("boyaca todos: filter=%q dept=%q city=%q all=%v", filter, dept, cityVal, all)
+	}
+
+	filter, dept, cityVal, all = PlaceFilterFromInputs("Boyacá", "Tunja", "", "")
+	if all || filter != "Tunja" || dept != BoyacaRegion || cityVal != "Tunja" {
+		t.Fatalf("tunja: filter=%q dept=%q city=%q all=%v", filter, dept, cityVal, all)
+	}
+
+	filter, dept, cityVal, all = PlaceFilterFromInputs("", "Cundinamarca", "", "")
+	if all || filter != CundinamarcaRegion || dept != CundinamarcaRegion || cityVal != PlaceAll {
+		t.Fatalf("legacy cund cookie: filter=%q dept=%q city=%q all=%v", filter, dept, cityVal, all)
+	}
+
+	zBog := Zone{Name: "Norte", City: "Bogotá"}
+	zTun := Zone{Name: "Centro", City: "Tunja"}
+	if !ZoneMatchesPlaceFilter(zBog, PlaceAll, PlaceAll) || !ZoneMatchesPlaceFilter(zTun, PlaceAll, PlaceAll) {
+		t.Fatal("todos should show every zone")
+	}
+
+	if !ZoneMatchesPlaceFilter(zBog, CundinamarcaRegion, PlaceAll) || ZoneMatchesPlaceFilter(zTun, CundinamarcaRegion, PlaceAll) {
+		t.Fatal("cundinamarca should hide Boyacá zones")
+	}
+
+	if ZoneMatchesPlaceFilter(zBog, BoyacaRegion, PlaceAll) || !ZoneMatchesPlaceFilter(zTun, BoyacaRegion, PlaceAll) {
+		t.Fatal("boyaca should hide Cundinamarca zones")
+	}
+
+	if !ZoneMatchesPlaceFilter(zTun, BoyacaRegion, "Tunja") || ZoneMatchesPlaceFilter(zBog, BoyacaRegion, "Tunja") {
+		t.Fatal("tunja city should only keep Tunja zones")
 	}
 }

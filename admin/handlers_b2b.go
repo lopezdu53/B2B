@@ -45,7 +45,10 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 		cities := CityList()
 		bogotaLocs := BogotaUrbanLocalidades()
 		bogotaIdx, _ := LoadBogotaIndex()
-		_, _, cityVal := CityFilterFromInputs(r.URL.Query().Get("city"), b2bCityCookieValue(r))
+		_, deptVal, cityVal, _ := PlaceFilterFromInputs(
+			r.URL.Query().Get("department"), r.URL.Query().Get("city"),
+			b2bDeptCookieValue(r), b2bCityCookieValue(r),
+		)
 
 		summary, err := appState.Store.B2BSummary(ctx, tid, advisorScope(r))
 		if err != nil {
@@ -58,6 +61,9 @@ func B2BPageHandler(appState *AppState) http.HandlerFunc {
 			"Zones":             zones,
 			"Categories":        categories,
 			"Cities":            cities,
+			"Departments":       Departments(),
+			"DepartmentsData":   asJSON(Departments()),
+			"DeptVal":           deptVal,
 			"CityVal":           cityVal,
 			"BogotaLocalidades": bogotaLocs,
 			"BogotaIndexData":   asJSON(bogotaIdx),
@@ -95,7 +101,7 @@ func B2BBusinessesHandler(appState *AppState) http.HandlerFunc {
 			return
 		}
 
-		city, _ := ResolveCityFilter(r.URL.Query().Get("city"))
+		city, _ := ResolvePlaceFilter(r.URL.Query().Get("department"), r.URL.Query().Get("city"))
 		f := BusinessFilter{
 			City:   city,
 			Status: r.URL.Query().Get("status"),
@@ -542,6 +548,35 @@ func setB2BCityCookie(w http.ResponseWriter, city string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     b2bCityCookie,
 		Value:    url.QueryEscape(city),
+		Path:     "/admin",
+		MaxAge:   60 * 60 * 24 * 30,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func b2bDeptCookieValue(r *http.Request) string {
+	c, err := r.Cookie(b2bDeptCookie)
+	if err != nil || c == nil {
+		return ""
+	}
+
+	val, err := url.QueryUnescape(c.Value)
+	if err != nil {
+		return strings.TrimSpace(c.Value)
+	}
+
+	return strings.TrimSpace(val)
+}
+
+func setB2BDeptCookie(w http.ResponseWriter, department string) {
+	department = strings.TrimSpace(department)
+	if department == "" {
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     b2bDeptCookie,
+		Value:    url.QueryEscape(department),
 		Path:     "/admin",
 		MaxAge:   60 * 60 * 24 * 30,
 		SameSite: http.SameSiteLaxMode,

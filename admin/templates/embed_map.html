@@ -155,10 +155,18 @@
 
         <div class="filters" id="filters">
             <div class="fld">
+                <label for="f-dept">Departamento</label>
+                <select id="f-dept">
+                    {{$d := .DeptVal}}
+                    <option value="all" {{if or (eq $d "all") (eq $d "")}}selected{{end}}>Todos</option>
+                    {{range .Departments}}<option value="{{.Name}}" {{if eq .Name $d}}selected{{end}}>{{.Name}}</option>{{end}}
+                </select>
+            </div>
+            <div class="fld">
                 <label for="f-city">Ciudad</label>
                 <select id="f-city">
                     {{$c := .CityVal}}
-                    <option value="all" {{if eq $c "all"}}selected{{end}}>Todas</option>
+                    <option value="all" {{if or (eq $c "all") (eq $c "")}}selected{{end}}>Todos</option>
                     {{range .Cities}}<option value="{{.}}" {{if eq . $c}}selected{{end}}>{{.}}</option>{{end}}
                 </select>
             </div>
@@ -245,6 +253,7 @@
         const STATUS_COLORS = { prospect:"#2563eb", in_progress:"#f59e0b", client:"#16a34a", featured:"#eab308", discarded:"#9ca3af" };
         const STATUS_LABELS = { prospect:"Prospecto", in_progress:"En gestión", client:"Cliente", featured:"Destacado", discarded:"Descartado" };
         const PRICE_SMART = {{if .PriceSmartData}}{{.PriceSmartData}}{{else}}[]{{end}};
+        const DEPARTMENTS = {{if .DepartmentsData}}{{.DepartmentsData}}{{else}}[]{{end}};
 
         const ADVISORS_LIST = {{.AdvisorsData}} || [];
         const ZONES_LIST = {{.ZonesData}} || [];
@@ -310,15 +319,75 @@
             renderLegend();
         }
 
+        function cityKeyJS(name) {
+            return String(name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+        function isAllChoice(v) {
+            v = cityKeyJS(v).trim();
+            return !v || v === "all" || v === "todos" || v === "todas";
+        }
+        function citiesForDept(dept) {
+            if (isAllChoice(dept)) {
+                var all = [];
+                (DEPARTMENTS || []).forEach(function (d) { (d.cities || []).forEach(function (c) { all.push(c); }); });
+                return all;
+            }
+            var found = (DEPARTMENTS || []).find(function (d) { return d.name === dept; });
+            return found && found.cities ? found.cities.slice() : [];
+        }
+        function departmentOfCityName(city) {
+            var k = cityKeyJS(city);
+            var hit = "all";
+            (DEPARTMENTS || []).forEach(function (d) {
+                (d.cities || []).forEach(function (c) { if (cityKeyJS(c) === k) hit = d.name; });
+                if (cityKeyJS(d.name) === k) hit = d.name;
+            });
+            return hit;
+        }
+        function fillCityOptions(keepCity) {
+            var deptEl = document.getElementById("f-dept");
+            var cityEl = document.getElementById("f-city");
+            if (!cityEl) return;
+            var current = keepCity || cityEl.value || "all";
+            var cities = citiesForDept(deptEl ? deptEl.value : "all");
+            var html = '<option value="all">Todos</option>';
+            var found = isAllChoice(current);
+            cities.forEach(function (c) {
+                html += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + "</option>";
+                if (c === current) found = true;
+            });
+            cityEl.innerHTML = html;
+            cityEl.value = found ? (isAllChoice(current) ? "all" : current) : "all";
+        }
+        function zoneMatchesPlace(z) {
+            var dept = (document.getElementById("f-dept") || {}).value;
+            var city = (document.getElementById("f-city") || {}).value;
+            var zcity = z.City || z.city || "";
+            if (!isAllChoice(city)) {
+                return cityKeyJS(zcity) === cityKeyJS(city);
+            }
+            if (!isAllChoice(dept)) {
+                return cityKeyJS(zcity) === cityKeyJS(dept) || departmentOfCityName(zcity) === dept;
+            }
+            return true;
+        }
+        function applyZoneFilter() {
+            if (!mapApi) return;
+            mapApi.setZones((ZONES_LIST || []).filter(zoneMatchesPlace));
+        }
+
         function paintEmbedPriceSmart() {
             var city = document.getElementById("f-city").value;
-            var key = String(city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            var pois = (!key || key === "all" || key === "todas")
+            var dept = (document.getElementById("f-dept") || {}).value;
+            var key = cityKeyJS(city);
+            var pois = (isAllChoice(key) && isAllChoice(dept))
                 ? PRICE_SMART.slice()
-                : PRICE_SMART.filter(function (p) {
-                    var ck = String(p.city || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                : (cityKeyJS(dept) === "boyaca" && isAllChoice(key))
+                    ? []
+                    : PRICE_SMART.filter(function (p) {
+                    var ck = cityKeyJS(p.city);
                     if (ck === key) return true;
-                    return (key === "bogota" || key === "chia") && (ck === "bogota" || ck === "chia");
+                    return (key === "bogota" || key === "chia" || key === "cundinamarca" || cityKeyJS(dept) === "cundinamarca") && (ck === "bogota" || ck === "chia");
                 });
             if (mapApi && mapApi.setPOIs) {
                 mapApi.setPOIs(pois, function (poi, marker) {
@@ -342,6 +411,7 @@
             count.textContent = "Cargando…";
             const params = new URLSearchParams({
                 t: TOKEN,
+                department: (document.getElementById("f-dept") || {value: "all"}).value,
                 city: document.getElementById("f-city").value,
                 status: document.getElementById("f-status").value,
                 advisor: document.getElementById("f-advisor").value,
@@ -358,6 +428,7 @@
                     mapApi.setMarkers(list, colorFor, function (b, marker) {
                         mapApi.openInfo(marker, popupHtml(b));
                     });
+                    applyZoneFilter();
                     paintEmbedPriceSmart();
                     count.textContent = mapApi.visibleCount() + " negocios";
                     renderLegend();
@@ -365,6 +436,7 @@
                 .catch(() => {
                     count.textContent = "Error al cargar";
                     if (mapApi.setMarkers) mapApi.setMarkers([], colorFor, function () {});
+                    applyZoneFilter();
                     paintEmbedPriceSmart();
                 });
         }
@@ -372,6 +444,8 @@
         // Filters: apply + mobile toggle.
         const filters = document.getElementById("filters");
         document.getElementById("btn-apply").addEventListener("click", () => { filters.classList.remove("open"); load(); });
+        var deptEl = document.getElementById("f-dept");
+        if (deptEl) deptEl.addEventListener("change", function () { fillCityOptions("all"); });
         document.getElementById("f-colorby").addEventListener("change", function () { colorMode = this.value; recolor(); });
         document.getElementById("filters-toggle").addEventListener("click", () => filters.classList.toggle("open"));
 
@@ -380,6 +454,7 @@
         if (window.matchMedia("(max-width: 720px)").matches) legendCard.classList.add("collapsed");
         document.getElementById("legend-head").addEventListener("click", () => legendCard.classList.toggle("collapsed"));
 
+        fillCityOptions("all");
         renderLegend();
         B2BMap.create({
             el: document.getElementById("map"),
@@ -389,7 +464,7 @@
             showBarrios: false
         }).then(function (api) {
             mapApi = api;
-            api.setZones(ZONES_LIST);
+            applyZoneFilter();
             load();
         }).catch(function () {
             document.getElementById("count").textContent = "Error al cargar el mapa";

@@ -73,7 +73,10 @@ func EmbedMapHandler(appState *AppState) http.HandlerFunc {
 			"Zones":             zones,
 			"Categories":        categories,
 			"Cities":            cities,
-			"CityVal":           CundinamarcaRegion,
+			"Departments":       Departments(),
+			"DepartmentsData":   asJSON(Departments()),
+			"DeptVal":           PlaceAll,
+			"CityVal":           PlaceAll,
 			"BogotaLocalidades": BogotaUrbanLocalidades(),
 			"AdvisorsData":      asJSON(advisors),
 			"ZonesData":         asJSON(zones),
@@ -106,7 +109,7 @@ func EmbedBusinessesHandler(appState *AppState) http.HandlerFunc {
 
 		q := r.URL.Query()
 
-		city, _ := ResolveCityFilter(q.Get("city"))
+		city, _ := ResolvePlaceFilter(q.Get("department"), q.Get("city"))
 		f := BusinessFilter{
 			City:   city,
 			Status: q.Get("status"),
