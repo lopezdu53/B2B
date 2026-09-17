@@ -20,11 +20,9 @@ func TestCityMatchSQLAcceptsBogotaLocalidades(t *testing.T) {
 		"chapinero",
 		"barrios unidos",
 		"kennedy",
-		"chia",
-		"soacha",
-		"la calera",
-		"cundinamarca",
-		"bogota",
+		"tunja",
+		"duitama",
+		"boyaca",
 	} {
 		if !strings.Contains(sql, "'"+needle+"'") {
 			t.Errorf("city match SQL missing %q", needle)

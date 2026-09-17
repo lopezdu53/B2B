@@ -87,11 +87,13 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		ctx := r.Context()
 		q := r.URL.Query()
 
-		city, _, cityVal := CityFilterFromInputs(q.Get("city"), b2bCityCookieValue(r))
-		if q.Get("city") != "" {
+		_, deptVal, cityVal, _ := PlaceFilterFromInputs(q.Get("department"), q.Get("city"), b2bDeptCookieValue(r), b2bCityCookieValue(r))
+		if q.Get("city") != "" || q.Get("department") != "" {
 			setB2BCityCookie(w, cityVal)
+			setB2BDeptCookie(w, deptVal)
 		}
 
+		city, _ := ResolvePlaceFilter(deptVal, cityVal)
 		f := BusinessFilter{
 			City:   city,
 			Status: q.Get("status"),
@@ -144,7 +146,7 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		// Preserve filters across page links.
 		params := url.Values{}
 		for _, kv := range []struct{ k, v string }{
-			{"q", f.Search}, {"city", cityVal}, {"status", f.Status},
+			{"q", f.Search}, {"city", cityVal}, {"department", deptVal}, {"status", f.Status},
 			{"advisor", q.Get("advisor")}, {"category", q.Get("category")}, {"sort", f.Sort},
 			{"rating", f.RatingBand},
 		} {
@@ -211,29 +213,32 @@ func NegociosPageHandler(appState *AppState) http.HandlerFunc {
 		}
 
 		data := map[string]any{
-			"Rows":       rows,
-			"Count":      total,
-			"Advisors":   advisors,
-			"Zones":      zones,
-			"Categories": categories,
-			"Cities":     cities,
-			"QVal":       f.Search,
-			"CityVal":    cityVal,
-			"StatVal":    f.Status,
-			"AdvVal":     q.Get("advisor"),
-			"CatVal":     q.Get("category"),
-			"SortVal":    f.Sort,
-			"RateVal":    f.RatingBand,
-			"Page":       page,
-			"TotalPages": totalPages,
-			"HasPrev":    page > 1,
-			"HasNext":    page < totalPages,
-			"PrevURL":    pageURL(page - 1),
-			"NextURL":    pageURL(page + 1),
-			"ExportURL":  exportURL,
-			"IsAdvisor":  advisorScope(r) != nil,
-			"Success":    q.Get("success"),
-			"Error":      q.Get("error"),
+			"Rows":            rows,
+			"Count":           total,
+			"Advisors":        advisors,
+			"Zones":           zones,
+			"Categories":      categories,
+			"Cities":          cities,
+			"Departments":     Departments(),
+			"DepartmentsData": asJSON(Departments()),
+			"QVal":            f.Search,
+			"DeptVal":         deptVal,
+			"CityVal":         cityVal,
+			"StatVal":         f.Status,
+			"AdvVal":          q.Get("advisor"),
+			"CatVal":          q.Get("category"),
+			"SortVal":         f.Sort,
+			"RateVal":         f.RatingBand,
+			"Page":            page,
+			"TotalPages":      totalPages,
+			"HasPrev":         page > 1,
+			"HasNext":         page < totalPages,
+			"PrevURL":         pageURL(page - 1),
+			"NextURL":         pageURL(page + 1),
+			"ExportURL":       exportURL,
+			"IsAdvisor":       advisorScope(r) != nil,
+			"Success":         q.Get("success"),
+			"Error":           q.Get("error"),
 		}
 
 		renderTemplate(appState, w, r, "negocios.html", data)
@@ -251,7 +256,7 @@ func NegociosExportHandler(appState *AppState) http.HandlerFunc {
 		ctx := r.Context()
 		q := r.URL.Query()
 
-		city, _, _ := CityFilterFromInputs(q.Get("city"), b2bCityCookieValue(r))
+		city, _, _, _ := PlaceFilterFromInputs(q.Get("department"), q.Get("city"), b2bDeptCookieValue(r), b2bCityCookieValue(r))
 		f := BusinessFilter{City: city, Status: q.Get("status"), Search: strings.TrimSpace(q.Get("q"))}
 		f.SetRatingBand(q.Get("rating"))
 
