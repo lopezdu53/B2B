@@ -61,6 +61,7 @@ func Routes(r chi.Router, appState *AppState, riverUIHandler http.Handler) {
 				r.Use(RequireTenantAdmin)
 				r.Get("/b2b/asesores", AsesoresPageHandler(appState))
 				r.Get("/b2b/zonas", ZonasPageHandler(appState))
+				r.Get("/b2b/visitas", VisitasPageHandler(appState))
 				r.Get("/b2b/categorias", CategoriasPageHandler(appState))
 				r.Post("/b2b/categorias", CreateCategoryHandler(appState))
 				r.Post("/b2b/categorias/{id}/update", UpdateCategoryHandler(appState))

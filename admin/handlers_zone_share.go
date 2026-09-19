@@ -596,7 +596,7 @@ func resolveZoneShare(appState *AppState, r *http.Request) (*Zone, int64, bool) 
 // EmbedZoneHandler renders the public, read-only page for a single zone.
 func EmbedZoneHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		z, _, ok := resolveZoneShare(appState, r)
+		z, tid, ok := resolveZoneShare(appState, r)
 		if !ok {
 			http.Error(w, "Enlace de zona inválido o vencido.", http.StatusForbidden)
 			return
@@ -606,6 +606,7 @@ func EmbedZoneHandler(appState *AppState) http.HandlerFunc {
 			"Token":            r.URL.Query().Get("t"),
 			"Zone":             z,
 			"ZoneData":         asJSON([]Zone{*z}),
+			"Visitor":          recordShareVisit(appState, r, tid, ShareKindZone, z.ID, z.Name),
 			"GoogleMapsAPIKey": resolveGoogleMapsAPIKey(appState, r),
 			"AssetVersion":     assetVersion,
 		}
@@ -662,7 +663,7 @@ func resolveGroupShare(appState *AppState, r *http.Request) (*ZoneGroup, int64, 
 // EmbedGroupHandler renders the public, read-only page for a zone group.
 func EmbedGroupHandler(appState *AppState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		g, _, ok := resolveGroupShare(appState, r)
+		g, tid, ok := resolveGroupShare(appState, r)
 		if !ok {
 			http.Error(w, "Enlace de grupo inválido o vencido.", http.StatusForbidden)
 			return
@@ -677,6 +678,7 @@ func EmbedGroupHandler(appState *AppState) http.HandlerFunc {
 			"Token":            r.URL.Query().Get("t"),
 			"Group":            g,
 			"ZoneData":         asJSON(zones),
+			"Visitor":          recordShareVisit(appState, r, tid, ShareKindGroup, g.ID, g.Name),
 			"GoogleMapsAPIKey": resolveGoogleMapsAPIKey(appState, r),
 			"AssetVersion":     assetVersion,
 		}

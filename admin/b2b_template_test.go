@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestB2BTemplateRenders ensures the B2B page template (and its partials) parse
@@ -70,9 +71,14 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"EmbedToken":       "1.deadbeef",
 		"CanEmbed":         true,
 		"GoogleMapsAPIKey": "",
+		"Visits": []ShareVisit{{
+			Kind: ShareKindZone, TargetName: "Centro", IP: "190.25.1.10",
+			Country: "Colombia", CountryISO: "CO", City: "Bogotá",
+			Timezone: "America/Bogota", VisitedAt: time.Date(2026, 9, 19, 16, 5, 0, 0, time.UTC),
+		}},
 	}
 
-	for _, name := range []string{"b2b.html", "negocios.html", "papelera.html", "asesores.html"} {
+	for _, name := range []string{"b2b.html", "negocios.html", "papelera.html", "asesores.html", "visitas.html"} {
 		if err := tmpl.ExecuteTemplate(io.Discard, name, data); err != nil {
 			t.Fatalf("execute %s: %v", name, err)
 		}
@@ -105,6 +111,10 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Token":            "z.1.2.deadbeef",
 		"Zone":             zones[0],
 		"ZoneData":         asJSON(zones),
+		"Visitor": ShareVisit{
+			IP: "190.25.1.10", Country: "Colombia", CountryISO: "CO", City: "Bogotá",
+			Timezone: "America/Bogota", VisitedAt: time.Date(2026, 9, 19, 16, 5, 0, 0, time.UTC),
+		},
 		"GoogleMapsAPIKey": "AIza-test",
 		"AssetVersion":     "test",
 	}
@@ -130,6 +140,10 @@ func TestB2BTemplateRenders(t *testing.T) {
 		"Token":            "g.1.1.deadbeef",
 		"Group":            ZoneGroup{ID: 1, Name: "Norte"},
 		"ZoneData":         asJSON(zones),
+		"Visitor": ShareVisit{
+			IP: "190.25.1.10", Country: "Colombia", CountryISO: "CO", City: "Chía",
+			Timezone: "America/Bogota", VisitedAt: time.Date(2026, 9, 19, 16, 5, 0, 0, time.UTC),
+		},
 		"GoogleMapsAPIKey": "AIza-test",
 		"AssetVersion":     "test",
 	}
@@ -184,6 +198,48 @@ func TestB2BTemplateRenders(t *testing.T) {
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "settings.html", sdata); err != nil {
 		t.Fatalf("execute settings.html: %v", err)
+	}
+}
+
+func TestVisitasPageAndEmbedVisitorChip(t *testing.T) {
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	if err != nil {
+		t.Fatalf("parse templates: %v", err)
+	}
+
+	visit := ShareVisit{
+		Kind: ShareKindGroup, TargetName: "Norte unido", IP: "190.25.1.10",
+		Country: "Colombia", CountryISO: "CO", City: "Chía",
+		Timezone: "America/Bogota", VisitedAt: time.Date(2026, 9, 19, 16, 5, 0, 0, time.UTC),
+	}
+
+	var buf strings.Builder
+	if err := tmpl.ExecuteTemplate(&buf, "visitas.html", map[string]any{
+		"CSRFToken": "t",
+		"CanManage": true,
+		"Visits":    []ShareVisit{visit},
+	}); err != nil {
+		t.Fatalf("execute visitas.html: %v", err)
+	}
+
+	html := buf.String()
+	for _, needle := range []string{"Visitas de mapas públicos", "190.25.1.10", "Chía", "flagcdn.com/24x18/co.png", "/admin/b2b/visitas"} {
+		if !strings.Contains(html, needle) {
+			t.Errorf("visitas.html missing %q", needle)
+		}
+	}
+
+	buf.Reset()
+	if err := tmpl.ExecuteTemplate(&buf, "embed_zona.html", map[string]any{
+		"Token": "z.1.1.abc", "Zone": Zone{Name: "Centro"}, "ZoneData": asJSON([]Zone{}),
+		"Visitor": visit, "AssetVersion": "t",
+	}); err != nil {
+		t.Fatalf("execute embed_zona.html: %v", err)
+	}
+
+	embed := buf.String()
+	if !strings.Contains(embed, `class="visitor"`) || !strings.Contains(embed, "Chía") || !strings.Contains(embed, "septiembre") {
+		t.Fatalf("embed visitor chip missing: %s", embed[strings.Index(embed, "topbar"):strings.Index(embed, "topbar")+800])
 	}
 }
 

@@ -293,6 +293,10 @@ type IB2BStore interface {
 	UpdateZoneGroup(ctx context.Context, tenantID, id int64, name string, zoneIDs []int64) error
 	DeleteZoneGroup(ctx context.Context, tenantID, id int64) error
 
+	// Public zone/group map-link visits
+	CreateShareVisit(ctx context.Context, tenantID int64, v ShareVisit) error
+	ListShareVisits(ctx context.Context, tenantID int64, limit int) ([]ShareVisit, error)
+
 	// Categories
 	ListCategories(ctx context.Context, tenantID int64) ([]Category, error)
 	CreateCategory(ctx context.Context, tenantID int64, name, color, icon string) (*Category, error)
