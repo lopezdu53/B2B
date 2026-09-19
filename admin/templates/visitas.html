@@ -1,0 +1,74 @@
+{{define "visitas.html"}}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    {{template "head" .}}
+    <title>Visitas - Maps Scraper</title>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Visitas de mapas públicos</h1>
+            <p>Quién abre los enlaces de zona y de grupo de zonas: IP, país, ciudad y hora local.</p>
+        </div>
+
+        <div class="card">
+            <h2 class="sec-title"><span class="ico">🌐</span> Visitas <span class="count-badge">{{len .Visits}}</span></h2>
+            {{if .Visits}}
+            <div class="filters-bar" style="margin-bottom:1rem;">
+                <div><label for="search">Buscar</label><input type="search" id="search" placeholder="IP, ciudad, país o mapa…" onkeyup="filterRows('search','visit-table')"></div>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table" id="visit-table">
+                    <thead>
+                        <tr>
+                            <th>Mapa</th>
+                            <th>IP</th>
+                            <th>País</th>
+                            <th>Ciudad</th>
+                            <th>Fecha y hora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {{range .Visits}}
+                        <tr>
+                            <td>
+                                <strong>{{.TargetName}}</strong>
+                                <div class="muted" style="font-size:.78rem;">{{.KindLabel}}</div>
+                            </td>
+                            <td><code>{{if .IP}}{{.IP}}{{else}}—{{end}}</code></td>
+                            <td>
+                                <span style="display:inline-flex;align-items:center;gap:.4rem;">
+                                    {{if .FlagURL}}<img src="{{.FlagURL}}" alt="" width="24" height="18" style="border-radius:2px;box-shadow:0 0 0 1px rgba(15,23,42,.12);">{{end}}
+                                    <span>{{.FlagEmoji}} {{if .Country}}{{.Country}}{{else}}—{{end}}</span>
+                                </span>
+                            </td>
+                            <td>{{.PlaceLabel}}</td>
+                            <td>{{.ClockLabel}}</td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="big">🌐</div>
+                <p>Aún no hay visitas. Cuando alguien abra un enlace público de zona o de grupo, aquí verás su IP, bandera, ciudad y fecha.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+    <script>
+    function filterRows(inputId, tableId) {
+        var q = (document.getElementById(inputId).value || "").toLowerCase();
+        var rows = document.querySelectorAll("#" + tableId + " tbody tr");
+        rows.forEach(function (tr) {
+            tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) >= 0 ? "" : "none";
+        });
+    }
+    </script>
+</body>
+</html>
+{{end}}
