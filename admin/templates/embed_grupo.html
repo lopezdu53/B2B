@@ -48,6 +48,14 @@
             margin-left: auto; font-size: .76rem; font-weight: 600; color: var(--muted);
             background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: .28rem .7rem; white-space: nowrap;
         }
+        .biz-tog {
+            font: inherit; font-size: .76rem; font-weight: 700; cursor: pointer;
+            color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+            border-radius: 999px; padding: .28rem .75rem; white-space: nowrap;
+        }
+        .biz-tog[aria-pressed="false"] {
+            color: #fff; background: var(--brand); border-color: var(--brand);
+        }
         .visitor {
             display: inline-flex; align-items: center; gap: .4rem; font-size: .74rem; font-weight: 600;
             color: var(--ink); background: var(--bg); border: 1px solid var(--line);
@@ -109,6 +117,7 @@
             .visitor { max-width: 100%; }
             .visitor .when { display: none; }
             .brand .sub { display: none; }
+            .biz-tog { margin-left: 0; }
             .legend-card { left: 10px; right: 10px; bottom: 10px; max-width: none; }
         }
     </style>
@@ -129,6 +138,7 @@
             <span class="when">{{.Visitor.ClockLabel}}</span>
         </span>
         {{end}}
+        <button type="button" class="biz-tog" id="tog-biz" aria-pressed="true">Ocultar negocios</button>
         <span class="count" id="count"></span>
     </header>
 
@@ -157,6 +167,8 @@
         const NEUTRAL = "#94a3b8";
         const escapeHtml = window.B2BMap.escapeHtml;
         let mapApi = null;
+        let allBiz = [];
+        let showBiz = true;
 
         function colorFor(b) {
             return STATUS_COLORS[b.status] || STATUS_COLORS.prospect;
@@ -212,6 +224,31 @@
             return true;
         }
 
+        function onBizClick(b, marker) {
+            mapApi.openInfo(marker, popupHtml(b));
+        }
+
+        function paintBizToggle() {
+            const btn = document.getElementById("tog-biz");
+            if (!btn) return;
+            btn.setAttribute("aria-pressed", showBiz ? "true" : "false");
+            btn.textContent = showBiz ? "Ocultar negocios" : "Mostrar negocios";
+        }
+
+        function applyBizVisibility() {
+            if (!mapApi) return;
+            const count = document.getElementById("count");
+            if (showBiz) {
+                mapApi.setMarkers(allBiz, colorFor, onBizClick);
+                const n = mapApi.visibleCount ? mapApi.visibleCount() : allBiz.length;
+                count.textContent = n + " negocios";
+            } else {
+                mapApi.setMarkers([], colorFor, onBizClick);
+                count.textContent = allBiz.length + " negocios ocultos";
+            }
+            paintBizToggle();
+        }
+
         function load() {
             if (!mapApi) return;
             const count = document.getElementById("count");
@@ -223,15 +260,14 @@
                 })
                 .then(list => {
                     if (!Array.isArray(list)) throw new Error("bad payload");
-                    mapApi.setMarkers(list, colorFor, function (b, marker) {
-                        mapApi.openInfo(marker, popupHtml(b));
-                    });
+                    allBiz = list;
+                    applyBizVisibility();
                     if (!fitZones()) mapApi.fitOverview([]);
-                    count.textContent = (mapApi.visibleCount ? mapApi.visibleCount() : list.length) + " negocios";
                     renderLegend();
                 })
                 .catch(() => {
                     count.textContent = "Error al cargar";
+                    allBiz = [];
                     if (mapApi.setMarkers) mapApi.setMarkers([], colorFor, function () {});
                     fitZones();
                 });
@@ -240,6 +276,11 @@
         const legendCard = document.getElementById("legend-card");
         if (window.matchMedia("(max-width: 720px)").matches) legendCard.classList.add("collapsed");
         document.getElementById("legend-head").addEventListener("click", () => legendCard.classList.toggle("collapsed"));
+        document.getElementById("tog-biz").addEventListener("click", function () {
+            showBiz = !showBiz;
+            applyBizVisibility();
+        });
+        paintBizToggle();
 
         renderLegend();
         B2BMap.create({
