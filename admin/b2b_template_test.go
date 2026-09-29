@@ -243,6 +243,41 @@ func TestVisitasPageAndEmbedVisitorChip(t *testing.T) {
 	}
 }
 
+func TestEmbedGrupoCanToggleAllBusinesses(t *testing.T) {
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	if err != nil {
+		t.Fatalf("parse templates: %v", err)
+	}
+
+	var buf strings.Builder
+	if err := tmpl.ExecuteTemplate(&buf, "embed_grupo.html", map[string]any{
+		"Token":        "g.1.1.abc",
+		"Group":        ZoneGroup{ID: 1, Name: "Norte unido"},
+		"ZoneData":     asJSON([]Zone{{ID: 1, Name: "Norte"}}),
+		"AssetVersion": "t",
+	}); err != nil {
+		t.Fatalf("execute embed_grupo.html: %v", err)
+	}
+
+	html := buf.String()
+	for _, needle := range []string{
+		`id="tog-biz"`,
+		`Ocultar negocios`,
+		`Mostrar negocios`,
+		`applyBizVisibility`,
+		`showBiz = !showBiz`,
+		`negocios ocultos`,
+	} {
+		if !strings.Contains(html, needle) {
+			t.Errorf("embed_grupo.html missing %q", needle)
+		}
+	}
+
+	if strings.Contains(html, `id="btn-draw-zone"`) || strings.Contains(html, `id="dibujar-recto"`) {
+		t.Error("public group map must not expose draw tools")
+	}
+}
+
 func TestB2BSearchFormHasCascadedLocationSelects(t *testing.T) {
 	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
 	if err != nil {
